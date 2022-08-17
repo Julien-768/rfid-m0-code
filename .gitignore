@@ -407,7 +407,5 @@ FodyWeavers.xsd
 .vscode/c_cpp_properties.json
 .vscode/extensions.json
 .vscode/launch.json
-test/README
-lib/README
-include/README
+
 >>>>>>> 1233811b1abec3edb86c02d591501069660c6537
