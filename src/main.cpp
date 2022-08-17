@@ -1,4 +1,4 @@
-/*
+#/*
  Name:		Feather_M0.ino
  Created:	2020/11/18
  Author:	jcourtec
@@ -50,20 +50,20 @@
 #define PIN_SERVO		12	               // output pwm for signal servo pin
 
 // output for CS temperature with MAX31865
-#define RREF            430.0               // resistance reference for RTD
+#define RREF            4300.0               // resistance reference for RTD- 430.0 for PT100 and 4300.0 for PT1000
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // User parameters
 struct Config {
 	// Hardware options
-	bool opt_IR_1 = true;              // use infraed sensor 1
-	bool opt_IR_2 = true;              // use infraed sensor 2
-	bool opt_temp_prec = false;         // use temperature recording
+	bool opt_IR_1 = false;              // use infraed sensor 1
+	bool opt_IR_2 = false;              // use infraed sensor 2
+	bool opt_temp_prec = true;         // use temperature recording
 	bool opt_servo = false;             // use servomotor
 	// Modes and key parameters
 	int delay_loop = 10;			    // loop delay in ms (time to sleep between checking sensors) RFID timeout is always adding to this delay_loop
-	const char* tag_type = "FDX";       // TAG supported "FDX" / "EM4102"
-    int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR event
+	const char* tag_type = "EM4102";    // TAG supported "FDX" / "EM4102"
+    int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR eventint delay_tag_save = 1;
 	int delay_tag_save = 1; 	        // time in seconds to save a tag sitting on the antenna
 	int delay_temp = 10;				// period in seconds to record temperature
 	bool mode_day_only = false;   	    // mode to switch off the device at night
@@ -117,7 +117,6 @@ bool tag_record = false, tag_event = false;                    //
 bool stop_event = false, start_event = false;                  //
 
 float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
-float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;
 float Vbat = 0, Vbat_previous = 0;
 float V_LVD = 3;											  // Low voltage disconnect
 
@@ -125,23 +124,6 @@ float V_LVD = 3;											  // Low voltage disconnect
 /*
   We have so many functions, you'll find them at the end of the file
 */
-void blink(uint32_t Pin, int delay_ms, int blink_number);
-void error(int error_number);
-String isoformat(DateTime t, int ms, String separator);
-String isoformat_date(DateTime t) ;
-float get_voltage(uint32_t ulPin);
-void log_data(String data, const char* filename) ;
-void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename) ;
-void daily_data_file(char* filename, DateTime t) ;
-void loadConfiguration(Config& config);
-void load_and_save_local_Configuration(struct Config, Config& config);
-void printFile(const char* filename) ;
-void checkFault(void);
-bool compare(const char* TAG_1, const char* TAG_2);
-unsigned int hex2int(char input);
-String longlong2String(unsigned long long int bigint) ;
-String tag_hex_to_NIC(String src) ;
-void shutDownButton(void);
 
 // The setup function runs once when you press reset or power the board
 void setup() {
@@ -169,10 +151,9 @@ void setup() {
 	digitalWrite(PIN_PW_RFID, HIGH);
 	digitalWrite(PIN_PW_SERVO, LOW);
 	digitalWrite(PIN_PW_3V, HIGH);
-	
 	pwm.setClockDivider(16, false);		// Main clock divided by 16 => 3MHz
 	pwm.timer(2, 4, 20, true);			// Use timer 2 for pin PIN_IR_SEND, divide clock by 4, resolution 20, single-slope PWM
-	pwm.analogWrite(PIN_IR_SEND, 500);  // PWM frequency is now around 36KHz, dutycycle is 500 / 1000 * 100% = 50%
+	pwm.analogWrite(PIN_IR_SEND, 500);  // PWM frequency is now around 38KHz, dutycycle is 500 / 1000 * 100% = 50%
 
 	Serial.print("Waiting for console opening");
 	for (size_t r = 0; r < 20; r++) {
@@ -221,12 +202,12 @@ void setup() {
 	data = isoformat(now, now_ms, ";") + "System; " + "Start;" + "\n";
 	if (now.unixtime() < time_compil.unixtime()) {
 		rtc_error = true;
-		data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
+		data = isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
 	}
 	// rtc time reset at compilation time
 	if (rtc.lostPower()) {
 		rtc_error = true;
-		data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
+		data = isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
 	}
 	if (rtc_error) {
 		rtc.adjust(time_compil);
@@ -234,7 +215,7 @@ void setup() {
 		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date; ";
 	}
 	else {
-		data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;" ;
+		data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;" + "\n";
 	}
 
 	// Creating a new file at setup
@@ -276,7 +257,7 @@ void setup() {
 	}
 	cmd_read.toCharArray(cmd_read_tag, 6);
 
-	// Initialization of the servo motor
+	// Inialization of the servo motor
 	if (config.mode_capture != 1)
 	{	// open the door
 		Servo_control.attach(PIN_SERVO);
@@ -286,14 +267,6 @@ void setup() {
 		digitalWrite(PIN_PW_SERVO, LOW);
 		digitalWrite(PIN_PW_RFID, HIGH);
 	}
-
-	//Initialization Battery voltage
-	delay(100);
-	Vbatn_2 = get_voltage(PIN_VBAT);
-	delay(100);
-	Vbatn_1 = get_voltage(PIN_VBAT);
-	Vbatn = get_voltage(PIN_VBAT);
-	delay(100);
 
 	digitalWrite(PIN_BUZZER_LED, LOW);
 	Serial.println(" ");
@@ -319,158 +292,157 @@ void loop() {
 		daily_data_file(filename_data, now);
 	}
 
-	// check if acquisition should run according to day only mode
-	if (config.mode_day_only == true) {
-		hours_current = now.hour();
-		// not in the range
-		if (hours_current < config.start_time or hours_current > config.stop_time) {
-			stop_event = true;
-		}
-		// in the range
-		else {
-			start_event = true;
-		}
-	}
+	//// check if acquisition should run according to day only mode
+	//if (config.mode_day_only == true) {
+	//	hours_current = now.hour();
+	//	// not in the range
+	//	if (hours_current < config.start_time or hours_current > config.stop_time) {
+	//		stop_event = true;
+	//	}
+	//	// in the range
+	//	else {
+	//		start_event = true;
+	//	}
+	//}
 
-	// stop if running
-	if (stop_event and acquisition) {
-		// TODO Release Bird / Open door if closed
-		acquisition = false;
-		digitalWrite(PIN_PW_SERVO, LOW);
-		digitalWrite(PIN_PW_3V, LOW);
-		digitalWrite(PIN_PW_RFID, LOW);
-	} 
+	//// stop if running
+	//if (stop_event and acquisition) {
+	//	// TODO Release Bird / Open door if closed
+	//	acquisition = false;
+	//	digitalWrite(PIN_PW_SERVO, LOW);
+	//	digitalWrite(PIN_PW_3V, LOW);
+	//}
 
-	// start if sleeping
-	if (start_event and (!acquisition)) {
-		acquisition = true;
-		digitalWrite(PIN_PW_3V, HIGH);
-		digitalWrite(PIN_PW_RFID, HIGH);
-	}
+	//// start if sleeping
+	//if (start_event and acquisition) {
+	//	acquisition = true;
+	//	digitalWrite(PIN_PW_3V, HIGH);
+	//}
 
 
 	// While acquisition is running
-	if (acquisition == true) {
-		IR_event = false;
+	if (true) {//acquisition == true) {
+		//IR_event = false;
 
-		// Event on infrared sensor 1
-		if (config.opt_IR_1 == true) {
-			// record infrared beam events
-			IR_1 = digitalRead(PIN_IR_1);
-			if (IR_1 != IR_1_previous) {
-				IR_1_previous = IR_1;
-				IR_event = true;
-				log_data_IR(rtc, IR_1, "IR 1 ; ", filename_data);
-				RFID_awake = config.rfid_attempts;
-			}
-		}
+		//// Event on infrared sensor 1
+		//if (config.opt_IR_1 == true) {
+		//	// record infrared beam events
+		//	IR_1 = digitalRead(PIN_IR_1);
+		//	if (IR_1 != IR_1_previous) {
+		//		IR_1_previous = IR_1;
+		//		IR_event = true;
+		//		log_data_IR(rtc, IR_1, "IR 1 ; ", filename_data);
+		//		RFID_awake = config.rfid_attempts;
+		//	}
+		//}
 
-		// Event on infrared sensor 2
-		if (config.opt_IR_2 == true) {
-			IR_2 = digitalRead(PIN_IR_2);
-			if (IR_2 != IR_2_previous) {
-				IR_2_previous = IR_2;
-				IR_event = true;
-				log_data_IR(rtc, IR_2, "IR 2 ; ", filename_data);
-				RFID_awake = config.rfid_attempts;
-			}
-		}
+		//// Event on infrared sensor 2
+		//if (config.opt_IR_2 == true) {
+		//	IR_2 = digitalRead(PIN_IR_2);
+		//	if (IR_2 != IR_2_previous) {
+		//		IR_2_previous = IR_2;
+		//		IR_event = true;
+		//		log_data_IR(rtc, IR_2, "IR 2 ; ", filename_data);
+		//		RFID_awake = config.rfid_attempts;
+		//	}
+		//}
 
-		// read RFID a certain number of attemps base on external events (IR, ..)
-		if (RFID_awake > 0) {
-			Serial1.write(cmd_read_tag);
-			delay(10);
-			trx = Serial1.readStringUntil('\r');
-			delay(10);
-			trx.trim();
-			tag_event = false;
-			if (trx.indexOf("-") < 0) {//  if '-' not in trx:
-				tag_event = true;
-				trx.replace("+ ", "");
-				trx.replace("ru", "");
-				if (trx.length() >= 5) {	// avoid tagless file names
-					if (trx == tag) {	// avoid repeated records
-						// now_ms = millis() % 1000; TODO ?
-						last_tag_diff = rtc.now() - time_last_tag;
-						if (last_tag_diff.seconds() > config.delay_tag_save) {
-							tag_record = true;
-						}
-					}
-					else {
-						tag_record = true;
-					}
-				}
-			}
+		//// read RFID a certain number of attemps base on external events (IR, ..)
+		//if (RFID_awake > 0) {
+		//	Serial1.write(cmd_read_tag);
+		//	delay(10);
+		//	trx = Serial1.readStringUntil('\r');
+		//	delay(10);
+		//	trx.trim();
+		//	tag_event = false;
+		//	if (trx.indexOf("-") < 0) {//  if '-' not in trx:
+		//		tag_event = true;
+		//		trx.replace("+ ", "");
+		//		trx.replace("ru", "");
+		//		if (trx.length() >= 5) {	// avoid tagless file names
+		//			if (trx == tag) {	// avoid repeated records
+		//				// now_ms = millis() % 1000; TODO ?
+		//				last_tag_diff = rtc.now() - time_last_tag;
+		//				if (last_tag_diff.seconds() > config.delay_tag_save) {
+		//					tag_record = true;
+		//				}
+		//			}
+		//			else {
+		//				tag_record = true;
+		//			}
+		//		}
+		//	}
 
-			if (config.opt_IR_1 or config.opt_IR_2) {
-				RFID_awake--;
-			}
-		}
+		//	if (config.opt_IR_1 or config.opt_IR_2) {
+		//		RFID_awake--;
+		//	}
+		//}
 
-		// record a pit tag
-		if (tag_record == true) {
-			digitalWrite(PIN_BUZZER_LED, HIGH);
-			time_last_tag = rtc.now();
-			now_ms = millis() % 1000;
+		//// record a pit tag
+		//if (tag_record == true) {
+		//	digitalWrite(PIN_BUZZER_LED, HIGH);
+		//	time_last_tag = rtc.now();
+		//	now_ms = millis() % 1000;
 
-			if (String(config.tag_type) == "FDX") {
-				tag = tag_hex_to_NIC(trx);
-			}
-          	else {
-            	tag = trx;
-          	}
-			data = isoformat(time_last_tag, now_ms, ";") + tag + "; A0;";
-			log_data(data, filename_data);
-			tag_record = false;
-			digitalWrite(PIN_BUZZER_LED, LOW);
-		}
+		//	if (String(config.tag_type) == "FDX") {
+		//		tag = tag_hex_to_NIC(trx);
+		//	}
+  //        	else {
+  //          	tag = trx;
+  //        	}
+		//	data = isoformat(time_last_tag, now_ms, ";") + tag + "; Antenna 1;";
+		//	log_data(data, filename_data);
+		//	tag_record = false;
+		//	digitalWrite(PIN_BUZZER_LED, LOW);
+		//}
 
-		// Action with the servo - Capture
-		if (config.mode_capture != 1) {
-			////////// notifying servo is busy
-			////////now = rtc.now();
-			////////if (servo_busy)
-			////////{
-			////////	if (!door_already_closed and time_opened.unixtime() + config.servo_bird_release_time > now.unixtime())
-			////////	{
-			////////		Serial.println("Servomotor is busy, closing blocked");
-			////////		servo_busy = false;
-			////////	}
-			////////}
+		//// Action with the servo - Capture
+		//if (config.mode_capture != 1) {
+		//	////////// notifying servo is busy
+		//	////////now = rtc.now();
+		//	////////if (servo_busy)
+		//	////////{
+		//	////////	if (!door_already_closed and time_opened.unixtime() + config.servo_bird_release_time > now.unixtime())
+		//	////////	{
+		//	////////		Serial.println("Servomotor is busy, closing blocked");
+		//	////////		servo_busy = false;
+		//	////////	}
+		//	////////}
 
-			if (config.mode_capture == 2 and IR_event == true) {
-				capture_order = true;
-			}
+		//	if (config.mode_capture == 2 and IR_event == true) {
+		//		capture_order = true;
+		//	}
 
-			if (config.mode_capture == 4 and tag_event == true) {
-				capture_order = true;
-			}
+		//	if (config.mode_capture == 4 and tag_event == true) {
+		//		capture_order = true;
+		//	}
 
-			// look for special tag
-			if (config.mode_capture == 3 and tag_record == true) {
-				trx.toCharArray(test, 11);
-				capture_order = compare(test, config.tag_1) or compare(test, config.tag_2) or compare(test, config.tag_3) or compare(test, config.tag_4) or compare(test, config.tag_5);
-			}
+		//	// look for special tag
+		//	if (config.mode_capture == 3 and tag_record == true) {
+		//		trx.toCharArray(test, 11);
+		//		capture_order = compare(test, config.tag_1) or compare(test, config.tag_2) or compare(test, config.tag_3) or compare(test, config.tag_4) or compare(test, config.tag_5);
+		//	}
 
-			// capture
-			if (capture_order == true and door_already_closed == false)
-			{
-				digitalWrite(PIN_PW_SERVO, HIGH);
-				Servo_control.write(servo_pos_closed);
-				time_last_door_closed = rtc.now();
-				Serial.println("Door closed");
-				capture_order = false;
-				door_already_closed = true;
-				delay(2000);
-				digitalWrite(PIN_PW_SERVO, LOW);
-			}
-		}
+		//	// capture
+		//	if (capture_order == true and door_already_closed == false)
+		//	{
+		//		digitalWrite(PIN_PW_SERVO, HIGH);
+		//		Servo_control.write(servo_pos_closed);
+		//		time_last_door_closed = rtc.now();
+		//		Serial.println("Door closed");
+		//		capture_order = false;
+		//		door_already_closed = true;
+		//		delay(2000);
+		//		digitalWrite(PIN_PW_SERVO, LOW);
+		//	}
+		//}
 
 		// Temperature
-		if (config.opt_temp_prec == true and time_last_temp.unixtime() + config.delay_temp <= now.unixtime()) {
+		if (config.opt_temp_prec == true) {// and time_last_temp.unixtime() + config.delay_temp <= now.unixtime()) {
 			uint16_t rtd, ohmsx100;
 			uint32_t dummy;
 			rtd = Temp.readRTD();
+
 
 			// Use uint16_t (ohms * 100) since it matches data type in lookup table.
 			dummy = ((uint32_t)(rtd << 1)) * 100 * ((uint32_t)floor(RREF));
@@ -487,7 +459,7 @@ void loop() {
 			checkFault();
 			time_last_temp = rtc.now();
 			now_ms = millis() % 1000;
-			if (abs(Temperature_previous - Temperature) > 0.02) {
+			if (true) { //abs(Temperature_previous - Temperature) > 0.02) {
 				Temperature_previous = Temperature;
 				now_ms = millis() % 1000;
 				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + Temperature + "C° ;";
@@ -498,69 +470,58 @@ void loop() {
 
 	}
 
-	// Action with the servo - Release
-	if (config.mode_capture != 1) {
-		// Release bird
-		if ((time_last_door_closed.unixtime() + config.servo_bird_release_time < now.unixtime()) and door_already_closed) {
-			digitalWrite(PIN_PW_SERVO, HIGH);
-			Servo_control.write(servo_pos_opened);
-			door_already_closed = false;
-			Serial.println("Door opened");
-			delay(2000);
-			digitalWrite(PIN_PW_SERVO, LOW);
-		}
-	}
+	//// Action with the servo - Release
+	//if (config.mode_capture != 1) {
+	//	// Release bird
+	//	if ((time_last_door_closed.unixtime() + config.servo_bird_release_time < now.unixtime()) and door_already_closed) {
+	//		digitalWrite(PIN_PW_SERVO, HIGH);
+	//		Servo_control.write(servo_pos_opened);
+	//		door_already_closed = false;
+	//		Serial.println("Door opened");
+	//		delay(2000);
+	//		digitalWrite(PIN_PW_SERVO, LOW);
+	//	}
+	//}
 
 
-	// check battery voltage every X s
-	if (time_last_voltage.unixtime() + 2 <= now.unixtime()) {
-		
-		time_last_voltage = now;
+	//// check battery voltage every X s
+	//if (time_last_voltage.unixtime() + 2 <= now.unixtime()) {
+	//	time_last_voltage = now;
+	//	Vbat = get_voltage(PIN_VBAT);
+	//	// voltage measurement
+	//	if (abs(Vbat_previous - Vbat) > 0.1) {
+	//		Vbat_previous = Vbat;
+	//		now_ms = millis() % 1000;
+	//		data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+	//		log_data(data, filename_data);
+	//	}
+	//	// sleep mode
+	//	if ((Vbat <= V_LVD + 0.1) and acquisition == true) {
+	//		data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+	//		log_data(data, filename_data);
+	//		data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + "V_LVD + 0.1;";
+	//		log_data(data, filename_data);
+	//		stop_event = true;
+	//	}
+	//	// wake up mode
+	//	if ((Vbat >= V_LVD + 0.2) and acquisition == false) {
+	//		data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+	//		log_data(data, filename_data);
+	//		data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + "V_LVD + 0.1;";
+	//		log_data(data, filename_data);
+	//		stop_event = true;
+	//	}
+	//	// power off
+	//	if (Vbat <= V_LVD) {
+	//		data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + "V_LVD;";
+	//		log_data(data, filename_data);
+	//		blink(PIN_BUZZER_LED, 100, 6);
+	//		digitalWrite(PIN_PW_OFF, LOW);
+	//	}
+	//}
 
-		Vbatn_2 = Vbatn_1;
-		Vbatn_1 = Vbatn;
-		Vbatn = get_voltage(PIN_VBAT);
-
-		Vbat = (Vbatn_2 + Vbatn_1 + Vbatn)/3;
-
-		// voltage measurement
-		if (abs(Vbat_previous - Vbat) > 0.1) {
-			Vbat_previous = Vbat;
-			now_ms = millis() % 1000;
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
-			log_data(data, filename_data);
-		}
-		// sleep mode
-		if ((Vbat <= V_LVD + 0.1) and acquisition == true) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
-			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Sleep mode;";
-			log_data(data, filename_data);
-			stop_event = true;
-			start_event = false;
-		}
-		// wake up mode
-		if ((Vbat >= V_LVD + 0.2) and acquisition == false) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
-			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Wake up mode;";
-			log_data(data, filename_data);
-			stop_event = false;
-			start_event = true;
-		}
-		// power off
-		if (Vbat <= V_LVD) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
-			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
-			log_data(data, filename_data);
-			blink(PIN_BUZZER_LED, 100, 6);
-			digitalWrite(PIN_PW_OFF, LOW);
-		}
-	}
-
-	// check general switch
-	shutDownButton();
+	//// check general switch
+	//shutDownButton();
 	delay(config.delay_loop);
 }
 
@@ -665,8 +626,8 @@ void daily_data_file(char* filename, DateTime t) {
 	else {
 		Serial.print("Creating the data file\t");
 	}
-			Serial.println(filename);
-	
+	Serial.println(filename);
+
 	logfile = SD.open(filename, FILE_WRITE);
 	if (!logfile) {
 		Serial.print("Couldnt create\t");
@@ -704,7 +665,7 @@ void loadConfiguration(Config& config) {
 	config.delay_loop = doc["delay_loop"];
 	config.tag_type = doc["tag_type"];
 	config.rfid_attempts = doc["rfid_attempts"];
-  	config.delay_tag_save = doc["delay_tag_save"];
+	config.delay_tag_save = doc["delay_tag_save"];
 	config.delay_temp = doc["delay_temp"];
 	config.servo_bird_release_time = doc["servo_bird_release_time"];
 	config.tag_1 = doc["tag_1"];
@@ -845,78 +806,78 @@ bool compare(const char* TAG_1, const char* TAG_2) {
 
 // Convert char hexadecimal to int number
 unsigned int hex2int(char input) {
-  if (input >= '0' && input <= '9') {
-    return input - '0';
-  }
-  else {
-    if (input >= 'A' && input <= 'F') {
-      return input - 'A' + 10;
-    }
-    else {
-      if (input >= 'a' && input <= 'f') {
-        return input - 'a' + 10;
-      }
-      else {
-        return '0';
-      }
-    }
-  }
+	if (input >= '0' && input <= '9') {
+		return input - '0';
+	}
+	else {
+		if (input >= 'A' && input <= 'F') {
+			return input - 'A' + 10;
+		}
+		else {
+			if (input >= 'a' && input <= 'f') {
+				return input - 'a' + 10;
+			}
+			else {
+				return '0';
+			}
+		}
+	}
 }
 
 // Conversion long long int number to a String
 String longlong2String(unsigned long long int bigint) {
-  String s = "";
-  int digit;
+	String s = "";
+	int digit;
 
-  //for eatch decimal digit of the long long bigint, extract it and convert it in string
-  while (bigint > 0) {
-    digit = (bigint % 10);		// get the last decimal digit of bigint   
-    s = String(digit) + s;		// convert the digit in string and add it to output
-    bigint = bigint / 10;		// truncate the last decimal digit        
+	//for eatch decimal digit of the long long bigint, extract it and convert it in string
+	while (bigint > 0) {
+		digit = (bigint % 10);		// get the last decimal digit of bigint
+		s = String(digit) + s;		// convert the digit in string and add it to output
+		bigint = bigint / 10;		// truncate the last decimal digit
 
-  }
+	}
 
-  return s;
+	return s;
 }
 
 // Conversion Tag FDX from Hexadecimal to National Identification Code(NIC)
 String tag_hex_to_NIC(String src) {
-  /*
-  input : String of tag hexadecimal number. exemple: [ scr = "80003EB533A9F1FA" ]
-  output : String of tag converted with countryCode - CodeNIC [ "250-228500042234" ]
-  */
-  char hex[12]; 
-  unsigned int a, z = 0;
-  unsigned int codePays = 0;        //country code 3 decimals / 10bits [ 250 ]
-  unsigned long long int codeNIC = 0;   // National Identificatin Code (NIC) on 12decimals / 38bits [ 228500042234 ]
-  if (src.length() == 16)         //FDX tag length is 16 hex [ 0x80003EB533A9F1FA ]
-  {
-    /*keep only the last 12 hexa digit that contain the Codes [0x3EB533A9F1FA] and convert it to char array*/
-    src.toCharArray(hex, 13, 4);      
+	/*
+	input : String of tag hexadecimal number. exemple: [ scr = "80003EB533A9F1FA" ]
+	output : String of tag converted with countryCode - CodeNIC [ "250-228500042234" ]
+	*/
+	char hex[12];
+	unsigned int a, z = 0;
+	unsigned int codePays = 0;        //country code 3 decimals / 10bits [ 250 ]
+	unsigned long long int codeNIC = 0;   // National Identificatin Code (NIC) on 12decimals / 38bits [ 228500042234 ]
+	if (src.length() == 16)         //FDX tag length is 16 hex [ 0x80003EB533A9F1FA ]
+	{
+		/*keep only the last 12 hexa digit that contain the Codes [0x3EB533A9F1FA] and convert it to char array*/
+		src.toCharArray(hex, 13, 4);
 
-    //Conversion of the 3 first hex digit to get the codePays
-    for (int i = 0; i < 3; i++) {
-                      // get hex digit [ for i = 2; hexL[i] = 0xB ]
-      a = hex2int(hex[i]);      //conversion to int [ a = 11 = 0b1011 ]
-      z = (z << 4) | a;       // add the 4 bits of the hexa digit at the end of z 
-                      // [ z = 62 = 0b 0011 1110  -> becomes -> z = 1003 = 0b 0011 1110 1011]
+		//Conversion of the 3 first hex digit to get the codePays
+		for (int i = 0; i < 3; i++) {
+			// get hex digit [ for i = 2; hexL[i] = 0xB ]
+			a = hex2int(hex[i]);      //conversion to int [ a = 11 = 0b1011 ]
+			z = (z << 4) | a;       // add the 4 bits of the hexa digit at the end of z
+							// [ z = 62 = 0b 0011 1110  -> becomes -> z = 1003 = 0b 0011 1110 1011]
 
-    }
-    codePays = z >> 2;          // supress last 2 bits of z to get code Pays [ codePays = 0b 0011 1110 10 = 250]
+		}
+		codePays = z >> 2;          // supress last 2 bits of z to get code Pays [ codePays = 0b 0011 1110 10 = 250]
 
-    codeNIC = (3 & z);          //get the last 2 bits to begin codeNIC [ codeNIC = 0b 11 ]
+		codeNIC = (3 & z);          //get the last 2 bits to begin codeNIC [ codeNIC = 0b 11 ]
 
-    //Conversion of the rest of hex digit to get the codeNIC
-    for (size_t i = 3; i < strlen(hex); i++) {
-		                  // get hex digit [ for i = 3; hexL[i] = 0x5 ]
-      a = hex2int(hex[i]);      //conversion to int [ a = 5 = 0b0101 ]
-      codeNIC = (codeNIC << 4) | a; // add the 4 bits of the hexa digit at the end of codeNIC
-                      // [ codeNIC = 0b 11  -> becomes -> codeNIC = 0b 11 0101]
-    }
+		//Conversion of the rest of hex digit to get the codeNIC
+		for (size_t i = 3; i < strlen(hex); i++) {
+			// get hex digit [ for i = 3; hexL[i] = 0x5 ]
+			a = hex2int(hex[i]);      //conversion to int [ a = 5 = 0b0101 ]
+			codeNIC = (codeNIC << 4) | a; // add the 4 bits of the hexa digit at the end of codeNIC
+							// [ codeNIC = 0b 11  -> becomes -> codeNIC = 0b 11 0101]
+		}
 
-    return (String(codePays) + "-" + longlong2String(codeNIC));
-  }
-  else return "err: tag hexa de mauvaise taille";
+		return (String(codePays) + "-" + longlong2String(codeNIC));
+	}
+	else return "err: tag hexa de mauvaise taille";
 
 }
 
