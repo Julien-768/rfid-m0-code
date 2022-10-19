@@ -33,17 +33,17 @@
 
 // Adafruit board pin mapping
 #define PIN_VBAT		A1                 // analog input for battery voltage measurement
+#define PIN_PW_SW		A2				   // input for power switch
+#define PIN_PW_EN  		A3             	   // output for power relay low battery
 #define PIN_TEMP_CS		6                  // input for RTD sensor
 #define PIN_LED_RED		13	               // input/output for SD card
 #define PIN_LED_SD		8	               // input/output for SD card
 #define PIN_SD_CS		4	               // input/output for SD card
 #define PIN_SD_CD		7	               // input/output for SD card
 #define PIN_BUZZER_LED 	9                  // output for buzzer or led
-#define PIN_PW_SWITCH	A2				   // input for power switch
 #define PIN_PW_SERVO  	A4	               // output for power relay of servomotor
 #define PIN_PW_3V       5                  // output for power relay of IRs and RTD
 #define PIN_PW_RFID     A5                 // output for power relay of RFID
-#define PIN_PW_OFF  	A3                 // output for power relay low battery
 #define PIN_IR_1		10                 // input for IR sensor 1
 #define PIN_IR_2	    A0             	   // input for IR sensor 2
 #define PIN_IR_SEND     11                 // output pwm 38kHz for IR sensor
@@ -179,17 +179,17 @@ void setup() {
 	pinMode(PIN_PW_3V, OUTPUT);
 	pinMode(PIN_IR_SEND, OUTPUT);
 	pinMode(PIN_BUZZER_LED, OUTPUT);
-    pinMode(PIN_PW_OFF, OUTPUT);
+    pinMode(PIN_PW_EN, OUTPUT);
 	pinMode(PIN_VBAT, INPUT);
-	pinMode(PIN_PW_SWITCH, INPUT);
-	pinMode(PIN_PW_OFF, OUTPUT);
+	pinMode(PIN_PW_SW, INPUT);
+	pinMode(PIN_PW_EN, OUTPUT);
 #ifndef THERMISTOR_SECURITY
 	pinMode(PIN_PW_SERVO, OUTPUT);
 #else
 	pinMode(THERMISTORPIN, INPUT);
 #endif
 	digitalWrite(PIN_BUZZER_LED, HIGH);
-	digitalWrite(PIN_PW_OFF, HIGH);
+	digitalWrite(PIN_PW_EN, HIGH);
 	digitalWrite(PIN_PW_RFID, HIGH);
 	digitalWrite(PIN_PW_SERVO, LOW);
 	digitalWrite(PIN_PW_3V, HIGH);
@@ -548,7 +548,7 @@ void loop() {
 				data = isoformat(rtc.now(), now_ms, ";") + "System; " + "High temperature;";
 				log_data(data, filename_data);
 				blink(PIN_BUZZER_LED, 100, 6);
-				digitalWrite(PIN_PW_OFF, LOW);
+				digitalWrite(PIN_PW_EN, LOW);
 			}
 
 
@@ -613,7 +613,7 @@ void loop() {
 			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
 			log_data(data, filename_data);
 			blink(PIN_BUZZER_LED, 100, 6);
-			digitalWrite(PIN_PW_OFF, LOW);
+			digitalWrite(PIN_PW_EN, LOW);
 		}
 	}
 
@@ -980,7 +980,7 @@ String tag_hex_to_NIC(String src) {
 
 // Power interrupt
 void shutDownButton(void) {
-	bool stateButton = digitalRead(PIN_PW_SWITCH);
+	bool stateButton = digitalRead(PIN_PW_SW);
 	int loops = 0;
 	while (stateButton == true) {
 		loops = loops + 1;
@@ -988,13 +988,13 @@ void shutDownButton(void) {
 		delay(100);
 		digitalWrite(PIN_BUZZER_LED, LOW);
 		delay(100);
-		stateButton = digitalRead(PIN_PW_SWITCH);
+		stateButton = digitalRead(PIN_PW_SW);
 		if (loops == 6) {
 			digitalWrite(PIN_BUZZER_LED, HIGH);
 			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Shut Down Button;";
 			log_data(data, filename_data);
 			delay(1000);
-			digitalWrite(PIN_PW_OFF, LOW);
+			digitalWrite(PIN_PW_EN, LOW);
 			while (1) {
 				delay(10000);
 			}

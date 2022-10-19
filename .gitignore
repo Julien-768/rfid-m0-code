@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 *.pio/
+*.vscode/
 *.sln
 *.vcxproj
 
