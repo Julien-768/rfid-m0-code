@@ -106,10 +106,9 @@ RTC_DS3231 rtc;                                               // RTC
 
 DateTime time_compil, now, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer;
 TimeSpan last_tag_diff;
-int hours_current;
 int now_ms;
 bool rtc_error = false;										   // RTC lost power
-bool user_buzzer_on;									  		   // User signal activation BUZZER or LED
+bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
 bool door_already_closed = false;                              //
 Servo Servo_control;		                                   // servo object
@@ -132,6 +131,8 @@ char test[11];
 bool acquisition = true;
 bool tag_record = false, tag_event = false;                    //
 bool stop_event = false, start_event = false;                  //
+bool bool_batteryCondition = false;							   // Condition to run acquisition based on battery voltage
+bool bool_timePeriodCondition = true;						   // Condition to run acquisition based on time period (if mode_day_only = true)
 
 float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
 float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;
@@ -274,9 +275,9 @@ void setup() {
 
 	// use this line to load configuration from SD config.txt file
 	Serial.println(F("Loading SD card configuration..."));
-	//loadConfiguration(config);
+	loadConfiguration(config);
 	// use this line instead to load configuration from struct object defined in the program
-	load_and_save_local_Configuration(Config(), config);
+	//load_and_save_local_Configuration(Config(), config);
 
 	// Dump config file
 	printFile(filename_conf);
@@ -327,6 +328,8 @@ void setup() {
 	digitalWrite(PIN_BUZZER_LED, LOW);
 	Serial.println(" ");
 	Serial.println(F("-------LOOP-------"));
+
+	// 3 second delay to let time for user to release switch button : avoid to call shutDownButton function after power-on
 	delay(3000);
 }
 
@@ -355,34 +358,64 @@ void loop() {
 		}
 	}
 
-	// check if acquisition should run according to day only mode
+
+	/********************************************************************************/
+	// Check if acquisition should run according to day only mode
+	/********************************************************************************/
 	if (config.mode_day_only == true) {
-		hours_current = now.hour();
-		// not in the range
-		if (hours_current < config.start_time or hours_current > config.stop_time) {
-			stop_event = true;
+		uint8_t currentHour = now.hour();
+		// If the time period is defined on the same day
+		if (config.start_time < config.stop_time) {
+			// Current hour is in the range
+			if ((currentHour >= config.start_time) and (currentHour < config.stop_time)) {
+				bool_timePeriodCondition = true;
+			}
+			// Current hour is not in the range
+			else {
+				bool_timePeriodCondition = false;
+			}
 		}
-		// in the range
+		// Else, it means the time period includes a change of day (night mode)
 		else {
-			start_event = true;
+			// Current hour is in the range
+			if ((currentHour >= config.start_time) or (currentHour < config.stop_time))	{
+				bool_timePeriodCondition = true;
+			}
+			// Current hour is not in the range
+			else {
+				bool_timePeriodCondition = false;
+			}
 		}
 	}
+	/********************************************************************************/
 
-	// stop if running
-	if (stop_event and acquisition) {
+
+	/********************************************************************************/
+	// Stop acquisition if currently running and conditions are not satisfied
+	/********************************************************************************/
+	if  (not(bool_batteryCondition and bool_timePeriodCondition) and acquisition) {
 		// TODO Release Bird / Open door if closed
 		acquisition = false;
 		digitalWrite(PIN_PW_SERVO, LOW);
 		digitalWrite(PIN_PW_3V, LOW);
 		digitalWrite(PIN_PW_RFID, LOW);
+		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Sleep mode;";
+		log_data(data, filename_data);
 	}
+	/********************************************************************************/
 
-	// start if sleeping
-	if (start_event and (!acquisition)) {
+
+	/********************************************************************************/
+	// Start acquisition if currently sleeping and conditions are satisfied
+	/********************************************************************************/
+	if (bool_batteryCondition and bool_timePeriodCondition and (!acquisition)) {
 		acquisition = true;
 		digitalWrite(PIN_PW_3V, HIGH);
 		digitalWrite(PIN_PW_RFID, HIGH);
+		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Wake up mode;";
+		log_data(data, filename_data);
 	}
+	/********************************************************************************/
 
 
 	// While acquisition is running
@@ -589,22 +622,16 @@ void loop() {
 			log_data(data, filename_data);
 		}
 		// sleep mode
-		if ((Vbat <= V_LVD + 0.1) and acquisition == true) {
+		if ((Vbat <= V_LVD + 0.1) and bool_batteryCondition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Sleep mode;";
-			log_data(data, filename_data);
-			stop_event = true;
-			start_event = false;
+			bool_batteryCondition = false;
 		}
 		// wake up mode
-		if ((Vbat >= V_LVD + 0.2) and acquisition == false) {
+		if ((Vbat >= V_LVD + 0.2) and not bool_batteryCondition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Wake up mode;";
-			log_data(data, filename_data);
-			stop_event = false;
-			start_event = true;
+			bool_batteryCondition = true;
 		}
 		// power off
 		if (Vbat <= V_LVD) {
@@ -723,7 +750,7 @@ void daily_data_file(char* filename, DateTime t) {
 	else {
 		Serial.print("Creating the data file\t");
 	}
-			Serial.println(filename);
+	Serial.println(filename);
 
 	logfile = SD.open(filename, FILE_WRITE);
 	if (!logfile) {
@@ -743,11 +770,11 @@ void daily_data_file(char* filename, DateTime t) {
 void loadConfiguration(Config& config) {
 	// from https://arduinojson.org/
 	File file_c = SD.open(filename_conf); // open file for reading
-	StaticJsonDocument<512> doc;
+	StaticJsonDocument<768> doc;
 	DeserializationError error = deserializeJson(doc, file_c);
 	if (error) {
 		Serial.println(F("Failed to read file, using default configuration"));
-		// maybe your StaticJsonDocument<SIZE> doc; is to small
+		// Maybe your StaticJsonDocument<SIZE> doc is too small - Check on https://arduinojson.org/v6/assistant/#/step1
 	}
 	// TODO better
 	// Copy values from the JsonDocument to the Config
