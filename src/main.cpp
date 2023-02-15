@@ -36,7 +36,6 @@
 #define PIN_PW_SW		A2				   // input for power switch
 #define PIN_PW_EN  		A3             	   // output for power relay low battery
 #define PIN_TEMP_CS		6                  // input for RTD sensor
-#define PIN_LED_RED		13	               // input/output for SD card
 #define PIN_LED_SD		8	               // input/output for SD card
 #define PIN_SD_CS		4	               // input/output for SD card
 #define PIN_SD_CD		7	               // input/output for SD card
@@ -130,8 +129,7 @@ char test[11];
 
 bool acquisition = true;
 bool tag_record = false, tag_event = false;                    //
-bool stop_event = false, start_event = false;                  //
-bool bool_batteryCondition = false;							   // Condition to run acquisition based on battery voltage
+bool bool_batteryCondition = true;							   // Condition to run acquisition based on battery voltage
 bool bool_timePeriodCondition = true;						   // Condition to run acquisition based on time period (if mode_day_only = true)
 
 float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
@@ -172,7 +170,6 @@ void setup() {
 	Serial1.begin(9600);
 	Serial1.setTimeout(500);
 	// Configure the IO
-	pinMode(PIN_LED_RED, OUTPUT);
 	pinMode(PIN_LED_SD, OUTPUT);
 	pinMode(PIN_IR_1, INPUT);
 	pinMode(PIN_IR_2, INPUT);
@@ -189,7 +186,6 @@ void setup() {
 #else
 	pinMode(THERMISTORPIN, INPUT);
 #endif
-	digitalWrite(PIN_BUZZER_LED, HIGH);
 	digitalWrite(PIN_PW_EN, HIGH);
 	digitalWrite(PIN_PW_RFID, HIGH);
 	digitalWrite(PIN_PW_SERVO, LOW);
