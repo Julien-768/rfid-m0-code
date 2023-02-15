@@ -110,6 +110,8 @@ bool rtc_error = false;										   // RTC lost power
 bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
 bool door_already_closed = false;                              //
+bool bool_doorClosed = false;
+bool bool_doorOpened = true;
 Servo Servo_control;		                                   // servo object
 int servo_pos_opened = 10;                                     // opened position for servo
 int  servo_pos_closed = 170;                                   // closed position for servo
@@ -158,6 +160,7 @@ unsigned int hex2int(char input);
 String longlong2String(unsigned long long int bigint);
 String tag_hex_to_NIC(String src);
 void shutDownButton(void);
+void doorManagement(bool bool_doorStateCommand);
 #ifdef THERMISTOR_SECURITY
 float readThermistorTemperature();
 #endif
@@ -390,7 +393,10 @@ void loop() {
 	// Stop acquisition if currently running and conditions are not satisfied
 	/********************************************************************************/
 	if  (not(bool_batteryCondition and bool_timePeriodCondition) and acquisition) {
-		// TODO Release Bird / Open door if closed
+		// Security : Open the door if closed
+		if ((config.mode_capture != 1) and door_already_closed) {
+			doorManagement(bool_doorOpened);
+		}
 		acquisition = false;
 		digitalWrite(PIN_PW_SERVO, LOW);
 		digitalWrite(PIN_PW_3V, LOW);
@@ -523,14 +529,8 @@ void loop() {
 			// capture
 			if (capture_order == true and door_already_closed == false)
 			{
-				digitalWrite(PIN_PW_SERVO, HIGH);
-				Servo_control.write(servo_pos_closed);
-				time_last_door_closed = rtc.now();
-				Serial.println("Door closed");
+				doorManagement(bool_doorClosed);
 				capture_order = false;
-				door_already_closed = true;
-				delay(2000);
-				digitalWrite(PIN_PW_SERVO, LOW);
 			}
 		}
 
@@ -576,6 +576,10 @@ void loop() {
 				log_data(data, filename_data);
 				data = isoformat(rtc.now(), now_ms, ";") + "System; " + "High temperature;";
 				log_data(data, filename_data);
+				// Security : Open the door if closed
+				if ((config.mode_capture != 1) and door_already_closed) {
+					doorManagement(bool_doorOpened);
+				}
 				blink(PIN_BUZZER_LED, 100, 6);
 				digitalWrite(PIN_PW_EN, LOW);
 			}
@@ -585,18 +589,16 @@ void loop() {
 
 	}
 
-	// Action with the servo - Release
+
+	/********************************************************************************/
+	// SECURITY : Open door if closed for a certain time 
+	/********************************************************************************/
 	if (config.mode_capture != 1) {
-		// Release bird
-		if ((time_last_door_closed.unixtime() + config.servo_bird_release_time < now.unixtime()) and door_already_closed) {
-			digitalWrite(PIN_PW_SERVO, HIGH);
-			Servo_control.write(servo_pos_opened);
-			door_already_closed = false;
-			Serial.println("Door opened");
-			delay(2000);
-			digitalWrite(PIN_PW_SERVO, LOW);
+		if (((time_last_door_closed.unixtime() + config.servo_bird_release_time) < now.unixtime()) and door_already_closed) {
+			doorManagement(bool_doorOpened);
 		}
 	}
+	/********************************************************************************/
 
 
 	// check battery voltage every X s
@@ -635,15 +637,20 @@ void loop() {
 			log_data(data, filename_data);
 			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
 			log_data(data, filename_data);
+			// Security : Open the door if closed
+			if ((config.mode_capture != 1) and door_already_closed) {
+				doorManagement(bool_doorOpened);
+			}
 			blink(PIN_BUZZER_LED, 100, 6);
 			digitalWrite(PIN_PW_EN, LOW);
 		}
 	}
-
+	
 	// check general switch
 	shutDownButton();
 	delay(config.delay_loop);
 }
+
 
 // blink function
 void blink(uint32_t Pin, int delay_ms, int blink_number) {
@@ -1043,3 +1050,29 @@ float readThermistorTemperature() {
 	return steinhart;
 }
 #endif
+
+
+// Management of the door
+void doorManagement(bool bool_doorStateCommand){
+
+	// Open the door
+	if (bool_doorStateCommand == bool_doorClosed){
+		digitalWrite(PIN_PW_SERVO, HIGH);
+		Servo_control.write(servo_pos_closed);
+		time_last_door_closed = rtc.now();
+		door_already_closed = true;
+		Serial.println("Door closed");
+		delay(2000);
+		digitalWrite(PIN_PW_SERVO, LOW);
+
+	}
+	// Else, open the door
+	else{
+		digitalWrite(PIN_PW_SERVO, HIGH);
+		Servo_control.write(servo_pos_opened);
+		door_already_closed = false;
+		Serial.println("Door opened");
+		delay(2000);
+		digitalWrite(PIN_PW_SERVO, LOW);
+	}
+}
