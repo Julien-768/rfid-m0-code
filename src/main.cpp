@@ -105,13 +105,12 @@ RTC_DS3231 rtc;                                               // RTC
 
 DateTime time_compil, now, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer;
 TimeSpan last_tag_diff;
+int hours_current;
 int now_ms;
 bool rtc_error = false;										   // RTC lost power
 bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
 bool door_already_closed = false;                              //
-bool bool_doorClosed = false;
-bool bool_doorOpened = true;
 Servo Servo_control;		                                   // servo object
 int servo_pos_opened = 10;                                     // opened position for servo
 int  servo_pos_closed = 170;                                   // closed position for servo
@@ -160,7 +159,7 @@ unsigned int hex2int(char input);
 String longlong2String(unsigned long long int bigint);
 String tag_hex_to_NIC(String src);
 void shutDownButton(void);
-void doorManagement(bool bool_doorStateCommand);
+void closeDoor(bool door_cmd_closed);
 #ifdef THERMISTOR_SECURITY
 float readThermistorTemperature();
 #endif
@@ -358,45 +357,31 @@ void loop() {
 	}
 
 
-	/********************************************************************************/
 	// Check if acquisition should run according to day only mode
-	/********************************************************************************/
 	if (config.mode_day_only == true) {
-		uint8_t currentHour = now.hour();
+		hours_current = now.hour();
+		bool_timePeriodCondition = false;
 		// If the time period is defined on the same day
 		if (config.start_time < config.stop_time) {
 			// Current hour is in the range
-			if ((currentHour >= config.start_time) and (currentHour < config.stop_time)) {
+			if ((hours_current >= config.start_time) and (hours_current < config.stop_time)) {
 				bool_timePeriodCondition = true;
-			}
-			// Current hour is not in the range
-			else {
-				bool_timePeriodCondition = false;
 			}
 		}
 		// Else, it means the time period includes a change of day (night mode)
 		else {
 			// Current hour is in the range
-			if ((currentHour >= config.start_time) or (currentHour < config.stop_time))	{
+			if ((hours_current >= config.start_time) or (hours_current < config.stop_time))	{
 				bool_timePeriodCondition = true;
-			}
-			// Current hour is not in the range
-			else {
-				bool_timePeriodCondition = false;
 			}
 		}
 	}
-	/********************************************************************************/
 
 
-	/********************************************************************************/
 	// Stop acquisition if currently running and conditions are not satisfied
-	/********************************************************************************/
-	if  (not(bool_batteryCondition and bool_timePeriodCondition) and acquisition) {
+	if (not(bool_batteryCondition and bool_timePeriodCondition) and acquisition) {
 		// Security : Open the door if closed
-		if ((config.mode_capture != 1) and door_already_closed) {
-			doorManagement(bool_doorOpened);
-		}
+		closeDoor(false);
 		acquisition = false;
 		digitalWrite(PIN_PW_SERVO, LOW);
 		digitalWrite(PIN_PW_3V, LOW);
@@ -404,12 +389,9 @@ void loop() {
 		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Sleep mode;";
 		log_data(data, filename_data);
 	}
-	/********************************************************************************/
 
 
-	/********************************************************************************/
 	// Start acquisition if currently sleeping and conditions are satisfied
-	/********************************************************************************/
 	if (bool_batteryCondition and bool_timePeriodCondition and (!acquisition)) {
 		acquisition = true;
 		digitalWrite(PIN_PW_3V, HIGH);
@@ -417,7 +399,6 @@ void loop() {
 		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Wake up mode;";
 		log_data(data, filename_data);
 	}
-	/********************************************************************************/
 
 
 	// While acquisition is running
@@ -527,9 +508,9 @@ void loop() {
 			}
 
 			// capture
-			if (capture_order == true and door_already_closed == false)
+			if (capture_order == true)
 			{
-				doorManagement(bool_doorClosed);
+				closeDoor(true);
 				capture_order = false;
 			}
 		}
@@ -577,9 +558,7 @@ void loop() {
 				data = isoformat(rtc.now(), now_ms, ";") + "System; " + "High temperature;";
 				log_data(data, filename_data);
 				// Security : Open the door if closed
-				if ((config.mode_capture != 1) and door_already_closed) {
-					doorManagement(bool_doorOpened);
-				}
+				closeDoor(false);
 				blink(PIN_BUZZER_LED, 100, 6);
 				digitalWrite(PIN_PW_EN, LOW);
 			}
@@ -590,15 +569,10 @@ void loop() {
 	}
 
 
-	/********************************************************************************/
 	// SECURITY : Open door if closed for a certain time 
-	/********************************************************************************/
-	if (config.mode_capture != 1) {
-		if (((time_last_door_closed.unixtime() + config.servo_bird_release_time) < now.unixtime()) and door_already_closed) {
-			doorManagement(bool_doorOpened);
-		}
+	if ((time_last_door_closed.unixtime() + config.servo_bird_release_time) < now.unixtime()) {
+		closeDoor(false);
 	}
-	/********************************************************************************/
 
 
 	// check battery voltage every X s
@@ -638,9 +612,7 @@ void loop() {
 			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
 			log_data(data, filename_data);
 			// Security : Open the door if closed
-			if ((config.mode_capture != 1) and door_already_closed) {
-				doorManagement(bool_doorOpened);
-			}
+			closeDoor(false);
 			blink(PIN_BUZZER_LED, 100, 6);
 			digitalWrite(PIN_PW_EN, LOW);
 		}
@@ -833,7 +805,7 @@ void load_and_save_local_Configuration(struct Config, Config& config) {
 		Serial.println(F("Failed to create file"));
 	}
 
-	StaticJsonDocument<512> doc;
+	StaticJsonDocument<768> doc;
 
 	// Set the values in the document
 	doc["opt_IR_1"] = config.opt_IR_1;
@@ -1053,25 +1025,22 @@ float readThermistorTemperature() {
 
 
 // Management of the door
-void doorManagement(bool bool_doorStateCommand){
-
-	// Open the door
-	if (bool_doorStateCommand == bool_doorClosed){
+void closeDoor(bool door_cmd_closed){
+	if (door_cmd_closed != door_already_closed) {
 		digitalWrite(PIN_PW_SERVO, HIGH);
-		Servo_control.write(servo_pos_closed);
-		time_last_door_closed = rtc.now();
-		door_already_closed = true;
-		Serial.println("Door closed");
-		delay(2000);
-		digitalWrite(PIN_PW_SERVO, LOW);
-
-	}
-	// Else, open the door
-	else{
-		digitalWrite(PIN_PW_SERVO, HIGH);
-		Servo_control.write(servo_pos_opened);
-		door_already_closed = false;
-		Serial.println("Door opened");
+		// Close the door
+		if (door_cmd_closed) {
+			Servo_control.write(servo_pos_closed);
+			time_last_door_closed = rtc.now();
+			door_already_closed = true;
+			Serial.println("Door closed");
+		}
+		// Else open the door
+		else {
+			Servo_control.write(servo_pos_opened);
+			door_already_closed = false;
+			Serial.println("Door opened");
+		}
 		delay(2000);
 		digitalWrite(PIN_PW_SERVO, LOW);
 	}
