@@ -130,8 +130,8 @@ char test[11];
 
 bool acquisition = true;
 bool tag_record = false, tag_event = false;                    //
-bool bool_batteryCondition = true;							   // Condition to run acquisition based on battery voltage
-bool bool_timePeriodCondition = true;						   // Condition to run acquisition based on time period (if mode_day_only = true)
+bool battery_condition = true;							       // Condition to run acquisition based on battery voltage
+bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_day_only = true)
 
 float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
 float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;
@@ -360,26 +360,26 @@ void loop() {
 	// Check if acquisition should run according to day only mode
 	if (config.mode_day_only == true) {
 		hours_current = now.hour();
-		bool_timePeriodCondition = false;
+		time_period_condition = false;
 		// If the time period is defined on the same day
 		if (config.start_time < config.stop_time) {
 			// Current hour is in the range
 			if ((hours_current >= config.start_time) and (hours_current < config.stop_time)) {
-				bool_timePeriodCondition = true;
+				time_period_condition = true;
 			}
 		}
 		// Else, it means the time period includes a change of day (night mode)
 		else {
 			// Current hour is in the range
 			if ((hours_current >= config.start_time) or (hours_current < config.stop_time))	{
-				bool_timePeriodCondition = true;
+				time_period_condition = true;
 			}
 		}
 	}
 
 
 	// Stop acquisition if currently running and conditions are not satisfied
-	if (not(bool_batteryCondition and bool_timePeriodCondition) and acquisition) {
+	if (not(battery_condition and time_period_condition) and acquisition) {
 		// Security : Open the door if closed
 		closeDoor(false);
 		acquisition = false;
@@ -392,7 +392,7 @@ void loop() {
 
 
 	// Start acquisition if currently sleeping and conditions are satisfied
-	if (bool_batteryCondition and bool_timePeriodCondition and (!acquisition)) {
+	if (battery_condition and time_period_condition and (!acquisition)) {
 		acquisition = true;
 		digitalWrite(PIN_PW_3V, HIGH);
 		digitalWrite(PIN_PW_RFID, HIGH);
@@ -594,16 +594,16 @@ void loop() {
 			log_data(data, filename_data);
 		}
 		// sleep mode
-		if ((Vbat <= V_LVD + 0.1) and bool_batteryCondition) {
+		if ((Vbat <= V_LVD + 0.1) and time_period_condition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
-			bool_batteryCondition = false;
+			time_period_condition = false;
 		}
 		// wake up mode
-		if ((Vbat >= V_LVD + 0.2) and not bool_batteryCondition) {
+		if ((Vbat >= V_LVD + 0.2) and not time_period_condition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
-			bool_batteryCondition = true;
+			time_period_condition = true;
 		}
 		// power off
 		if (Vbat <= V_LVD) {
