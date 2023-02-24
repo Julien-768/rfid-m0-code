@@ -52,6 +52,9 @@
 #define RREF            430.0               // resistance reference for RTD
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
+// Electrical characteristics of the power board
+#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 4 for a 12V-board
+
 //---- Temparature measurment with thermistor --------//
 #define THERMISTOR_SECURITY
 
@@ -233,7 +236,7 @@ void setup() {
 		Serial.println("Couldn't find RTC");
 		delay(100);
 		Serial.flush();
-		abort();
+		error(4);
 	}
 	// TODO create / complete a simple function error to serial print error messsages
 
@@ -671,9 +674,9 @@ String isoformat_date(DateTime t) {
 // get battery voltage
 float get_voltage(uint32_t ulPin) {
 	float measuredvbat = analogRead(ulPin);
-	measuredvbat *= 2;    // we divided by 2, so multiply back
-	measuredvbat *= 3.3;  // Multiply by 3.3V, our reference voltage
-	measuredvbat /= 1024; // convert to voltage
+	measuredvbat *= POWER_BOARD_BATT_RATIO;     // we divided by POWER_BOARD_BATT_RATIO, so multiply back
+	measuredvbat *= 3.3;  						// Multiply by 3.3V, our reference voltage
+	measuredvbat /= 1023; 						// convert to voltage
 	return measuredvbat;
 }
 
