@@ -72,8 +72,8 @@
 // User parameters
 struct Config {
 	// Hardware options
-	bool opt_IR_1 = true;              // use infraed sensor 1
-	bool opt_IR_2 = true;              // use infraed sensor 2
+	bool opt_IR_1 = true;               // use infrared sensor 1
+	bool opt_IR_2 = true;               // use infrared sensor 2
 	bool opt_temp_prec = false;         // use temperature recording
 	bool opt_servo = false;             // use servomotor
 	// Modes and key parameters
@@ -155,6 +155,7 @@ void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* file
 void daily_data_file(char* filename, DateTime t);
 void loadConfiguration(Config& config);
 void load_and_save_local_Configuration(struct Config, Config& config);
+void create_config_file();
 void printFile(const char* filename);
 void checkFault(void);
 bool compare(const char* TAG_1, const char* TAG_2);
@@ -723,7 +724,7 @@ void daily_data_file(char* filename, DateTime t) {
 	}
 	// check if the file exists
 	if (SD.exists(filename)) {
-		Serial.print("The data file already exist\t");
+		Serial.print("The data file already exists\t");
 	}
 	else {
 		Serial.print("Creating the data file\t");
@@ -747,94 +748,91 @@ void daily_data_file(char* filename, DateTime t) {
 // Loads the configuration from a file
 void loadConfiguration(Config& config) {
 	// from https://arduinojson.org/
-	File file_c = SD.open(filename_conf); // open file for reading
-	StaticJsonDocument<768> doc;
-	DeserializationError error = deserializeJson(doc, file_c);
-	if (error) {
-		Serial.println(F("Failed to read file, using default configuration"));
-		// Maybe your StaticJsonDocument<SIZE> doc is too small - Check on https://arduinojson.org/v6/assistant/#/step1
+	File file_c = SD.open(filename_conf);
+	// If open with success, read it
+	if (file_c) {
+		StaticJsonDocument<768> doc;
+		DeserializationError error = deserializeJson(doc, file_c);
+		if (error) {
+			Serial.println(F("Failed to read file, using default configuration"));
+			// If error, use the values already loaded in memory and quit the function
+			// Maybe your StaticJsonDocument<SIZE> doc is too small - Check on https://arduinojson.org/v6/assistant/#/step1
+		}
+		else{
+			// Copy values from the JsonDocument to the Config
+			config.opt_IR_1 = doc["opt_IR_1"];
+			config.opt_IR_2 = doc["opt_IR_2"];
+			config.opt_temp_prec = doc["opt_temp_prec"];
+			config.opt_servo = doc["opt_servo"];
+			config.mode_day_only = doc["mode_day_only"];
+			config.mode_capture = doc["mode_capture"];
+			config.start_time = doc["start_time"];
+			config.stop_time = doc["stop_time"];
+			config.delay_loop = doc["delay_loop"];
+			config.tag_type = doc["tag_type"];
+			config.rfid_attempts = doc["rfid_attempts"];
+			config.delay_tag_save = doc["delay_tag_save"];
+			config.delay_temp = doc["delay_temp"];
+			config.servo_bird_release_time = doc["servo_bird_release_time"];
+			config.tag_1 = doc["tag_1"];
+			config.tag_2 = doc["tag_2"];
+			config.tag_3 = doc["tag_3"];
+			config.tag_4 = doc["tag_4"];
+			config.tag_5 = doc["tag_5"];
+			file_c.close();
+		}
 	}
-	// TODO better
-	// Copy values from the JsonDocument to the Config
-	config.opt_IR_1 = doc["opt_IR_1"];
-	config.opt_IR_2 = doc["opt_IR_2"];
-	config.opt_temp_prec = doc["opt_temp_prec"];
-	config.opt_servo = doc["opt_servo"];
-	config.mode_day_only = doc["mode_day_only"];
-	config.mode_capture = doc["mode_capture"];
-	config.start_time = doc["start_time"];
-	config.stop_time = doc["stop_time"];
-	config.delay_loop = doc["delay_loop"];
-	config.tag_type = doc["tag_type"];
-	config.rfid_attempts = doc["rfid_attempts"];
-  	config.delay_tag_save = doc["delay_tag_save"];
-	config.delay_temp = doc["delay_temp"];
-	config.servo_bird_release_time = doc["servo_bird_release_time"];
-	config.tag_1 = doc["tag_1"];
-	config.tag_2 = doc["tag_2"];
-	config.tag_3 = doc["tag_3"];
-	config.tag_4 = doc["tag_4"];
-	config.tag_5 = doc["tag_5"];
-	file_c.close();
+	// Else, create a config file with the values already loaded in memory
+	else{
+		create_config_file();
+	}
 }
 
-//loading local configuration to config object
-void load_and_save_local_Configuration(struct Config, Config& config) {
-	config.opt_IR_1 = Config().opt_IR_1;
-	config.opt_IR_2 = Config().opt_IR_2;
-	config.opt_temp_prec = Config().opt_temp_prec;
-	config.opt_servo = Config().opt_servo;
-	config.mode_day_only = Config().mode_day_only;
-	config.mode_capture = Config().mode_capture;
-	config.start_time = Config().start_time;
-	config.stop_time = Config().stop_time;
-	config.delay_loop = Config().delay_loop;
-	config.tag_type = Config().tag_type;
-	config.rfid_attempts = Config().rfid_attempts;
-	config.delay_tag_save = Config().delay_tag_save;
-	config.delay_temp = Config().delay_temp;
-	config.servo_bird_release_time = Config().servo_bird_release_time;
-	config.tag_1 = Config().tag_1;
-	config.tag_2 = Config().tag_2;
-	config.tag_3 = Config().tag_3;
-	config.tag_4 = Config().tag_4;
-	config.tag_5 = Config().tag_5;
-
-	//removing the old file and creating a new one
-	SD.remove(filename_conf);
-	delay(5);
+// Create a configuration file from memory values
+void create_config_file() {
+	// Try to open the file
 	File file = SD.open(filename_conf, FILE_WRITE);
 	if (!file) {
 		Serial.println(F("Failed to create file"));
 	}
-
-	StaticJsonDocument<768> doc;
-
-	// Set the values in the document
-	doc["opt_IR_1"] = config.opt_IR_1;
-	doc["opt_IR_2"] = config.opt_IR_2;
-	doc["opt_temp_prec"] = config.opt_temp_prec;
-	doc["opt_servo"] = config.opt_servo;
-	doc["mode_day_only"] = config.mode_day_only;
-	doc["mode_capture"] = config.mode_capture;
-	doc["start_time"] = config.start_time;
-	doc["stop_time"] = config.stop_time;
-	doc["delay_loop"] = config.delay_loop;
-	doc["tag_type"] = config.tag_type;
-	doc["rfid_attempts"] = config.rfid_attempts;
-	doc["delay_tag_save"] = config.delay_tag_save;
-	doc["delay_temp"] = config.delay_temp;
-	doc["servo_bird_release_time"] = config.servo_bird_release_time;
-	doc["tag_1"] = config.tag_1;
-	doc["tag_2"] = config.tag_2;
-	doc["tag_3"] = config.tag_3;
-	doc["tag_4"] = config.tag_4;
-	doc["tag_5"] = config.tag_5;
-
-	if (serializeJson(doc, file) == 0) {
-		Serial.println(F("Failed to write to config file"));
+	else{
+		StaticJsonDocument<768> doc;
+		// Set the values in the document
+		doc["opt_IR_1"] = config.opt_IR_1;
+		doc["opt_IR_2"] = config.opt_IR_2;
+		doc["opt_temp_prec"] = config.opt_temp_prec;
+		doc["opt_servo"] = config.opt_servo;
+		doc["mode_day_only"] = config.mode_day_only;
+		doc["mode_capture"] = config.mode_capture;
+		doc["start_time"] = config.start_time;
+		doc["stop_time"] = config.stop_time;
+		doc["delay_loop"] = config.delay_loop;
+		doc["tag_type"] = config.tag_type;
+		doc["rfid_attempts"] = config.rfid_attempts;
+		doc["delay_tag_save"] = config.delay_tag_save;
+		doc["delay_temp"] = config.delay_temp;
+		doc["servo_bird_release_time"] = config.servo_bird_release_time;
+		doc["tag_1"] = config.tag_1;
+		doc["tag_2"] = config.tag_2;
+		doc["tag_3"] = config.tag_3;
+		doc["tag_4"] = config.tag_4;
+		doc["tag_5"] = config.tag_5;
+		
+		if (serializeJson(doc, file) == 0) {
+			Serial.println(F("Failed to write to config file"));
+		}
+		file.close();
 	}
-	file.close();
+}
+
+// Save local configuration into file
+void load_and_save_local_Configuration(struct Config, Config& config) {
+
+	//removing the old file and creating a new one
+	SD.remove(filename_conf);
+	delay(5);
+	create_config_file();
+
 }
 
 // Prints the content of a file to the Serial
