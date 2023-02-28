@@ -30,6 +30,7 @@
 #include "Adafruit_MAX31865.h"
 #include "pt100rtd.h" // for feather M0, in this .h replace #include <pgmspace.h> by #include <avr\pgmspace.h>
 #include "SAMD21turboPWM.h"
+#include "FlashStorage.h"
 
 // Adafruit board pin mapping
 #define PIN_VBAT		A1                 // analog input for battery voltage measurement
@@ -140,6 +141,7 @@ float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
 float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;
 float Vbat = 0, Vbat_previous = 0;
 float V_LVD = 3;											  // Low voltage disconnect
+FlashStorage(rtc_updated, bool);
 
 // Functions
 /*
@@ -246,19 +248,27 @@ void setup() {
 
 	// Log system start-up
 	data = isoformat(now, now_ms, ";") + "System; " + "Start;" + "\n";
+
+	// If the flash memory is reset, a new code was uploaded --> update RTC
+	if (not rtc_updated.read()){
+		rtc.adjust(time_compil);
+		rtc_updated.write(true);
+		now = rtc.now();
+		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;" + "\n";
+	}
+
+	// Check for RTC errors : wrong date or power loss
 	if (now.unixtime() < time_compil.unixtime()) {
 		rtc_error = true;
 		data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
 	}
-	// rtc time reset at compilation time
 	if (rtc.lostPower()) {
 		rtc_error = true;
 		data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
 	}
+
 	if (rtc_error) {
-		rtc.adjust(time_compil);
-		now = rtc.now();
-		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date; ";
+		error(4);
 	}
 	else {
 		data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;";
@@ -641,9 +651,8 @@ void blink(uint32_t Pin, int delay_ms, int blink_number) {
 // blink out an error code
 void error(int error_number) {
 	while (1) {
-		uint8_t i;
 		blink(LED_BUILTIN, 100, error_number);
-		for (i = error_number; i < 10; i++) {
+		for (uint8_t i = error_number; i < 10; i++) {
 			delay(200);
 		}
 	}
