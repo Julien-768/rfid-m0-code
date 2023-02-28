@@ -45,7 +45,7 @@
 #define PIN_PW_RFID     A5                 // output for power relay of RFID
 #define PIN_IR_1		10                 // input for IR sensor 1
 #define PIN_IR_2	    A0             	   // input for IR sensor 2
-#define PIN_IR_SEND     11                 // output pwm 38kHz for IR sensor
+#define PIN_IR_SEND     11                 // output pwm 36kHz for IR sensor
 #define PIN_SERVO		12	               // output pwm for signal servo pin
 
 // output for CS temperature with MAX31865
@@ -53,7 +53,7 @@
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 4 for a 12V-board
+#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
 
 //---- Temparature measurment with thermistor --------//
 #define THERMISTOR_SECURITY
