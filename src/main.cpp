@@ -141,7 +141,7 @@ float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
 float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;
 float Vbat = 0, Vbat_previous = 0;
 float V_LVD = 3;											  // Low voltage disconnect
-FlashStorage(rtc_updated, bool);
+FlashStorage(rtc_updated, bool);							  // Flag to know if the RTC was already updated - Automatically reset during upload
 
 // Functions
 /*
@@ -253,18 +253,17 @@ void setup() {
 	if (not rtc_updated.read()){
 		rtc.adjust(time_compil);
 		rtc_updated.write(true);
-		now = rtc.now();
 		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;" + "\n";
 	}
 
 	// Check for RTC errors : wrong date or power loss
-	if (now.unixtime() < time_compil.unixtime()) {
-		rtc_error = true;
-		data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
-	}
 	if (rtc.lostPower()) {
 		rtc_error = true;
 		data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
+	}
+	else if (now.unixtime() < time_compil.unixtime()) {
+		rtc_error = true;
+		data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
 	}
 
 	if (rtc_error) {
