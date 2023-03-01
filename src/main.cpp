@@ -78,7 +78,7 @@ struct Config {
 	bool opt_temp_prec = false;         // use temperature recording
 	// Modes and key parameters
 	int delay_loop = 10;			    // loop delay in ms (time to sleep between checking sensors) RFID timeout is always adding to this delay_loop
-	const char* tag_type = "FDX";       // TAG supported "FDX" / "EM4102"
+	String tag_type = "FDX";       // TAG supported "FDX" / "EM4102"
     int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR event
 	int delay_tag_save = 1; 	        // time in seconds to save a tag sitting on the antenna
 	int delay_temp = 60;				// period in seconds to record temperature
@@ -127,7 +127,7 @@ String data, IR_name;                                          //
 TurboPWM pwm;
 
 int RFID_awake = config.rfid_attempts;
-String trx, tag;
+String trx, tag, trx_previous;
 char cmd_read_tag[6];               						   // RFID reading command
 char test[11];
 
@@ -253,7 +253,7 @@ void setup() {
 		rtc_updated.write(true);
 		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;" + "\n";
 	}
-
+	
 	// Check for RTC errors : wrong date or power loss
 	if (rtc.lostPower()) {
 		rtc_error = true;
@@ -307,7 +307,7 @@ void setup() {
 	}
 	// Loading RFID settings
 	String cmd_read = "@ru\r";
-	if (String(config.tag_type) == "FDX") {
+	if (config.tag_type == "FDX") {
 		cmd_read = "@rq\r";
 	}
 	cmd_read.toCharArray(cmd_read_tag, 6);
@@ -445,7 +445,7 @@ void loop() {
 				trx.replace("+ ", "");
 				trx.replace("ru", "");
 				if (trx.length() >= 5) {	// avoid tagless file names
-					if (trx == tag) {	// avoid repeated records
+					if (trx == trx_previous) {	// avoid repeated records
 						// now_ms = millis() % 1000; TODO ?
 						last_tag_diff = rtc.now() - time_last_tag;
 						if (last_tag_diff.seconds() > config.delay_tag_save) {
@@ -472,7 +472,7 @@ void loop() {
 			time_last_tag = rtc.now();
 			now_ms = millis() % 1000;
 
-			if (String(config.tag_type) == "FDX") {
+			if (config.tag_type == "FDX") {
 				tag = tag_hex_to_NIC(trx);
 			}
           	else {
@@ -481,6 +481,7 @@ void loop() {
 			data = isoformat(time_last_tag, now_ms, ";") + tag + "; A0;";
 			log_data(data, filename_data);
 			tag_record = false;
+			trx_previous = trx;
 			digitalWrite(PIN_BUZZER_LED, LOW);
 		}
 
@@ -507,7 +508,7 @@ void loop() {
 
 			// look for special tag
 			if (config.mode_capture == 3 and tag_record == true) {
-				trx.toCharArray(test, 11);
+				tag.toCharArray(test, 11);
 				capture_order = compare(test, config.tag_1) or compare(test, config.tag_2) or compare(test, config.tag_3) or compare(test, config.tag_4) or compare(test, config.tag_5);
 			}
 
@@ -767,7 +768,7 @@ void loadConfiguration(Config& config) {
 			config.start_time = doc["start_time"];
 			config.stop_time = doc["stop_time"];
 			config.delay_loop = doc["delay_loop"];
-			config.tag_type = doc["tag_type"];
+			config.tag_type = doc["tag_type"].as<String>();
 			config.rfid_attempts = doc["rfid_attempts"];
 			config.delay_tag_save = doc["delay_tag_save"];
 			config.delay_temp = doc["delay_temp"];
@@ -926,7 +927,7 @@ String longlong2String(unsigned long long int bigint) {
   String s = "";
   int digit;
 
-  //for eatch decimal digit of the long long bigint, extract it and convert it in string
+  //for each decimal digit of the long long bigint, extract it and convert it in string
   while (bigint > 0) {
     digit = (bigint % 10);		// get the last decimal digit of bigint
     s = String(digit) + s;		// convert the digit in string and add it to output
