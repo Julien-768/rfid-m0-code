@@ -253,22 +253,19 @@ void setup() {
 		rtc_updated.write(true);
 		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;" + "\n";
 	}
-	
-	// Check for RTC errors : wrong date or power loss
-	if (rtc.lostPower()) {
-		rtc_error = true;
-		data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
-	}
-	else if (now.unixtime() < time_compil.unixtime()) {
-		rtc_error = true;
-		data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
-	}
-
-	if (rtc_error) {
-		error(4);
-	}
 	else {
-		data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;";
+		// Check for RTC errors : wrong date or power loss
+		if (rtc.lostPower()) {
+			rtc_error = true;
+			data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
+		}
+		else if (now.unixtime() < time_compil.unixtime()) {
+			rtc_error = true;
+			data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
+		}
+		else {
+			data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;";
+		}
 	}
 
 	// Creating a new file at setup
@@ -276,6 +273,9 @@ void setup() {
 	daily_data_file(filename_data, now);
 	log_data(data, filename_data);
 
+	if (rtc_error) {
+		error(4);
+	}
 
 	time_last_tag = now;
 	time_last_door_closed = now;
