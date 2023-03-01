@@ -114,7 +114,7 @@ int now_ms;
 bool rtc_error = false;										   // RTC lost power
 bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
-bool door_already_closed = false;                              //
+bool door_already_closed = true;                              //
 Servo Servo_control;		                                   // servo object
 int servo_pos_opened = 10;                                     // opened position for servo
 int  servo_pos_closed = 170;                                   // closed position for servo
@@ -181,22 +181,21 @@ void setup() {
 	pinMode(PIN_LED_SD, OUTPUT);
 	pinMode(PIN_IR_1, INPUT);
 	pinMode(PIN_IR_2, INPUT);
+	pinMode(PIN_VBAT, INPUT);
+	pinMode(PIN_PW_SW, INPUT);	
 	pinMode(PIN_PW_RFID, OUTPUT);
 	pinMode(PIN_PW_3V, OUTPUT);
 	pinMode(PIN_IR_SEND, OUTPUT);
 	pinMode(PIN_BUZZER_LED, OUTPUT);
     pinMode(PIN_PW_EN, OUTPUT);
-	pinMode(PIN_VBAT, INPUT);
-	pinMode(PIN_PW_SW, INPUT);
-	pinMode(PIN_PW_EN, OUTPUT);
 #ifndef THERMISTOR_SECURITY
 	pinMode(PIN_PW_SERVO, OUTPUT);
+	digitalWrite(PIN_PW_SERVO, LOW);	
 #else
 	pinMode(THERMISTORPIN, INPUT);
 #endif
 	digitalWrite(PIN_PW_EN, HIGH);
 	digitalWrite(PIN_PW_RFID, HIGH);
-	digitalWrite(PIN_PW_SERVO, LOW);
 	digitalWrite(PIN_PW_3V, HIGH);
 	digitalWrite(PIN_BUZZER_LED, HIGH);
 	pwm.setClockDivider(16, false);		// Main clock divided by 16 => 3MHz
@@ -314,26 +313,22 @@ void setup() {
 	}
 	cmd_read.toCharArray(cmd_read_tag, 6);
 
-	// Initialization of the servo motor
-	if (config.mode_capture != 1)
-	{	// open the door
+
+	// Initialization of the servo motor : Door is opened by default
 #ifndef THERMISTOR_SECURITY
+	if (config.opt_servo){
 		Servo_control.attach(PIN_SERVO);
-		Servo_control.write(servo_pos_opened);
-#endif
-		Serial.println(F("Init:\tServo door is opened"));
-		delay(2000);
-		digitalWrite(PIN_PW_SERVO, LOW);
-		digitalWrite(PIN_PW_RFID, HIGH);
+		closeDoor(false);
 	}
+#endif
 
 	//Initialization Battery voltage
 	delay(100);
 	Vbatn_2 = get_voltage(PIN_VBAT);
 	delay(100);
 	Vbatn_1 = get_voltage(PIN_VBAT);
-	Vbatn = get_voltage(PIN_VBAT);
 	delay(100);
+	Vbatn = get_voltage(PIN_VBAT);
 
 	user_buzzer_on = true;
 	digitalWrite(PIN_BUZZER_LED, LOW);
@@ -396,7 +391,6 @@ void loop() {
 		// Security : Open the door if closed
 		closeDoor(false);
 		acquisition = false;
-		digitalWrite(PIN_PW_SERVO, LOW);
 		digitalWrite(PIN_PW_3V, LOW);
 		digitalWrite(PIN_PW_RFID, LOW);
 		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Sleep mode;";
@@ -494,7 +488,7 @@ void loop() {
 		}
 
 		// Action with the servo - Capture
-		if (config.mode_capture != 1) {
+		if ((config.mode_capture != 1) and config.opt_servo) {
 			////////// notifying servo is busy
 			////////now = rtc.now();
 			////////if (servo_busy)
