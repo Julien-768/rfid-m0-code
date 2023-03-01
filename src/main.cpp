@@ -76,7 +76,6 @@ struct Config {
 	bool opt_IR_1 = true;               // use infrared sensor 1
 	bool opt_IR_2 = true;               // use infrared sensor 2
 	bool opt_temp_prec = false;         // use temperature recording
-	bool opt_servo = false;             // use servomotor
 	// Modes and key parameters
 	int delay_loop = 10;			    // loop delay in ms (time to sleep between checking sensors) RFID timeout is always adding to this delay_loop
 	const char* tag_type = "FDX";       // TAG supported "FDX" / "EM4102"
@@ -316,10 +315,8 @@ void setup() {
 
 	// Initialization of the servo motor : Door is opened by default
 #ifndef THERMISTOR_SECURITY
-	if (config.opt_servo){
-		Servo_control.attach(PIN_SERVO);
-		closeDoor(false);
-	}
+	Servo_control.attach(PIN_SERVO);
+	closeDoor(false);
 #endif
 
 	//Initialization Battery voltage
@@ -488,7 +485,7 @@ void loop() {
 		}
 
 		// Action with the servo - Capture
-		if ((config.mode_capture != 1) and config.opt_servo) {
+		if (config.mode_capture != 1) {
 			////////// notifying servo is busy
 			////////now = rtc.now();
 			////////if (servo_busy)
@@ -765,7 +762,6 @@ void loadConfiguration(Config& config) {
 			config.opt_IR_1 = doc["opt_IR_1"];
 			config.opt_IR_2 = doc["opt_IR_2"];
 			config.opt_temp_prec = doc["opt_temp_prec"];
-			config.opt_servo = doc["opt_servo"];
 			config.mode_day_only = doc["mode_day_only"];
 			config.mode_capture = doc["mode_capture"];
 			config.start_time = doc["start_time"];
@@ -803,7 +799,6 @@ void create_config_file() {
 		doc["opt_IR_1"] = config.opt_IR_1;
 		doc["opt_IR_2"] = config.opt_IR_2;
 		doc["opt_temp_prec"] = config.opt_temp_prec;
-		doc["opt_servo"] = config.opt_servo;
 		doc["mode_day_only"] = config.mode_day_only;
 		doc["mode_capture"] = config.mode_capture;
 		doc["start_time"] = config.start_time;
