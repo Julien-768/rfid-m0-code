@@ -91,7 +91,7 @@ struct Config {
 	int start_time = 5;			        // in day only mode, hour to start the device, value 0 to 23
 	int stop_time = 23;			        // in day only mode, hour to stop the device, 1 to 24
 	int mode_capture = 1;               // 1 no captures, 2 capture all, 3 capture specific tags, 4 capture non tagged
-	int servo_bird_release_time = 10;   // time in seconds for a captured bird release
+	int release_time = 10;   			// time in seconds for a release after release
 	const char* tag_1 = "01101728E6";   // tags for mode capture 3
 	const char* tag_2 = "01101728E6";   // tags for mode capture 3
 	const char* tag_3 = "01101728E6";   // tags for mode capture 3
@@ -492,7 +492,7 @@ void loop() {
 			////////now = rtc.now();
 			////////if (servo_busy)
 			////////{
-			////////	if (!door_already_closed and time_opened.unixtime() + config.servo_bird_release_time > now.unixtime())
+			////////	if (!door_already_closed and time_opened.unixtime() + config.release_time > now.unixtime())
 			////////	{
 			////////		Serial.println("Servomotor is busy, closing blocked");
 			////////		servo_busy = false;
@@ -576,7 +576,7 @@ void loop() {
 
 
 	// SECURITY : Open door if closed for a certain time 
-	if (((time_last_door_closed.unixtime() + config.servo_bird_release_time) <= now.unixtime()) and door_already_closed) {
+	if (((time_last_door_closed.unixtime() + config.release_time) <= now.unixtime()) and door_already_closed) {
 		closeDoor(false);
 	}
 
@@ -773,7 +773,7 @@ void loadConfiguration(Config& config) {
 			config.rfid_attempts = doc["rfid_attempts"];
 			config.delay_tag_save = doc["delay_tag_save"];
 			config.delay_temp = doc["delay_temp"];
-			config.servo_bird_release_time = doc["servo_bird_release_time"];
+			config.release_time = doc["release_time"];
 			config.tag_1 = doc["tag_1"];
 			config.tag_2 = doc["tag_2"];
 			config.tag_3 = doc["tag_3"];
@@ -810,7 +810,7 @@ void create_config_file() {
 		doc["rfid_attempts"] = config.rfid_attempts;
 		doc["delay_tag_save"] = config.delay_tag_save;
 		doc["delay_temp"] = config.delay_temp;
-		doc["servo_bird_release_time"] = config.servo_bird_release_time;
+		doc["release_time"] = config.release_time;
 		doc["tag_1"] = config.tag_1;
 		doc["tag_2"] = config.tag_2;
 		doc["tag_3"] = config.tag_3;
