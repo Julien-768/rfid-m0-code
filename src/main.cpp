@@ -87,11 +87,11 @@ struct Config {
     int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR event
 	int delay_tag_save = 1; 	        // time in seconds to save a tag sitting on the antenna
 	int delay_temp = 60;				// period in seconds to record temperature
-	bool mode_day_only = false;   	    // mode to switch off the device at night
+	bool mode_time_period = false;   	// activation only between start_time and stop_time hours 
 	int start_time = 5;			        // in day only mode, hour to start the device, value 0 to 23
 	int stop_time = 23;			        // in day only mode, hour to stop the device, 1 to 24
 	int mode_capture = 1;               // 1 no captures, 2 capture all, 3 capture specific tags, 4 capture non tagged
-	int release_time = 10;   			// time in seconds for a release after release
+	int release_time = 10;   			// time in seconds for a release after capture
 	const char* tag_1 = "01101728E6";   // tags for mode capture 3
 	const char* tag_2 = "01101728E6";   // tags for mode capture 3
 	const char* tag_3 = "01101728E6";   // tags for mode capture 3
@@ -138,7 +138,7 @@ char test[11];
 bool acquisition = true;									   // Status of the acquisition
 bool tag_record = false, tag_event = false;                    // Flag to kow if a tag was detected and need to be saved
 bool battery_condition = true;							       // Condition to run acquisition based on battery voltage
-bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_day_only = true)
+bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_time_period = true)
 String data;
 
 float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;				       // Battery voltage memory : Used to filter battery value reading
@@ -364,7 +364,7 @@ void loop() {
 
 
 	// Check if acquisition should run according to day only mode
-	if (config.mode_day_only == true) {
+	if (config.mode_time_period == true) {
 		hours_current = now.hour();
 		time_period_condition = false;
 		// If the time period is defined on the same day
@@ -764,7 +764,7 @@ void loadConfiguration(Config& config) {
 			config.opt_IR_1 = doc["opt_IR_1"];
 			config.opt_IR_2 = doc["opt_IR_2"];
 			config.opt_temp_prec = doc["opt_temp_prec"];
-			config.mode_day_only = doc["mode_day_only"];
+			config.mode_time_period = doc["mode_time_period"];
 			config.mode_capture = doc["mode_capture"];
 			config.start_time = doc["start_time"];
 			config.stop_time = doc["stop_time"];
@@ -801,7 +801,7 @@ void create_config_file() {
 		doc["opt_IR_1"] = config.opt_IR_1;
 		doc["opt_IR_2"] = config.opt_IR_2;
 		doc["opt_temp_prec"] = config.opt_temp_prec;
-		doc["mode_day_only"] = config.mode_day_only;
+		doc["mode_time_period"] = config.mode_time_period;
 		doc["mode_capture"] = config.mode_capture;
 		doc["start_time"] = config.start_time;
 		doc["stop_time"] = config.stop_time;
