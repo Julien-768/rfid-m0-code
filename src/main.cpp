@@ -55,6 +55,11 @@
 
 // Electrical characteristics of the power board
 #define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
+#define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
+
+// Characteristics of the servo
+#define SERVO_POS_OPENED         10         // Opened position for servo in degrees
+#define SERVO_POS_CLOSED        170         // Closed position for servo in degrees
 
 //---- Temparature measurment with thermistor --------//
 #define THERMISTOR_SECURITY
@@ -78,7 +83,7 @@ struct Config {
 	bool opt_temp_prec = false;         // use temperature recording
 	// Modes and key parameters
 	int delay_loop = 10;			    // loop delay in ms (time to sleep between checking sensors) RFID timeout is always adding to this delay_loop
-	String tag_type = "FDX";       // TAG supported "FDX" / "EM4102"
+	String tag_type = "FDX";            // TAG supported "FDX" / "EM4102"
     int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR event
 	int delay_tag_save = 1; 	        // time in seconds to save a tag sitting on the antenna
 	int delay_temp = 60;				// period in seconds to record temperature
@@ -95,52 +100,48 @@ struct Config {
 };
 
 //Variables declaration
-const char* filename_conf = "/config.txt";                    // config file
-Config config;                                                // global configuration object
-char filename_data[12];                                       // NB Files names are limited to 8 charaters
-File logfile;
+const char* filename_conf = "/config.txt";                     // config file
+Config config;                                                 // global configuration object
+char filename_data[12];                                        // NB Files names are limited to 8 charaters
 
-Adafruit_MAX31865 Temp = Adafruit_MAX31865(PIN_TEMP_CS);      // Temperature MAX31865
-pt100rtd PT100 = pt100rtd();                                  // init the Pt100 table lookup module
-float temp_reading;											  // Temperature Thermistor
-float temp_max = 50;										  // Temperature Thermistor
-RTC_DS3231 rtc;                                               // RTC
+Adafruit_MAX31865 Temp = Adafruit_MAX31865(PIN_TEMP_CS);       // Temperature MAX31865
+pt100rtd PT100 = pt100rtd();                                   // init the Pt100 table lookup module
+float temp_reading;											   // Temperature Thermistor
+float temp_max = 50;										   // Temperature Thermistor
+float Temperature = 0, Temperature_previous = 0; 			   //,ohms;
 
+RTC_DS3231 rtc;                                                // Real Time Clock
+bool rtc_error = false;										   // RTC lost power or wrong date
+FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
 DateTime time_compil, now, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer;
 TimeSpan last_tag_diff;
-int hours_current;
-int now_ms;
-bool rtc_error = false;										   // RTC lost power
+int hours_current;											   // Current hour from RTC
+int now_ms;													   // Current millisecond from millis()
 bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
-bool door_already_closed = true;                              //
-Servo Servo_control;		                                   // servo object
-int servo_pos_opened = 10;                                     // opened position for servo
-int  servo_pos_closed = 170;                                   // closed position for servo
-bool capture_order = false;                                    //
 
-float measuredvbat = 0;
+Servo Servo_control;		                                   // Servo object
+bool capture_order = false;                                    // Command to close the door
+bool door_already_closed = true;                               // Status of the door
+
 bool IR_1 = false, IR_1_previous = false;                      // IR_1 tracker variables
 bool IR_2 = false, IR_2_previous = false;                      // IR_2 tracker variables
 bool IR_state = false, IR_event = false;                       // IR events variables
-String data, IR_name;                                          //
-TurboPWM pwm;
+TurboPWM pwm;												   // PWM used for infrared emitter
 
-int RFID_awake = config.rfid_attempts;
-String trx, tag, trx_previous;
+int RFID_awake = config.rfid_attempts;						   // Number of remaining attempts to read the RFID
+String trx, trx_previous, tag;								   // Current and previous output of the RID reader
 char cmd_read_tag[6];               						   // RFID reading command
 char test[11];
 
-bool acquisition = true;
-bool tag_record = false, tag_event = false;                    //
+bool acquisition = true;									   // Status of the acquisition
+bool tag_record = false, tag_event = false;                    // Flag to kow if a tag was detected and need to be saved
 bool battery_condition = true;							       // Condition to run acquisition based on battery voltage
 bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_day_only = true)
+String data;
 
-float Temperature = 0, Temperature_previous = 0; 			  //,ohms;
-float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;
-float Vbat = 0, Vbat_previous = 0;
-float V_LVD = 3;											  // Low voltage disconnect
-FlashStorage(rtc_updated, bool);							  // Flag to know if the RTC was already updated - Automatically reset during upload
+float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;				       // Battery voltage memory : Used to filter battery value reading
+float Vbat = 0, Vbat_previous = 0;							   // Current battery voltage (based on filtered values) and previous one
 
 // Functions
 /*
@@ -189,7 +190,7 @@ void setup() {
     pinMode(PIN_PW_EN, OUTPUT);
 #ifndef THERMISTOR_SECURITY
 	pinMode(PIN_PW_SERVO, OUTPUT);
-	digitalWrite(PIN_PW_SERVO, LOW);	
+	digitalWrite(PIN_PW_SERVO, LOW);
 #else
 	pinMode(THERMISTORPIN, INPUT);
 #endif
@@ -543,7 +544,7 @@ void loop() {
 			// LookUp Table method
 			Temperature = PT100.celsius(ohmsx100);
 			checkFault();
-			#endif
+#endif
 
 			time_last_temp = rtc.now();
 			now_ms = millis() % 1000;
@@ -598,19 +599,19 @@ void loop() {
 			log_data(data, filename_data);
 		}
 		// sleep mode
-		if ((Vbat <= V_LVD + 0.1) and time_period_condition) {
+		if ((Vbat <= BATTERY_MIN_VOLTAGE + 0.1) and time_period_condition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
 			time_period_condition = false;
 		}
 		// wake up mode
-		if ((Vbat >= V_LVD + 0.2) and not time_period_condition) {
+		if ((Vbat >= BATTERY_MIN_VOLTAGE + 0.2) and not time_period_condition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
 			time_period_condition = true;
 		}
 		// power off
-		if (Vbat <= V_LVD) {
+		if (Vbat <= BATTERY_MIN_VOLTAGE) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
 			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
@@ -730,7 +731,7 @@ void daily_data_file(char* filename, DateTime t) {
 	}
 	Serial.println(filename);
 
-	logfile = SD.open(filename, FILE_WRITE);
+	File logfile = SD.open(filename, FILE_WRITE);
 	if (!logfile) {
 		Serial.print("Couldnt create\t");
 		Serial.println(filename);
@@ -1010,7 +1011,7 @@ float readThermistorTemperature() {
 	// convert the value to resistance
 	temp_reading = (1023 / temp_reading) - 1;     // (1023/ADC - 1)
 	temp_reading = SERIESRESISTOR / temp_reading;  // 10K / (1023/ADC - 1)
-// convert the resistance to temperature in Celcus
+	// convert the resistance to temperature in Celcus
 	steinhart = temp_reading / THERMISTORNOMINAL;     // (R/Ro)
 	steinhart = log(steinhart);                  // ln(R/Ro)
 	steinhart /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
@@ -1028,14 +1029,14 @@ void closeDoor(bool door_cmd_closed){
 		digitalWrite(PIN_PW_SERVO, HIGH);
 		// Close the door
 		if (door_cmd_closed) {
-			Servo_control.write(servo_pos_closed);
+			Servo_control.write(SERVO_POS_CLOSED);
 			time_last_door_closed = rtc.now();
 			door_already_closed = true;
 			Serial.println("Door closed");
 		}
 		// Else open the door
 		else {
-			Servo_control.write(servo_pos_opened);
+			Servo_control.write(SERVO_POS_OPENED);
 			door_already_closed = false;
 			Serial.println("Door opened");
 		}
