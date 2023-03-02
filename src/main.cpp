@@ -102,7 +102,8 @@ struct Config {
 //Variables declaration
 const char* filename_conf = "/config.txt";                     // config file
 Config config;                                                 // global configuration object
-char filename_data[12];                                        // NB Files names are limited to 8 charaters
+char filename_data[13];                                        // NB Files names are limited to 8 characters : 8 charac + '.TXT' + \0
+File logfile;
 
 Adafruit_MAX31865 Temp = Adafruit_MAX31865(PIN_TEMP_CS);       // Temperature MAX31865
 pt100rtd PT100 = pt100rtd();                                   // init the Pt100 table lookup module
@@ -599,16 +600,16 @@ void loop() {
 			log_data(data, filename_data);
 		}
 		// sleep mode
-		if ((Vbat <= BATTERY_MIN_VOLTAGE + 0.1) and time_period_condition) {
+		if ((Vbat <= BATTERY_MIN_VOLTAGE + 0.1) and battery_condition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
-			time_period_condition = false;
+			battery_condition = false;
 		}
 		// wake up mode
-		if ((Vbat >= BATTERY_MIN_VOLTAGE + 0.2) and not time_period_condition) {
+		if ((Vbat >= BATTERY_MIN_VOLTAGE + 0.2) and not battery_condition) {
 			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
 			log_data(data, filename_data);
-			time_period_condition = true;
+			battery_condition = true;
 		}
 		// power off
 		if (Vbat <= BATTERY_MIN_VOLTAGE) {
@@ -686,7 +687,7 @@ void log_data(String data, const char* filename) {
 	digitalWrite(PIN_LED_SD, HIGH);
 	File log = SD.open(filename, FILE_WRITE);
 	if (!log) {
-		Serial.print("Couldnt create ");
+		Serial.print("Couldnt open ");
 		Serial.println(filename);
 		Serial.println("error 3");
 		error(3);
@@ -708,7 +709,7 @@ void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* file
 	else {
 		data += "beam restored ; ";
 	}
-	log_data(data, filename_data);
+	log_data(data, filename);
 }
 
 // create a file each day
