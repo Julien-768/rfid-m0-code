@@ -251,17 +251,17 @@ void setup() {
 	if (not rtc_updated.read()){
 		rtc.adjust(time_compil);
 		rtc_updated.write(true);
-		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;" + "\n";
+		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;";
 	}
 	else {
 		// Check for RTC errors : wrong date or power loss
 		if (rtc.lostPower()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;" + "\n";
+			data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;";
 		}
 		else if (now.unixtime() < time_compil.unixtime()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;" + "\n";
+			data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;";
 		}
 		else {
 			data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;";
@@ -305,13 +305,13 @@ void setup() {
 	if (config.opt_IR_2 == true) {
 		IR_2_previous = digitalRead(PIN_IR_2);
 	}
+
 	// Loading RFID settings
 	String cmd_read = "@ru\r";
 	if (config.tag_type == "FDX") {
 		cmd_read = "@rq\r";
 	}
 	cmd_read.toCharArray(cmd_read_tag, 6);
-
 
 	// Initialization of the servo motor : Door is opened by default
 #ifndef THERMISTOR_SECURITY
@@ -320,7 +320,6 @@ void setup() {
 #endif
 
 	//Initialization Battery voltage
-	delay(100);
 	Vbatn_2 = get_voltage(PIN_VBAT);
 	delay(100);
 	Vbatn_1 = get_voltage(PIN_VBAT);
@@ -347,7 +346,7 @@ void loop() {
 	// refresh time for the loop
 	now_ms = millis() % 1000;
 	now = rtc.now();
-
+	
 	// creating a new file each day
 	if (now.day() != time_file.day()) {
 		time_file = now;
@@ -448,7 +447,7 @@ void loop() {
 					if (trx == trx_previous) {	// avoid repeated records
 						// now_ms = millis() % 1000; TODO ?
 						last_tag_diff = rtc.now() - time_last_tag;
-						if (last_tag_diff.seconds() > config.delay_tag_save) {
+						if (last_tag_diff.seconds() >= config.delay_tag_save) {
 							tag_record = true;
 						}
 					}
@@ -575,7 +574,7 @@ void loop() {
 
 
 	// SECURITY : Open door if closed for a certain time 
-	if ((time_last_door_closed.unixtime() + config.servo_bird_release_time) < now.unixtime()) {
+	if (((time_last_door_closed.unixtime() + config.servo_bird_release_time) <= now.unixtime()) and door_already_closed) {
 		closeDoor(false);
 	}
 
