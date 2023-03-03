@@ -133,7 +133,7 @@ TurboPWM pwm;												   // PWM used for infrared emitter
 int RFID_awake = config.rfid_attempts;						   // Number of remaining attempts to read the RFID
 String trx, trx_previous, tag;								   // Current and previous output of the RID reader
 char cmd_read_tag[6];               						   // RFID reading command
-char test[11];
+char tag_to_compare[11];
 
 bool acquisition = true;									   // Status of the acquisition
 bool tag_record = false, tag_event = false;                    // Flag to kow if a tag was detected and need to be saved
@@ -509,8 +509,8 @@ void loop() {
 
 			// look for special tag
 			if (config.mode_capture == 3 and tag_record == true) {
-				tag.toCharArray(test, 11);
-				capture_order = compare(test, config.tag_1) or compare(test, config.tag_2) or compare(test, config.tag_3) or compare(test, config.tag_4) or compare(test, config.tag_5);
+				tag.toCharArray(tag_to_compare, 11);
+				capture_order = compare(tag_to_compare, config.tag_1) or compare(tag_to_compare, config.tag_2) or compare(tag_to_compare, config.tag_3) or compare(tag_to_compare, config.tag_4) or compare(tag_to_compare, config.tag_5);
 			}
 
 			// capture
