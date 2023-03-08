@@ -682,7 +682,7 @@ float get_voltage(uint32_t ulPin) {
 	return measuredvbat;
 }
 
-// log data to file with battery voltage
+// log data to file
 void log_data(String data, const char* filename) {
 	digitalWrite(PIN_LED_SD, HIGH);
 	File log = SD.open(filename, FILE_WRITE);
@@ -699,7 +699,7 @@ void log_data(String data, const char* filename) {
 	digitalWrite(PIN_LED_SD, LOW);
 }
 
-// log data to file with battery voltage
+// log data according to IR state
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename) {
 	now_ms = millis() % 1000;
 	data = isoformat(rtc.now(), now_ms, ";") + IR_name;
@@ -784,6 +784,7 @@ void loadConfiguration(Config& config) {
 	}
 	// Else, create a config file with the values already loaded in memory
 	else{
+		Serial.println(F("Failed to find file, create file with default configuration"));
 		create_config_file();
 	}
 }
