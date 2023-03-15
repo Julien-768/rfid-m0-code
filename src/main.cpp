@@ -44,8 +44,8 @@
 #define PIN_PW_SERVO  	A4	               // output for power relay of servomotor
 #define PIN_PW_3V       5                  // output for power relay of IRs and RTD
 #define PIN_PW_RFID     A5                 // output for power relay of RFID
-#define PIN_IR_1		10                 // input for IR sensor 1
-#define PIN_IR_2	    A0             	   // input for IR sensor 2
+#define PIN_IR_1		A0                 // input for IR sensor 1
+#define PIN_IR_2	    10             	   // input for IR sensor 2
 #define PIN_IR_SEND     11                 // output pwm 36kHz for IR sensor
 #define PIN_SERVO		12	               // output pwm for signal servo pin
 
