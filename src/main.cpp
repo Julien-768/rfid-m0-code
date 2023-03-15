@@ -1027,6 +1027,7 @@ float readThermistorTemperature() {
 
 // Management of the door
 void closeDoor(bool door_cmd_closed){
+#ifndef THERMISTOR_SECURITY
 	if (door_cmd_closed != door_already_closed) {
 		digitalWrite(PIN_PW_SERVO, HIGH);
 		// Close the door
@@ -1045,4 +1046,5 @@ void closeDoor(bool door_cmd_closed){
 		delay(2000);
 		digitalWrite(PIN_PW_SERVO, LOW);
 	}
+#endif
 }
