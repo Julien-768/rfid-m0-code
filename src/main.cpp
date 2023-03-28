@@ -54,8 +54,8 @@
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
-#define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
+#define POWER_BOARD_BATT_RATIO   6			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
+#define BATTERY_MIN_VOLTAGE      12			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
 
 // Characteristics of the servo
 #define SERVO_POS_OPENED         10         // Opened position for servo in degrees
@@ -99,6 +99,14 @@ struct Config {
 	const char* tag_5 = "01101728E6";   // tags for mode capture 3
 };
 
+struct Average_value {
+    float array[3];
+    float mean_value;
+    float mean_value_previous;
+    float threshold;
+};
+
+
 //Variables declaration
 const char* filename_conf = "/config.txt";                     // config file
 Config config;                                                 // global configuration object
@@ -106,10 +114,9 @@ char filename_data[13];                                        // NB Files names
 File logfile;
 
 Adafruit_MAX31865 Temp = Adafruit_MAX31865(PIN_TEMP_CS);       // Temperature MAX31865
-pt100rtd PT100 = pt100rtd();                                   // init the Pt100 table lookup module
-float temp_reading;											   // Temperature Thermistor
-float temp_max = 50;										   // Temperature Thermistor
-float Temperature = 0, Temperature_previous = 0; 			   //,ohms;
+pt100rtd PT100 = pt100rtd();                                   // Init the Pt100 table lookup module
+const float temp_max = 50;									   // Temperature Thermistor
+Average_value Temperature = {{0,0,0}, 0, 0, 0.02};		       // Temperature : Current and previous raw values, current and previous mean value	
 
 RTC_DS3231 rtc;                                                // Real Time Clock
 bool rtc_error = false;										   // RTC lost power or wrong date
@@ -141,8 +148,7 @@ bool battery_condition = true;							       // Condition to run acquisition base
 bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_time_period = true)
 String data;
 
-float Vbatn = 0, Vbatn_1 = 0, Vbatn_2 = 0;				       // Battery voltage memory : Used to filter battery value reading
-float Vbat = 0, Vbat_previous = 0;							   // Current battery voltage (based on filtered values) and previous one
+Average_value Vbat = {{0,0,0}, 0, 0, 0.1};					   // Battery voltage : Current and previous raw values, current and previous mean value	
 
 // Functions
 /*
@@ -167,6 +173,7 @@ String longlong2String(unsigned long long int bigint);
 String tag_hex_to_NIC(String src);
 void shutDownButton(void);
 void closeDoor(bool door_cmd_closed);
+bool moving_average(struct Average_value *s, float updated_value);
 #ifdef THERMISTOR_SECURITY
 float readThermistorTemperature();
 #endif
@@ -322,11 +329,11 @@ void setup() {
 #endif
 
 	//Initialization Battery voltage
-	Vbatn_2 = get_voltage(PIN_VBAT);
+	moving_average(&Vbat, get_voltage(PIN_VBAT));
 	delay(100);
-	Vbatn_1 = get_voltage(PIN_VBAT);
+	moving_average(&Vbat, get_voltage(PIN_VBAT));
 	delay(100);
-	Vbatn = get_voltage(PIN_VBAT);
+	moving_average(&Vbat, get_voltage(PIN_VBAT));
 
 	user_buzzer_on = true;
 	digitalWrite(PIN_BUZZER_LED, LOW);
@@ -523,9 +530,12 @@ void loop() {
 
 		// Temperature
 		if (config.opt_temp_prec == true and time_last_temp.unixtime() + config.delay_temp <= now.unixtime()) {
+
+			float current_temperature;
+
 #ifdef THERMISTOR_SECURITY
 
-			Temperature = readThermistorTemperature();
+			current_temperature = readThermistorTemperature();
 
 #else
 			uint16_t rtd, ohmsx100;
@@ -543,23 +553,22 @@ void loop() {
 			//Serial.print(", ohms: "); Serial.println(ohms, 2);
 
 			// LookUp Table method
-			Temperature = PT100.celsius(ohmsx100);
+			current_temperature = PT100.celsius(ohmsx100);
 			checkFault();
 #endif
 
 			time_last_temp = rtc.now();
 			now_ms = millis() % 1000;
-			if (abs(Temperature_previous - Temperature) > 0.02) {
-				Temperature_previous = Temperature;
+			if (moving_average(&Temperature, current_temperature)) {
 				now_ms = millis() % 1000;
-				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + Temperature + "C° ;";
+				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + String(Temperature.mean_value) + "C° ;";
 				log_data(data, filename_data);
 			}
 
 
 			// power off
-			if (Temperature > temp_max) {
-				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + Temperature + "C° ;";
+			if (Temperature.mean_value > temp_max) {
+				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + String(Temperature.mean_value) + "C° ;";
 				log_data(data, filename_data);
 				data = isoformat(rtc.now(), now_ms, ";") + "System; " + "High temperature;";
 				log_data(data, filename_data);
@@ -585,35 +594,28 @@ void loop() {
 	if (time_last_voltage.unixtime() + 2 <= now.unixtime()) {
 
 		time_last_voltage = now;
-
-		Vbatn_2 = Vbatn_1;
-		Vbatn_1 = Vbatn;
-		Vbatn = get_voltage(PIN_VBAT);
-
-		Vbat = (Vbatn_2 + Vbatn_1 + Vbatn)/3;
-
+		
 		// voltage measurement
-		if (abs(Vbat_previous - Vbat) > 0.1) {
-			Vbat_previous = Vbat;
+		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
 			now_ms = millis() % 1000;
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
 			log_data(data, filename_data);
 		}
 		// sleep mode
-		if ((Vbat <= BATTERY_MIN_VOLTAGE + 0.1) and battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
 		// wake up mode
-		if ((Vbat >= BATTERY_MIN_VOLTAGE + 0.2) and not battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
 		// power off
-		if (Vbat <= BATTERY_MIN_VOLTAGE) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat) + "V ;";
+		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
 			log_data(data, filename_data);
 			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
 			log_data(data, filename_data);
@@ -676,7 +678,7 @@ String isoformat_date(DateTime t) {
 // get battery voltage
 float get_voltage(uint32_t ulPin) {
 	float measuredvbat = analogRead(ulPin);
-	measuredvbat *= POWER_BOARD_BATT_RATIO;     // we divided by POWER_BOARD_BATT_RATIO, so multiply back
+	measuredvbat *= POWER_BOARD_BATT_RATIO;     // We divided by POWER_BOARD_BATT_RATIO, so multiply back
 	measuredvbat *= 3.3;  						// Multiply by 3.3V, our reference voltage
 	measuredvbat /= 1023; 						// convert to voltage
 	return measuredvbat;
@@ -1047,4 +1049,26 @@ void closeDoor(bool door_cmd_closed){
 		digitalWrite(PIN_PW_SERVO, LOW);
 	}
 #endif
+}
+
+// Average value filtering
+bool moving_average(struct Average_value *s, float updated_value) {
+
+	// Update values
+	s->array[2] = s->array[1];
+	s->array[1] = s->array[0];
+	s->array[0] = updated_value;
+
+    // Calculation of the new moving average
+    float average = (s->array[0] + s->array[1] + s->array[2]) / 3.0;
+	
+    // Comparison with the previous moving average and threshold
+    if (fabs(average - s->mean_value) <= s->threshold) {
+        return false;
+    } else {
+        // Update the values in the structure
+        s->mean_value_previous = s->mean_value;
+        s->mean_value = average;
+        return true;
+    }
 }
