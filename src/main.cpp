@@ -233,13 +233,6 @@ void setup() {
 
 	delay(1000);
 
-	// see if the card is present and can be initialized:
-	if (!SD.begin(PIN_SD_CS)) {
-		Serial.println("Error\n");
-		Serial.println("SD Card init failed");
-		error(2);
-	}
-
 	// RTC initialisation
 	if (!rtc.begin()) {
 		Serial.println("Error\n");
@@ -275,6 +268,13 @@ void setup() {
 		else {
 			data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;";
 		}
+	}
+
+	// See if the card is present and can be initialized:
+	if (!SD.begin(PIN_SD_CS)) {
+		Serial.println("Error\n");
+		Serial.println("SD Card init failed");
+		error(2);
 	}
 
 	// Creating a new file at setup
