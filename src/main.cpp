@@ -247,26 +247,26 @@ void setup() {
 	now = rtc.now();
 
 	// Log system start-up
-	data = isoformat(now, now_ms, ";") + "System; " + "Start;" + "\n";
+	data = isoformat(now, now_ms, ";") + "System;Start;\n";
 
 	// If the flash memory is reset, a new code was uploaded --> update RTC
 	if (not rtc_updated.read()){
 		rtc.adjust(time_compil);
 		rtc_updated.write(true);
-		data = data + isoformat(now, now_ms, ";") + "System; RTC set time to compilation date;";
+		data = data + isoformat(now, now_ms, ";") + "System;RTC set time to compilation date;";
 	}
 	else {
 		// Check for RTC errors : wrong date or power loss
 		if (rtc.lostPower()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + "System; RTC lost power;";
+			data = data + isoformat(now, now_ms, ";") + "System;RTC lost power;";
 		}
 		else if (now.unixtime() < time_compil.unixtime()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + "System; RTC has unknow error;";
+			data = data + isoformat(now, now_ms, ";") + "System;RTC has unknow error;";
 		}
 		else {
-			data = data + isoformat(now, now_ms, ";") + "System; RTC is ok;";
+			data = data + isoformat(now, now_ms, ";") + "System;RTC is ok;";
 		}
 	}
 
@@ -398,7 +398,7 @@ void loop() {
 		acquisition = false;
 		digitalWrite(PIN_PW_3V, LOW);
 		digitalWrite(PIN_PW_RFID, LOW);
-		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Sleep mode;";
+		data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Sleep mode;";
 		log_data(data, filename_data);
 	}
 
@@ -408,7 +408,7 @@ void loop() {
 		acquisition = true;
 		digitalWrite(PIN_PW_3V, HIGH);
 		digitalWrite(PIN_PW_RFID, HIGH);
-		data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Wake up mode;";
+		data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Wake up mode;";
 		log_data(data, filename_data);
 	}
 
@@ -424,7 +424,7 @@ void loop() {
 			if (IR_1 != IR_1_previous) {
 				IR_1_previous = IR_1;
 				IR_event = true;
-				log_data_IR(rtc, IR_1, "IR 1 ; ", filename_data);
+				log_data_IR(rtc, IR_1, "IR 1;", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
 		}
@@ -435,7 +435,7 @@ void loop() {
 			if (IR_2 != IR_2_previous) {
 				IR_2_previous = IR_2;
 				IR_event = true;
-				log_data_IR(rtc, IR_2, "IR 2 ; ", filename_data);
+				log_data_IR(rtc, IR_2, "IR 2;", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
 		}
@@ -486,7 +486,7 @@ void loop() {
           	else {
             	tag = trx;
           	}
-			data = isoformat(time_last_tag, now_ms, ";") + tag + "; A0;";
+			data = isoformat(time_last_tag, now_ms, ";") + "A0;" + tag + ";";
 			log_data(data, filename_data);
 			tag_record = false;
 			trx_previous = trx;
@@ -561,16 +561,16 @@ void loop() {
 			now_ms = millis() % 1000;
 			if (moving_average(&Temperature, current_temperature)) {
 				now_ms = millis() % 1000;
-				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + String(Temperature.mean_value) + "C° ;";
+				data = isoformat(time_last_temp, now_ms, ";") + "Temperature;" + String(Temperature.mean_value) + "C°;";
 				log_data(data, filename_data);
 			}
 
 
 			// power off
 			if (Temperature.mean_value > temp_max) {
-				data = isoformat(time_last_temp, now_ms, ";") + "Temperature; " + String(Temperature.mean_value) + "C° ;";
+				data = isoformat(time_last_temp, now_ms, ";") + "Temperature;" + String(Temperature.mean_value) + "C°;";
 				log_data(data, filename_data);
-				data = isoformat(rtc.now(), now_ms, ";") + "System; " + "High temperature;";
+				data = isoformat(rtc.now(), now_ms, ";") + "System;" + "High temperature;";
 				log_data(data, filename_data);
 				// Security : Open the door if closed
 				closeDoor(false);
@@ -598,26 +598,26 @@ void loop() {
 		// voltage measurement
 		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
 			now_ms = millis() % 1000;
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 		}
 		// sleep mode
 		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
 		// wake up mode
 		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
 		// power off
 		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat; " + String(Vbat.mean_value) + "V ;";
+			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Battery Low;";
+			data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Battery Low;";
 			log_data(data, filename_data);
 			// Security : Open the door if closed
 			closeDoor(false);
@@ -706,10 +706,10 @@ void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* file
 	now_ms = millis() % 1000;
 	data = isoformat(rtc.now(), now_ms, ";") + IR_name;
 	if (IR_state == 1) {
-		data += "broken beam ; ";
+		data += "broken beam;";
 	}
 	else {
-		data += "beam restored ; ";
+		data += "beam restored;";
 	}
 	log_data(data, filename);
 }
@@ -996,7 +996,7 @@ void shutDownButton(void) {
 		stateButton = digitalRead(PIN_PW_SW);
 		if (loops == 6) {
 			digitalWrite(PIN_BUZZER_LED, HIGH);
-			data = isoformat(rtc.now(), now_ms, ";") + "System; " + "Shut Down Button;";
+			data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Shut Down Button;";
 			log_data(data, filename_data);
 			delay(1000);
 			digitalWrite(PIN_PW_EN, LOW);
