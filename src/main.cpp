@@ -208,7 +208,6 @@ void setup() {
 	digitalWrite(PIN_BUZZER_LED, HIGH);
 	pwm.setClockDivider(16, false);		// Main clock divided by 16 => 3MHz
 	pwm.timer(2, 4, 20, true);			// Use timer 2 for pin PIN_IR_SEND, divide clock by 4, resolution 20, single-slope PWM
-	pwm.analogWrite(PIN_IR_SEND, 500);  // PWM frequency is now around 36KHz, dutycycle is 500 / 1000 * 100% = 50%
 
 	Serial.print("Waiting for console opening");
 	for (size_t r = 0; r < 20; r++) {
@@ -303,6 +302,11 @@ void setup() {
 	// Activation of 3.3V only if at least one IR sensor active or temp sensor active
 	if (config.opt_IR_1 == true or config.opt_IR_2 == true or config.opt_temp_prec == true){
 		digitalWrite(PIN_PW_3V, HIGH);
+	}
+
+	// Activation of PWM only if at least one IR sensor is active
+	if (config.opt_IR_1 == true or config.opt_IR_2 == true){
+		pwm.analogWrite(PIN_IR_SEND, 500);  // PWM frequency is now around 36KHz, dutycycle is 500 / 1000 * 100% = 50%
 	}
 
 	// initialization of the temperature sensor
