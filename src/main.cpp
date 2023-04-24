@@ -905,12 +905,15 @@ void checkFault(void) {
 	}
 }
 
+// Compare only 10 last characters of the TAG
 bool compare(const char* TAG_1, const char* TAG_2) {
-	// compare only 10 last characters of the TAG
-	uint8_t nb_digit_to_compare = min(strlen(TAG_1),strlen(TAG_2));
+	uint8_t TAG_1_len = strlen(TAG_1);
+	uint8_t TAG_2_len = strlen(TAG_2);
+	uint8_t nb_digit_to_compare = min(TAG_1_len, TAG_2_len);
 	nb_digit_to_compare = min(10, nb_digit_to_compare);
-	for (int i = nb_digit_to_compare - 1; i >= 0; i--) {
-		if (!(TAG_1[i] == TAG_2[i])) {
+
+	for (int i = 0; i < nb_digit_to_compare; i++) {
+		if (!(TAG_1[TAG_1_len - 1 - i] == TAG_2[TAG_2_len - 1 - i])) {
 			return false;
 		}
 	}
