@@ -204,7 +204,7 @@ void setup() {
 #endif
 	digitalWrite(PIN_PW_EN, HIGH);
 	digitalWrite(PIN_PW_RFID, HIGH);
-	digitalWrite(PIN_PW_3V, HIGH);
+	digitalWrite(PIN_PW_3V, LOW);
 	digitalWrite(PIN_BUZZER_LED, HIGH);
 	pwm.setClockDivider(16, false);		// Main clock divided by 16 => 3MHz
 	pwm.timer(2, 4, 20, true);			// Use timer 2 for pin PIN_IR_SEND, divide clock by 4, resolution 20, single-slope PWM
@@ -299,6 +299,11 @@ void setup() {
 
 	// Dump config file
 	printFile(filename_conf);
+
+	// Activation of 3.3V only if at least one IR sensor active or temp sensor active
+	if (config.opt_IR_1 == true or config.opt_IR_2 == true or config.opt_temp_prec == true){
+		digitalWrite(PIN_PW_3V, HIGH);
+	}
 
 	// initialization of the temperature sensor
 	if (config.opt_temp_prec == true) {
@@ -644,6 +649,10 @@ void blink(uint32_t Pin, int delay_ms, int blink_number) {
 
 // blink out an error code
 void error(int error_number) {
+	// Security : Open the door if closed
+	closeDoor(false);
+	// External led activation for user information and internal led for error-code
+	digitalWrite(PIN_BUZZER_LED, HIGH);
 	while (1) {
 		blink(LED_BUILTIN, 100, error_number);
 		for (uint8_t i = error_number; i < 10; i++) {
@@ -897,8 +906,10 @@ void checkFault(void) {
 }
 
 bool compare(const char* TAG_1, const char* TAG_2) {
-	// compare only last characters of the TAG
-	for (int i = 0; i < 10; i++) {
+	// compare only 10 last characters of the TAG
+	uint8_t nb_digit_to_compare = min(strlen(TAG_1),strlen(TAG_2));
+	nb_digit_to_compare = min(10, nb_digit_to_compare);
+	for (int i = nb_digit_to_compare - 1; i >= 0; i--) {
 		if (!(TAG_1[i] == TAG_2[i])) {
 			return false;
 		}
