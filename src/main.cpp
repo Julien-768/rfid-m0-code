@@ -61,7 +61,7 @@
 #define SERVO_POS_OPENED         10         // Opened position for servo in degrees
 #define SERVO_POS_CLOSED        170         // Closed position for servo in degrees
 
-//---- Temparature measurment with thermistor --------//
+//---- Temperature measurment with thermistor --------//
 #define THERMISTOR_SECURITY
 
 #ifdef THERMISTOR_SECURITY
@@ -121,7 +121,7 @@ Average_value Temperature = {{0,0,0}, 0, 0, 0.02};		       // Temperature : Curr
 RTC_DS3231 rtc;                                                // Real Time Clock
 bool rtc_error = false;										   // RTC lost power or wrong date
 FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
-DateTime time_compil, now, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer;
+DateTime time_compil, now, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer, time_last_up;
 TimeSpan last_tag_diff;
 int hours_current;											   // Current hour from RTC
 int now_ms;													   // Current millisecond from millis()
@@ -288,6 +288,7 @@ void setup() {
 	time_last_tag = now;
 	time_last_door_closed = now;
 	time_last_temp = now;
+	time_last_up = now;
 	time_off_user_buzzer = now + delay_user_buzzer;
 
 	// use this line to load configuration from SD config.txt file
@@ -538,7 +539,7 @@ void loop() {
 		}
 
 		// Temperature
-		if (config.opt_temp_prec == true and time_last_temp.unixtime() + config.delay_temp <= now.unixtime()) {
+		if (config.opt_temp_prec == true and ((time_last_temp.unixtime() + config.delay_temp) <= now.unixtime())) {
 
 			float current_temperature;
 
@@ -600,7 +601,7 @@ void loop() {
 
 
 	// check battery voltage every X s
-	if (time_last_voltage.unixtime() + 2 <= now.unixtime()) {
+	if ((time_last_voltage.unixtime() + 2) <= now.unixtime()) {
 
 		time_last_voltage = now;
 		
@@ -635,6 +636,13 @@ void loop() {
 		}
 	}
 	
+	// write a periodic message to indicate the system is still alive
+	if ((time_last_up.unixtime() + 3600) <= now.unixtime()) {
+		data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Up;";
+		log_data(data, filename_data);
+		time_last_up = rtc.now();
+	}
+
 	// check general switch
 	shutDownButton();
 	delay(config.delay_loop);
