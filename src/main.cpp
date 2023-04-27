@@ -101,12 +101,12 @@ struct Config {
 
 // Assembly description
 struct Assembly {
-	String uid_mainboard = "$uid_mainboard$";
-	String uid_powerboard = "$uid_powerboard$";
-	String uid_tectus = "$uid_tectus$";
-	String uid_rfid_sensor = "$uid_rfid_sensor$";
-	String uid_software = "$uid_software$";
-	String uid_experiment = "$uid_experiment$";
+	String uid_mainboard 	= "$uid_mainboard$";
+	String uid_powerboard 	= "$uid_powerboard$";
+	String uid_tectus 		= "$uid_tectus$";
+	String uid_rfid_sensor 	= "$uid_rfid_sensor$";
+	String uid_software 	= "$uid_software$";
+	String uid_experiment 	= "$uid_experiment$";
 };
 
 struct Average_value {
@@ -133,7 +133,7 @@ Average_value Temperature = {{0,0,0}, 0, 0, 0.02};		       // Temperature : Curr
 RTC_DS3231 rtc;                                                // Real Time Clock
 bool rtc_error = false;										   // RTC lost power or wrong date
 FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
-DateTime time_compil, now, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer, time_last_up;
+DateTime time_compil, now, time_start, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer, time_last_up;
 TimeSpan last_tag_diff;
 int hours_current;											   // Current hour from RTC
 int now_ms;													   // Current millisecond from millis()
@@ -224,6 +224,23 @@ void setup() {
 	pwm.setClockDivider(16, false);		// Main clock divided by 16 => 3MHz
 	pwm.timer(2, 4, 20, true);			// Use timer 2 for pin PIN_IR_SEND, divide clock by 4, resolution 20, single-slope PWM
 
+	// RTC initialisation
+	if (!rtc.begin()) {
+		Serial.println("Error\n");
+		Serial.println("Couldn't find RTC");
+		delay(100);
+		Serial.flush();
+		error(4);
+	}
+
+	time_start = rtc.now();
+	time_compil = DateTime(F(__DATE__), F(__TIME__));
+
+	// If the flash memory is reset, a new code was uploaded --> update RTC
+	if (not rtc_updated.read()){
+		rtc.adjust(time_compil);
+	}
+
 	Serial.print("Waiting for console opening");
 	for (size_t r = 0; r < 20; r++) {
 		Serial.print(".");
@@ -238,7 +255,6 @@ void setup() {
 	Serial.println(F("Logging IR, RFID and RTD to log file with RTC timestamp"));
 	Serial.println(stars);
 	// Print the date and time of program launch
-	time_compil = DateTime(F(__DATE__), F(__TIME__));
 	Serial.print(isoformat(time_compil, (int)0, ";"));
 	Serial.println("\t<= Compilation date");
 	Serial.println(stars);
@@ -246,28 +262,27 @@ void setup() {
 	Serial.println(F("-------SETUP-------"));
 
 	delay(1000);
-
-	// RTC initialisation
-	if (!rtc.begin()) {
+	
+	// See if the card is present and can be initialized:
+	if (!SD.begin(PIN_SD_CS)) {
 		Serial.println("Error\n");
-		Serial.println("Couldn't find RTC");
-		delay(100);
-		Serial.flush();
-		error(4);
+		Serial.println("SD Card init failed");
+		error(2);
 	}
-	// TODO create / complete a simple function error to serial print error messsages
 
 	now_ms = millis() % 1000;
 	now = rtc.now();
 
-	// Log system start-up
-	data = isoformat(now, now_ms, ";") + get_component("System") + "Start;\n";
+	// load the assembly description
+	loadAssembly(assembly);
 
-	// If the flash memory is reset, a new code was uploaded --> update RTC
+	// Log system start-up
+	data = isoformat(time_start, now_ms, ";") + get_component("System") + "Start;\n";
+
+	// If the flash memory is reset, a new code was uploaded and the RTC update was just done (previously in the code)
 	if (not rtc_updated.read()){
-		rtc.adjust(time_compil);
 		rtc_updated.write(true);
-		data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC set time to compilation date;";
+		data = data + isoformat(time_start, now_ms, ";") + get_component("System") + "RTC set time to compilation date;";
 	}
 	else {
 		// Check for RTC errors : wrong date or power loss
@@ -282,13 +297,6 @@ void setup() {
 		else {
 			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC is ok;";
 		}
-	}
-
-	// See if the card is present and can be initialized:
-	if (!SD.begin(PIN_SD_CS)) {
-		Serial.println("Error\n");
-		Serial.println("SD Card init failed");
-		error(2);
 	}
 
 	// Creating a new file at setup
@@ -311,8 +319,6 @@ void setup() {
 	loadConfiguration(config);
 	// use this line instead to load configuration from struct object defined in the program
 	//load_and_save_local_Configuration();
-	// load the assembly description
-	loadAssembly(assembly);
 
 	// Dump config & assembly files
 	printFile(filename_conf);
@@ -333,6 +339,9 @@ void setup() {
 		Serial.println("MAX31865 PT100 Sensor Test using NIST resistance table.");
 		Temp.begin(MAX31865_2WIRE);  // set to 2WIRE
 	}
+
+	// Small delay to let time to IR receiver to start
+	delay(50);
 
 	// initialization of IR variables
 	if (config.opt_IR_1 == true) {
@@ -452,7 +461,7 @@ void loop() {
 			if (IR_1 != IR_1_previous) {
 				IR_1_previous = IR_1;
 				IR_event = true;
-				log_data_IR(rtc, IR_1, "IR 1;", filename_data);
+				log_data_IR(rtc, IR_1, "IR 1", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
 		}
@@ -463,7 +472,7 @@ void loop() {
 			if (IR_2 != IR_2_previous) {
 				IR_2_previous = IR_2;
 				IR_event = true;
-				log_data_IR(rtc, IR_2, "IR 2;", filename_data);
+				log_data_IR(rtc, IR_2, "IR 2", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
 		}
@@ -655,7 +664,7 @@ void loop() {
 	}
 	
 	// write a periodic message to indicate the system is still alive
-	if ((time_last_up.unixtime() + 3600) <= now.unixtime()) {
+	if ((time_last_up.unixtime() + 36) <= now.unixtime()) {
 		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Up;";
 		log_data(data, filename_data);
 		time_last_up = rtc.now();
