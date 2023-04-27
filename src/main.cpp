@@ -664,7 +664,7 @@ void loop() {
 	}
 	
 	// write a periodic message to indicate the system is still alive
-	if ((time_last_up.unixtime() + 36) <= now.unixtime()) {
+	if ((time_last_up.unixtime() + 3600) <= now.unixtime()) {
 		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Up;";
 		log_data(data, filename_data);
 		time_last_up = rtc.now();
