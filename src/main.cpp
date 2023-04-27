@@ -99,6 +99,16 @@ struct Config {
 	const char* tag_5 = "01101728E6";   // tags for mode capture 3
 };
 
+// Assembly description
+struct Assembly {
+	String uid_mainboard = "$uid_mainboard$";
+	String uid_powerboard = "$uid_powerboard$";
+	String uid_tectus = "$uid_tectus$";
+	String uid_rfid_sensor = "$uid_rfid_sensor$";
+	String uid_software = "$uid_software$";
+	String uid_experiment = "$uid_experiment$";
+};
+
 struct Average_value {
     float array[3];
     float mean_value;
@@ -109,7 +119,9 @@ struct Average_value {
 
 //Variables declaration
 const char* filename_conf = "/config.txt";                     // config file
+const char* filename_assembly = "/assembly.txt";               // Assembly description file
 Config config;                                                 // global configuration object
+Assembly assembly;
 char filename_data[13];                                        // NB Files names are limited to 8 characters : 8 charac + '.TXT' + \0
 File logfile;
 
@@ -161,10 +173,13 @@ String isoformat_date(DateTime t);
 float get_voltage(uint32_t ulPin);
 void log_data(String data, const char* filename);
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename);
+String get_component(String data_type);
 void daily_data_file(char* filename, DateTime t);
 void loadConfiguration(Config& config);
-void load_and_save_local_Configuration(struct Config, Config& config);
+void load_and_save_local_Configuration();
+void loadAssembly(Assembly& assembly);
 void create_config_file();
+void create_assembly_file();
 void printFile(const char* filename);
 void checkFault(void);
 bool compare(const char* TAG_1, const char* TAG_2);
@@ -246,26 +261,26 @@ void setup() {
 	now = rtc.now();
 
 	// Log system start-up
-	data = isoformat(now, now_ms, ";") + "System;Start;\n";
+	data = isoformat(now, now_ms, ";") + get_component("System") + "Start;\n";
 
 	// If the flash memory is reset, a new code was uploaded --> update RTC
 	if (not rtc_updated.read()){
 		rtc.adjust(time_compil);
 		rtc_updated.write(true);
-		data = data + isoformat(now, now_ms, ";") + "System;RTC set time to compilation date;";
+		data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC set time to compilation date;";
 	}
 	else {
 		// Check for RTC errors : wrong date or power loss
 		if (rtc.lostPower()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + "System;RTC lost power;";
+			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC lost power;";
 		}
 		else if (now.unixtime() < time_compil.unixtime()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + "System;RTC has unknow error;";
+			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC has unknow error;";
 		}
 		else {
-			data = data + isoformat(now, now_ms, ";") + "System;RTC is ok;";
+			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC is ok;";
 		}
 	}
 
@@ -295,10 +310,13 @@ void setup() {
 	Serial.println(F("Loading SD card configuration..."));
 	loadConfiguration(config);
 	// use this line instead to load configuration from struct object defined in the program
-	//load_and_save_local_Configuration(Config(), config);
+	//load_and_save_local_Configuration();
+	// load the assembly description
+	loadAssembly(assembly);
 
-	// Dump config file
+	// Dump config & assembly files
 	printFile(filename_conf);
+	printFile(filename_assembly);
 
 	// Activation of 3.3V only if at least one IR sensor active or temp sensor active
 	if (config.opt_IR_1 == true or config.opt_IR_2 == true or config.opt_temp_prec == true){
@@ -408,7 +426,7 @@ void loop() {
 		acquisition = false;
 		digitalWrite(PIN_PW_3V, LOW);
 		digitalWrite(PIN_PW_RFID, LOW);
-		data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Sleep mode;";
+		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Sleep mode;";
 		log_data(data, filename_data);
 	}
 
@@ -418,7 +436,7 @@ void loop() {
 		acquisition = true;
 		digitalWrite(PIN_PW_3V, HIGH);
 		digitalWrite(PIN_PW_RFID, HIGH);
-		data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Wake up mode;";
+		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Wake up mode;";
 		log_data(data, filename_data);
 	}
 
@@ -496,7 +514,7 @@ void loop() {
           	else {
             	tag = trx;
           	}
-			data = isoformat(time_last_tag, now_ms, ";") + "A0;" + tag + ";";
+			data = isoformat(time_last_tag, now_ms, ";") + get_component("A0") + tag + ";";
 			log_data(data, filename_data);
 			tag_record = false;
 			trx_previous = trx;
@@ -571,16 +589,16 @@ void loop() {
 			now_ms = millis() % 1000;
 			if (moving_average(&Temperature, current_temperature)) {
 				now_ms = millis() % 1000;
-				data = isoformat(time_last_temp, now_ms, ";") + "Temperature;" + String(Temperature.mean_value) + "C°;";
+				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "C°;";
 				log_data(data, filename_data);
 			}
 
 
 			// power off
 			if (Temperature.mean_value > temp_max) {
-				data = isoformat(time_last_temp, now_ms, ";") + "Temperature;" + String(Temperature.mean_value) + "C°;";
+				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "C°;";
 				log_data(data, filename_data);
-				data = isoformat(rtc.now(), now_ms, ";") + "System;" + "High temperature;";
+				data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "High temperature;";
 				log_data(data, filename_data);
 				// Security : Open the door if closed
 				closeDoor(false);
@@ -608,26 +626,26 @@ void loop() {
 		// voltage measurement
 		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
 			now_ms = millis() % 1000;
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 		}
 		// sleep mode
 		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
 		// wake up mode
 		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
 		// power off
 		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
-			data = isoformat(rtc.now(), now_ms, ";") + "Vbat;" + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Battery Low;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Battery Low;";
 			log_data(data, filename_data);
 			// Security : Open the door if closed
 			closeDoor(false);
@@ -638,7 +656,7 @@ void loop() {
 	
 	// write a periodic message to indicate the system is still alive
 	if ((time_last_up.unixtime() + 3600) <= now.unixtime()) {
-		data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Up;";
+		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Up;";
 		log_data(data, filename_data);
 		time_last_up = rtc.now();
 	}
@@ -725,7 +743,7 @@ void log_data(String data, const char* filename) {
 // log data according to IR state
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename) {
 	now_ms = millis() % 1000;
-	data = isoformat(rtc.now(), now_ms, ";") + IR_name;
+	data = isoformat(rtc.now(), now_ms, ";") + get_component(IR_name);
 	if (IR_state == 1) {
 		data += "broken beam;";
 	}
@@ -733,6 +751,18 @@ void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* file
 		data += "beam restored;";
 	}
 	log_data(data, filename);
+}
+
+// Returns the component uid, component type and data type in a comma-delimited string according to data_type value
+String get_component(String data_type){
+	String data;
+	if ((data_type == "System") or (data_type == "Temperature") or (data_type == "Vbat")) {
+		data = assembly.uid_mainboard + ";inv_mainboard;" + data_type + ";"; 
+	}
+	else {
+		 data = assembly.uid_rfid_sensor + ";inv_rfid_sensor;" + data_type + ";";
+	}
+	return data;
 }
 
 // create a file each day
@@ -778,7 +808,7 @@ void loadConfiguration(Config& config) {
 		StaticJsonDocument<768> doc;
 		DeserializationError error = deserializeJson(doc, file_c);
 		if (error) {
-			Serial.println(F("Failed to read file, using default configuration"));
+			Serial.println(F("Failed to read config file, using default configuration"));
 			// If error, use the values already loaded in memory and quit the function
 			// Maybe your StaticJsonDocument<SIZE> doc is too small - Check on https://arduinojson.org/v6/assistant/#/step1
 		}
@@ -807,10 +837,51 @@ void loadConfiguration(Config& config) {
 	}
 	// Else, create a config file with the values already loaded in memory
 	else{
-		Serial.println(F("Failed to find file, create file with default configuration"));
+		Serial.println(F("Failed to find config file, create file with default configuration"));
 		create_config_file();
 	}
 }
+
+// Save local configuration into file
+void load_and_save_local_Configuration() {
+
+	//removing the old file and creating a new one
+	SD.remove(filename_conf);
+	delay(5);
+	create_config_file();
+
+}
+
+// Load assembly description from datafile
+void loadAssembly(Assembly& assembly){
+	File file_c = SD.open(filename_assembly);
+	// If open with success, read it
+	if (file_c) {
+		StaticJsonDocument<768> doc;
+		DeserializationError error = deserializeJson(doc, file_c);
+		if (error) {
+			Serial.println(F("Failed to read assembly file, using default configuration"));
+			// If error, use the values already loaded in memory and quit the function
+			// Maybe your StaticJsonDocument<SIZE> doc is too small - Check on https://arduinojson.org/v6/assistant/#/step1
+		}
+		else{
+			// Copy values from the JsonDocument to the Config
+			assembly.uid_mainboard 		= doc["uid_mainboard"].as<String>();
+			assembly.uid_powerboard 	= doc["uid_powerboard"].as<String>();
+			assembly.uid_tectus 		= doc["uid_tectus"].as<String>();
+			assembly.uid_rfid_sensor 	= doc["uid_rfid_sensor"].as<String>();
+			assembly.uid_software 		= doc["uid_software"].as<String>();
+			assembly.uid_experiment 	= doc["uid_experiment"].as<String>();
+			file_c.close();
+		}
+	}
+	// Else, create an assembly file with the values already loaded in memory
+	else{
+		Serial.println(F("Failed to find assembly file, create file with default configuration"));
+		create_assembly_file();
+	}
+}
+
 
 // Create a configuration file from memory values
 void create_config_file() {
@@ -848,14 +919,28 @@ void create_config_file() {
 	}
 }
 
-// Save local configuration into file
-void load_and_save_local_Configuration(struct Config, Config& config) {
+// Create a assembly file from memory values
+void create_assembly_file() {
+	// Try to open the file
+	File file = SD.open(filename_assembly, FILE_WRITE);
+	if (!file) {
+		Serial.println(F("Failed to create file"));
+	}
+	else{
+		StaticJsonDocument<768> doc;
+		// Set the values in the document
+		doc["uid_mainboard"] 	= assembly.uid_mainboard;
+		doc["uid_powerboard"] 	= assembly.uid_powerboard;
+		doc["uid_tectus"] 		= assembly.uid_tectus;
+		doc["uid_rfid_sensor"] 	= assembly.uid_rfid_sensor;
+		doc["uid_software"] 	= assembly.uid_software;
+		doc["uid_experiment"] 	= assembly.uid_experiment;
 
-	//removing the old file and creating a new one
-	SD.remove(filename_conf);
-	delay(5);
-	create_config_file();
-
+		if (serializeJson(doc, file) == 0) {
+			Serial.println(F("Failed to write to config file"));
+		}
+		file.close();
+	}
 }
 
 // Prints the content of a file to the Serial
@@ -1005,7 +1090,7 @@ String tag_hex_to_NIC(String src) {
 
     return (String(codePays) + "-" + longlong2String(codeNIC));
   }
-  else return "err: tag hexa de mauvaise taille";
+  else return "err: wrong size of hexa tag";
 
 }
 
@@ -1022,7 +1107,7 @@ void shutDownButton(void) {
 		stateButton = digitalRead(PIN_PW_SW);
 		if (loops == 6) {
 			digitalWrite(PIN_BUZZER_LED, HIGH);
-			data = isoformat(rtc.now(), now_ms, ";") + "System;" + "Shut Down Button;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shut Down Button;";
 			log_data(data, filename_data);
 			delay(1000);
 			digitalWrite(PIN_PW_EN, LOW);
