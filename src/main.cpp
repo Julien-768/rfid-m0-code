@@ -118,8 +118,8 @@ struct Average_value {
 
 
 //Variables declaration
-const char* filename_conf = "/config.txt";                     // config file
-const char* filename_assembly = "/assembly.txt";               // Assembly description file
+const char* filename_conf = "/config.cfg";                     // config file
+const char* filename_assembly = "/assembly.cfg";               // Assembly description file
 Config config;                                                 // global configuration object
 Assembly assembly;
 char filename_data[13];                                        // NB Files names are limited to 8 characters : 8 charac + '.TXT' + \0
@@ -314,7 +314,7 @@ void setup() {
 	time_last_up = now;
 	time_off_user_buzzer = now + delay_user_buzzer;
 
-	// use this line to load configuration from SD config.txt file
+	// use this line to load configuration from SD config.cfg file
 	Serial.println(F("Loading SD card configuration..."));
 	loadConfiguration(config);
 	// use this line instead to load configuration from struct object defined in the program
@@ -1099,7 +1099,7 @@ String tag_hex_to_NIC(String src) {
 
     return (String(codePays) + "-" + longlong2String(codeNIC));
   }
-  else return "err: wrong size of hexa tag";
+  else return "misread tag";
 
 }
 
