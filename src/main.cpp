@@ -800,7 +800,7 @@ void daily_data_file(char* filename, DateTime now) {
 		Serial.println(filename);
 		// If it's a new file, write the header
 		if (write_header){
-			data = isoformat(now, now_ms, ";") + assembly.uid_mainboard + ";inv_mainboard;" + assembly.uid_experiment + ";uid_experiment;";
+			data = isoformat(now, now_ms, ";") + assembly.uid_mainboard + ";inv_mainboard;uid_experiment;" + assembly.uid_experiment + ";";
 			logfile.println(data);
 		}
 	}
