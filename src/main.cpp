@@ -54,8 +54,8 @@
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-#define POWER_BOARD_BATT_RATIO   6			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
-#define BATTERY_MIN_VOLTAGE      12			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
+#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
+#define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
 
 // Characteristics of the servo
 #define SERVO_POS_OPENED         10         // Opened position for servo in degrees
@@ -135,7 +135,6 @@ bool rtc_error = false;										   // RTC lost power or wrong date
 FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
 DateTime time_compil, now, time_start, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer, time_last_up;
 TimeSpan last_tag_diff;
-int hours_current;											   // Current hour from RTC
 int now_ms;													   // Current millisecond from millis()
 bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
@@ -174,7 +173,7 @@ float get_voltage(uint32_t ulPin);
 void log_data(String data, const char* filename);
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename);
 String get_component(String data_type);
-void daily_data_file(char* filename, DateTime t);
+void daily_data_file(char* filename, DateTime now);
 void loadConfiguration(Config& config);
 void load_and_save_local_Configuration();
 void loadAssembly(Assembly& assembly);
@@ -186,8 +185,8 @@ bool compare(const char* TAG_1, const char* TAG_2);
 unsigned int hex2int(char input);
 String longlong2String(unsigned long long int bigint);
 String tag_hex_to_NIC(String src);
-void shutDownButton(void);
-void closeDoor(bool door_cmd_closed);
+void switchButtonMgmt(void);
+void closeDoor(bool door_cmd_closed, String reason = "");
 bool moving_average(struct Average_value *s, float updated_value);
 #ifdef THERMISTOR_SECURITY
 float readThermistorTemperature();
@@ -362,7 +361,7 @@ void setup() {
 	// Initialization of the servo motor : Door is opened by default
 #ifndef THERMISTOR_SECURITY
 	Servo_control.attach(PIN_SERVO);
-	closeDoor(false);
+	closeDoor(false, "Init");
 #endif
 
 	//Initialization Battery voltage
@@ -377,7 +376,7 @@ void setup() {
 	Serial.println(" ");
 	Serial.println(F("-------LOOP-------"));
 
-	// 3 second delay to let time for user to release switch button : avoid to call shutDownButton function after power-on
+	// 3 second delay to let time for user to release switch button : avoid to call switchButtonMgmt function after power-on
 	delay(3000);
 }
 
@@ -389,17 +388,17 @@ void loop() {
 	// Set an offset when the RTC second change happen else you could get 40.914s , 40.230s, 40.734s, 41.238s as real time
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	// refresh time for the loop
+	// Refresh time for the loop
 	now_ms = millis() % 1000;
 	now = rtc.now();
 	
-	// creating a new file each day
+	// Creating a new file each day
 	if (now.day() != time_file.day()) {
 		time_file = now;
 		daily_data_file(filename_data, now);
 	}
 
-	//Disable user signal - Led_ext or Buzzer - after a delay # 300s
+	// Disable user signal - Led_ext or Buzzer - after a delay # 300s
 	if (user_buzzer_on) { 				// then check time
 		if (now.unixtime() > time_off_user_buzzer.unixtime()) {
 			user_buzzer_on = false;
@@ -409,7 +408,7 @@ void loop() {
 
 	// Check if acquisition should run according to day only mode
 	if (config.mode_time_period == true) {
-		hours_current = now.hour();
+		int hours_current = now.hour();
 		time_period_condition = false;
 		// If the time period is defined on the same day
 		if (config.start_time < config.stop_time) {
@@ -431,7 +430,7 @@ void loop() {
 	// Stop acquisition if currently running and conditions are not satisfied
 	if (not(battery_condition and time_period_condition) and acquisition) {
 		// Security : Open the door if closed
-		closeDoor(false);
+		closeDoor(false, "Security");
 		acquisition = false;
 		digitalWrite(PIN_PW_3V, LOW);
 		digitalWrite(PIN_PW_RFID, LOW);
@@ -485,13 +484,12 @@ void loop() {
 			delay(10);
 			trx.trim();
 			tag_event = false;
-			if (trx.indexOf("-") < 0) {//  if '-' not in trx:
+			if (trx.indexOf("-") < 0) { //  if '-' not in trx:
 				tag_event = true;
 				trx.replace("+ ", "");
 				trx.replace("ru", "");
 				if (trx.length() >= 5) {	// avoid tagless file names
 					if (trx == trx_previous) {	// avoid repeated records
-						// now_ms = millis() % 1000; TODO ?
 						last_tag_diff = rtc.now() - time_last_tag;
 						if (last_tag_diff.seconds() >= config.delay_tag_save) {
 							tag_record = true;
@@ -603,19 +601,15 @@ void loop() {
 			}
 
 
-			// power off
+			// Power off 
 			if (Temperature.mean_value > temp_max) {
-				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "C°;";
-				log_data(data, filename_data);
-				data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "High temperature;";
-				log_data(data, filename_data);
 				// Security : Open the door if closed
-				closeDoor(false);
+				closeDoor(false, "Security");
+				data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : High temp;";
+				log_data(data, filename_data);
 				blink(PIN_BUZZER_LED, 100, 6);
 				digitalWrite(PIN_PW_EN, LOW);
 			}
-
-
 		}
 
 	}
@@ -623,60 +617,58 @@ void loop() {
 
 	// SECURITY : Open door if closed for a certain time 
 	if (((time_last_door_closed.unixtime() + config.release_time) <= now.unixtime()) and door_already_closed) {
-		closeDoor(false);
+		closeDoor(false, "Release time");
 	}
 
 
-	// check battery voltage every X s
+	// Check battery voltage every 2 seconds
 	if ((time_last_voltage.unixtime() + 2) <= now.unixtime()) {
 
 		time_last_voltage = now;
 		
-		// voltage measurement
+		// Voltage measurement
 		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
 			now_ms = millis() % 1000;
 			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 		}
-		// sleep mode
+		// Force sleep mode if battery voltage is too low
 		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Power saving;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
-		// wake up mode
+		// Ask for wake up if battery voltage reaches acceptable voltage
 		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "Battery restored;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
-		// power off
+		// Power off to protect battery
 		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			log_data(data, filename_data);
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Battery Low;";
-			log_data(data, filename_data);
 			// Security : Open the door if closed
-			closeDoor(false);
+			closeDoor(false, "Security");
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : Battery Low;";
+			log_data(data, filename_data);
 			blink(PIN_BUZZER_LED, 100, 6);
 			digitalWrite(PIN_PW_EN, LOW);
 		}
 	}
 	
-	// write a periodic message to indicate the system is still alive
+	// Write a periodic message to indicate the system is still alive
 	if ((time_last_up.unixtime() + 3600) <= now.unixtime()) {
 		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Up;";
 		log_data(data, filename_data);
 		time_last_up = rtc.now();
 	}
 
-	// check general switch
-	shutDownButton();
+	// Check general switch
+	switchButtonMgmt();
 	delay(config.delay_loop);
 }
 
 
-// blink function
+// Blink function
 void blink(uint32_t Pin, int delay_ms, int blink_number) {
 	for (uint8_t i = 0; i < blink_number; i++) {
 		digitalWrite(Pin, HIGH);
@@ -686,28 +678,28 @@ void blink(uint32_t Pin, int delay_ms, int blink_number) {
 	}
 }
 
-// blink out an error code
+// Blink out an error code
 void error(int error_number) {
 	// Security : Open the door if closed
-	closeDoor(false);
+	closeDoor(false, "Security");
 	// External led activation for user information and internal led for error-code
 	digitalWrite(PIN_BUZZER_LED, HIGH);
 	while (1) {
-		blink(LED_BUILTIN, 100, error_number);
+		blink(LED_BUILTIN, 200, error_number);
 		for (uint8_t i = error_number; i < 10; i++) {
 			delay(200);
 		}
 	}
 }
 
-// isoformat a date and timestamp without millisecond
+// Isoformat a date and timestamp without millisecond
 String isoformat(DateTime t, int ms, String separator) {
 	// '2019-05-10T09:08:53.155'
 	// for millisecond attachInterrupt pin on the RTC and use interrupt routine
 	return String(t.year()) + "-" + String(t.month()) + "-" + String(t.day()) + separator + String(t.hour()) + ":" + String(t.minute()) + ":" + String(t.second()) + "." + String(ms) + ";";
 }
 
-// isoformat a date without millisecond
+// Isoformat a date without millisecond
 String isoformat_date(DateTime t) {
 	if (t.month() < 10 and t.day() < 10) {
 		return String(t.year() - 2000) + "_0" + String(t.month()) + "_0" + String(t.day());
@@ -723,7 +715,7 @@ String isoformat_date(DateTime t) {
 	}
 }
 
-// get battery voltage
+// Get battery voltage
 float get_voltage(uint32_t ulPin) {
 	float measuredvbat = analogRead(ulPin);
 	measuredvbat *= POWER_BOARD_BATT_RATIO;     // We divided by POWER_BOARD_BATT_RATIO, so multiply back
@@ -732,7 +724,7 @@ float get_voltage(uint32_t ulPin) {
 	return measuredvbat;
 }
 
-// log data to file
+// Log data to file
 void log_data(String data, const char* filename) {
 	digitalWrite(PIN_LED_SD, HIGH);
 	File log = SD.open(filename, FILE_WRITE);
@@ -749,7 +741,7 @@ void log_data(String data, const char* filename) {
 	digitalWrite(PIN_LED_SD, LOW);
 }
 
-// log data according to IR state
+// Log data according to IR state
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename) {
 	now_ms = millis() % 1000;
 	data = isoformat(rtc.now(), now_ms, ";") + get_component(IR_name);
@@ -765,7 +757,7 @@ void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* file
 // Returns the component uid, component type and data type in a comma-delimited string according to data_type value
 String get_component(String data_type){
 	String data;
-	if ((data_type == "System") or (data_type == "Temperature") or (data_type == "Vbat")) {
+	if ((data_type == "System") or (data_type == "Temperature") or (data_type == "Vbat")  or (data_type == "Door")) {
 		data = assembly.uid_mainboard + ";inv_mainboard;" + data_type + ";"; 
 	}
 	else {
@@ -774,23 +766,25 @@ String get_component(String data_type){
 	return data;
 }
 
-// create a file each day
-void daily_data_file(char* filename, DateTime t) {
+// Create a file each day
+void daily_data_file(char* filename, DateTime now) {
+	char date[11];
+	bool write_header = false;
 	// NB Files names are limited to 8 charaters
 	strcpy(filename, "01_01_00.TXT"); // beware that filenames cannot exceed 8 or 9 characters
-	char date[11];
-	// get isoformat date for filename
-	isoformat_date(t).toCharArray(date, 11);
+	// Get isoformat date for filename
+	isoformat_date(now).toCharArray(date, 11);
 	for (int i = 0; i < 8;) {
 		filename[i + 0] = date[i];
 		i++;
 	}
-	// check if the file exists
+	// Check if the file exists
 	if (SD.exists(filename)) {
 		Serial.print("The data file already exists\t");
 	}
 	else {
 		Serial.print("Creating the data file\t");
+		write_header = true;
 	}
 	Serial.println(filename);
 
@@ -804,6 +798,11 @@ void daily_data_file(char* filename, DateTime t) {
 	else {
 		Serial.print("The data file was found or created with success\t");
 		Serial.println(filename);
+		// If it's a new file, write the header
+		if (write_header){
+			data = isoformat(now, now_ms, ";") + assembly.uid_mainboard + ";inv_mainboard;" + assembly.uid_experiment + ";uid_experiment;";
+			logfile.println(data);
+		}
 	}
 	logfile.close();
 }
@@ -1017,7 +1016,7 @@ bool compare(const char* TAG_1, const char* TAG_2) {
 	uint8_t TAG_2_len = strlen(TAG_2);
 	uint8_t nb_digit_to_compare = min(TAG_1_len, TAG_2_len);
 	nb_digit_to_compare = min(10, nb_digit_to_compare);
-
+	
 	for (int i = 0; i < nb_digit_to_compare; i++) {
 		if (!(TAG_1[TAG_1_len - 1 - i] == TAG_2[TAG_2_len - 1 - i])) {
 			return false;
@@ -1103,8 +1102,8 @@ String tag_hex_to_NIC(String src) {
 
 }
 
-// Power interrupt
-void shutDownButton(void) {
+// Check switch button
+void switchButtonMgmt(void) {
 	bool stateButton = digitalRead(PIN_PW_SW);
 	int loops = 0;
 	while (stateButton == true) {
@@ -1114,9 +1113,10 @@ void shutDownButton(void) {
 		digitalWrite(PIN_BUZZER_LED, LOW);
 		delay(100);
 		stateButton = digitalRead(PIN_PW_SW);
+		// It switch button maintained at least 1.2 second, consider it's a shutdown request
 		if (loops == 6) {
 			digitalWrite(PIN_BUZZER_LED, HIGH);
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shut Down Button;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : User;";
 			log_data(data, filename_data);
 			delay(1000);
 			digitalWrite(PIN_PW_EN, LOW);
@@ -1124,6 +1124,13 @@ void shutDownButton(void) {
 				delay(10000);
 			}
 		}
+	}
+	if (loops > 0){
+		// If the button is released before shutdown, consider it's a battery check
+		data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Battery check by user;";
+		log_data(data, filename_data);
+		data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+		log_data(data, filename_data);
 	}
 }
 
@@ -1148,7 +1155,7 @@ float readThermistorTemperature() {
 
 
 // Management of the door
-void closeDoor(bool door_cmd_closed){
+void closeDoor(bool door_cmd_closed, String reason){
 #ifndef THERMISTOR_SECURITY
 	if (door_cmd_closed != door_already_closed) {
 		digitalWrite(PIN_PW_SERVO, HIGH);
@@ -1158,12 +1165,16 @@ void closeDoor(bool door_cmd_closed){
 			time_last_door_closed = rtc.now();
 			door_already_closed = true;
 			Serial.println("Door closed");
+			data = isoformat(rtc.now(), 0, ";") + get_component("Door") + "Closed;";
+			log_data(data, filename_data);
 		}
 		// Else open the door
 		else {
 			Servo_control.write(SERVO_POS_OPENED);
 			door_already_closed = false;
 			Serial.println("Door opened");
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Door") + "Open : " + reason + ";";
+			log_data(data, filename_data);
 		}
 		delay(2000);
 		digitalWrite(PIN_PW_SERVO, LOW);
