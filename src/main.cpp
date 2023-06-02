@@ -58,8 +58,8 @@
 #define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
 
 // Characteristics of the servo
-#define SERVO_POS_OPENED         10         // Opened position for servo in degrees
-#define SERVO_POS_CLOSED        170         // Closed position for servo in degrees
+#define SERVO_POS_OPENED         132        // Opened position for servo in degrees
+#define SERVO_POS_CLOSED         65         // Closed position for servo in degrees
 
 //---- Temperature measurment with thermistor --------//
 #define THERMISTOR_SECURITY
@@ -364,12 +364,14 @@ void setup() {
 	closeDoor(false, "Init");
 #endif
 
-	//Initialization Battery voltage
+	//Initialization battery voltage & log data
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
 	delay(100);
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
 	delay(100);
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
+	data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+	log_data(data, filename_data);
 
 	user_buzzer_on = true;
 	digitalWrite(PIN_BUZZER_LED, LOW);
@@ -800,7 +802,7 @@ void daily_data_file(char* filename, DateTime now) {
 		Serial.println(filename);
 		// If it's a new file, write the header
 		if (write_header){
-			data = isoformat(now, now_ms, ";") + assembly.uid_mainboard + ";inv_mainboard;inv_experiment;" + assembly.uid_experiment + ";";
+			String data = isoformat(now, now_ms, ";") + assembly.uid_mainboard + ";inv_mainboard;inv_experiment;" + assembly.uid_experiment + ";";
 			logfile.println(data);
 		}
 	}
@@ -1165,7 +1167,7 @@ void closeDoor(bool door_cmd_closed, String reason){
 			time_last_door_closed = rtc.now();
 			door_already_closed = true;
 			Serial.println("Door closed");
-			data = isoformat(rtc.now(), 0, ";") + get_component("Door") + "Closed;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Door") + "Closed;";
 			log_data(data, filename_data);
 		}
 		// Else open the door
