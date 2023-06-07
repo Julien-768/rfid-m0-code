@@ -56,6 +56,7 @@
 // Electrical characteristics of the power board
 #define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
 #define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
+#define BATTERY_MAX_VOLTAGE     4.2
 
 // Characteristics of the servo
 #define SERVO_POS_OPENED         132        // Opened position for servo in degrees
@@ -261,7 +262,7 @@ void setup() {
 	Serial.println(F("-------SETUP-------"));
 
 	delay(1000);
-	
+
 	// See if the card is present and can be initialized:
 	if (!SD.begin(PIN_SD_CS)) {
 		Serial.println("Error\n");
@@ -687,7 +688,7 @@ void error(int error_number) {
 	// External led activation for user information and internal led for error-code
 	digitalWrite(PIN_BUZZER_LED, HIGH);
 	while (1) {
-		blink(LED_BUILTIN, 200, error_number);
+		blink(PIN_BUZZER_LED, 200, error_number);
 		for (uint8_t i = error_number; i < 10; i++) {
 			delay(200);
 		}
@@ -1127,12 +1128,18 @@ void switchButtonMgmt(void) {
 			}
 		}
 	}
+	// If the button is released before shutdown, consider it's a battery check
 	if (loops > 0){
-		// If the button is released before shutdown, consider it's a battery check
+		moving_average(&Vbat, get_voltage(PIN_VBAT));
 		data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Battery check by user;";
 		log_data(data, filename_data);
 		data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 		log_data(data, filename_data);
+
+		delay(1000); // Delay to let time for user to understand the battery indication is starting
+		// Blink 1 time per 20% of battery available
+		uint8_t SOC = (Vbat.mean_value - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE) * 5;
+		blink(PIN_BUZZER_LED, 200, SOC + 1);
 	}
 }
 
