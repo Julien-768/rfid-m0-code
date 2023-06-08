@@ -472,7 +472,7 @@ void loop() {
 			if (IR_1 != IR_1_previous) {
 				IR_1_previous = IR_1;
 				IR_event = true;
-				search_tag = true;
+				if (IR_1 == 1) {search_tag = true;}
 				log_data_IR(rtc, IR_1, "IR 1", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
@@ -484,7 +484,7 @@ void loop() {
 			if (IR_2 != IR_2_previous) {
 				IR_2_previous = IR_2;
 				IR_event = true;
-				search_tag = true;
+				if (IR_2 == 1) {search_tag = true;}
 				log_data_IR(rtc, IR_2, "IR 2", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
@@ -639,13 +639,15 @@ void loop() {
 		}
 		// Force sleep mode if battery voltage is too low
 		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Power saving;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
 		// Ask for wake up if battery voltage reaches acceptable voltage
 		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "Battery restored;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Battery restored;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
@@ -653,6 +655,7 @@ void loop() {
 		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
 			// Security : Open the door if closed
 			closeDoor(false, "Security");
+			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : Battery Low;";
 			log_data(data, filename_data);
 			blink(PIN_BUZZER_LED, 100, 6);
@@ -1201,15 +1204,14 @@ bool moving_average(struct Average_value *s, float updated_value) {
 	s->array[0] = updated_value;
 
     // Calculation of the new moving average
-    float average = (s->array[0] + s->array[1] + s->array[2]) / 3.0;
+    s->mean_value = (s->array[0] + s->array[1] + s->array[2]) / 3.0;
 	
     // Comparison with the previous moving average and threshold
-    if (fabs(average - s->mean_value) <= s->threshold) {
+    if (fabs(s->mean_value - s->mean_value_previous) <= s->threshold) {
         return false;
     } else {
         // Update the values in the structure
         s->mean_value_previous = s->mean_value;
-        s->mean_value = average;
         return true;
     }
 }
