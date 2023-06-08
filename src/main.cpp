@@ -54,16 +54,24 @@
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
-#define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
-#define BATTERY_MAX_VOLTAGE     4.2
+#define LIION_BATTERY
+
+#ifdef LIION_BATTERY
+	#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
+	#define BATTERY_MIN_VOLTAGE      3			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
+	#define BATTERY_MAX_VOLTAGE     4.2         // Battery voltage when 100% full : 4.2 for LiPo battery - 13.5 for a 12V lead battery
+#else
+	#define POWER_BOARD_BATT_RATIO   6			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
+	#define BATTERY_MIN_VOLTAGE      12			// Low voltage disconnect in volts : 3 for LiPo battery - 12 for a 12V lead battery
+	#define BATTERY_MAX_VOLTAGE     13.5        // Battery voltage when 100% full : 4.2 for LiPo battery - 13.5 for a 12V lead battery
+#endif
 
 // Characteristics of the servo
 #define SERVO_POS_OPENED         132        // Opened position for servo in degrees
 #define SERVO_POS_CLOSED         65         // Closed position for servo in degrees
 
 //---- Temperature measurment with thermistor --------//
-#define THERMISTOR_SECURITY
+//#define THERMISTOR_SECURITY
 
 #ifdef THERMISTOR_SECURITY
 	#define SERIESRESISTOR 10000 				// the value of the NTC resistor
@@ -156,6 +164,7 @@ char tag_to_compare[11];
 
 bool acquisition = true;									   // Status of the acquisition
 bool tag_record = false, tag_event = false;                    // Flag to kow if a tag was detected and need to be saved
+bool search_tag = false;                                       // Flag to know if we are currently looking for a tag after an IR event (used for capture mode #4)
 bool battery_condition = true;							       // Condition to run acquisition based on battery voltage
 bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_time_period = true)
 String data;
@@ -463,6 +472,7 @@ void loop() {
 			if (IR_1 != IR_1_previous) {
 				IR_1_previous = IR_1;
 				IR_event = true;
+				search_tag = true;
 				log_data_IR(rtc, IR_1, "IR 1", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
@@ -474,12 +484,13 @@ void loop() {
 			if (IR_2 != IR_2_previous) {
 				IR_2_previous = IR_2;
 				IR_event = true;
+				search_tag = true;
 				log_data_IR(rtc, IR_2, "IR 2", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
 		}
 
-		// read RFID a certain number of attemps base on external events (IR, ..)
+		// Read RFID a certain number of attemps base on external events (IR, ..)
 		if (RFID_awake > 0) {
 			Serial1.write(cmd_read_tag);
 			delay(10);
@@ -489,6 +500,7 @@ void loop() {
 			tag_event = false;
 			if (trx.indexOf("-") < 0) { //  if '-' not in trx:
 				tag_event = true;
+				search_tag = false;
 				trx.replace("+ ", "");
 				trx.replace("ru", "");
 				if (trx.length() >= 5) {	// avoid tagless file names
@@ -504,61 +516,51 @@ void loop() {
 				}
 			}
 
+			// Record a pit tag
+			if (tag_record == true) {
+				if (user_buzzer_on) {
+					digitalWrite(PIN_BUZZER_LED, HIGH);
+				}
+
+				time_last_tag = rtc.now();
+				now_ms = millis() % 1000;
+
+				if (config.tag_type == "FDX") {
+					tag = tag_hex_to_NIC(trx);
+				}
+				else {
+					tag = trx;
+				}
+				data = isoformat(time_last_tag, now_ms, ";") + get_component("A0") + tag + ";";
+				log_data(data, filename_data);
+				tag_record = false;
+				trx_previous = trx;
+				digitalWrite(PIN_BUZZER_LED, LOW);
+			}
+
 			if (config.opt_IR_1 or config.opt_IR_2) {
 				RFID_awake--;
 			}
-		}
 
-		// record a pit tag
-		if (tag_record == true) {
-			if (user_buzzer_on) {
-				digitalWrite(PIN_BUZZER_LED, HIGH);
-			}
-
-			time_last_tag = rtc.now();
-			now_ms = millis() % 1000;
-
-			if (config.tag_type == "FDX") {
-				tag = tag_hex_to_NIC(trx);
-			}
-          	else {
-            	tag = trx;
-          	}
-			data = isoformat(time_last_tag, now_ms, ";") + get_component("A0") + tag + ";";
-			log_data(data, filename_data);
-			tag_record = false;
-			trx_previous = trx;
-			digitalWrite(PIN_BUZZER_LED, LOW);
 		}
 
 		// Action with the servo - Capture
 		if (config.mode_capture != 1) {
-			////////// notifying servo is busy
-			////////now = rtc.now();
-			////////if (servo_busy)
-			////////{
-			////////	if (!door_already_closed and time_opened.unixtime() + config.release_time > now.unixtime())
-			////////	{
-			////////		Serial.println("Servomotor is busy, closing blocked");
-			////////		servo_busy = false;
-			////////	}
-			////////}
-
+			// Mode 2 : Capture if one infrared event detected
 			if (config.mode_capture == 2 and IR_event == true) {
 				capture_order = true;
 			}
-
-			if (config.mode_capture == 4 and tag_event == true) {
-				capture_order = true;
-			}
-
-			// look for special tag
-			if (config.mode_capture == 3 and tag_record == true) {
+			// Mode 3 : Capture if the detected tag matches the ones defined by user
+			if (config.mode_capture == 3 and tag_event == true) {
 				tag.toCharArray(tag_to_compare, 11);
 				capture_order = compare(tag_to_compare, config.tag_1) or compare(tag_to_compare, config.tag_2) or compare(tag_to_compare, config.tag_3) or compare(tag_to_compare, config.tag_4) or compare(tag_to_compare, config.tag_5);
 			}
-
-			// capture
+			// Mode 4 : Capture if infrared event with no succeed to read RFID tag
+			if (config.mode_capture == 4 and search_tag and (RFID_awake == 0)) {
+				capture_order = true;
+				search_tag = false;
+			}
+			// Control the door
 			if (capture_order == true)
 			{
 				closeDoor(true);
@@ -685,8 +687,7 @@ void blink(uint32_t Pin, int delay_ms, int blink_number) {
 void error(int error_number) {
 	// Security : Open the door if closed
 	closeDoor(false, "Security");
-	// External led activation for user information and internal led for error-code
-	digitalWrite(PIN_BUZZER_LED, HIGH);
+	// External led activation for error-code
 	while (1) {
 		blink(PIN_BUZZER_LED, 200, error_number);
 		for (uint8_t i = error_number; i < 10; i++) {
