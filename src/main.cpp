@@ -2,6 +2,34 @@
  Name:		Feather_M0.ino
  Created:	2020/11/18
  Author:	jcourtec
+ Description :
+ TODO
+
+ For more information about this project please visit us at
+ https://rfid_m0.pages.in2p3.fr/rfid_m0.wiki/
+
+ Copyright (C) 2023  jcourtec
+
+ Copyright (c) 2017 Adafruit Industries
+ Copyright © 2014-2023, Benoit BLANCHON
+ Copyright (c) 2015-2016 Arduino LLC.
+ Copyright (c) 2017, drhaney
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Copyright (C) 2009 by William Greiman
+ Copyright (c) 2010 SparkFun Electronics
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 /*
@@ -16,7 +44,7 @@
 *		x 1	PT100 wih MAX31865 digitilazer
 *	RFID
 *		x 1 Tectus TLB-30-SER
-* Servomotor x 1 Hitec HS-53 #TODO
+* Servomotor x 1 Feetech FS90
 */
 
 //Libraries
@@ -54,7 +82,7 @@
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-#define LIION_BATTERY
+#define LIION_BATTERY							// Comment this line to use lead battery parameters
 
 #ifdef LIION_BATTERY
 	#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
@@ -262,6 +290,7 @@ void setup() {
 	Serial.println(F("A MIBE TEAM PRODUCTION"));
 	Serial.println(stars);
 	Serial.println(F("Logging IR, RFID and RTD to log file with RTC timestamp"));
+	Serial.println(F("A project under GNU GPL v3 license"));
 	Serial.println(stars);
 	// Print the date and time of program launch
 	Serial.print(isoformat(time_compil, (int)0, ";"));
