@@ -472,7 +472,7 @@ void loop() {
 			if (IR_1 != IR_1_previous) {
 				IR_1_previous = IR_1;
 				IR_event = true;
-				if (IR_1 == 1) {search_tag = true;}
+				if ((IR_1 == 1) and not search_tag) {search_tag = true;}
 				log_data_IR(rtc, IR_1, "IR 1", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
@@ -484,7 +484,7 @@ void loop() {
 			if (IR_2 != IR_2_previous) {
 				IR_2_previous = IR_2;
 				IR_event = true;
-				if (IR_2 == 1) {search_tag = true;}
+				if ((IR_2 == 1) and not search_tag) {search_tag = true;}
 				log_data_IR(rtc, IR_2, "IR 2", filename_data);
 				RFID_awake = config.rfid_attempts;
 			}
@@ -1141,8 +1141,14 @@ void switchButtonMgmt(void) {
 		log_data(data, filename_data);
 
 		delay(1000); // Delay to let time for user to understand the battery indication is starting
-		// Blink 1 time per 20% of battery available
-		uint8_t SOC = (Vbat.mean_value - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE) * 5;
+		// Blink 1 time per 20% of battery available + Saturation between 1 and 5 blinks
+		uint8_t SOC = 1;
+		if (Vbat.mean_value >= BATTERY_MAX_VOLTAGE) {
+			SOC = 5;
+		}
+		else if (Vbat.mean_value > BATTERY_MIN_VOLTAGE) {
+			SOC = (Vbat.mean_value - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE) * 5;
+		}		
 		blink(PIN_BUZZER_LED, 200, SOC + 1);
 	}
 }
