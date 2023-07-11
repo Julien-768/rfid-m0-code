@@ -1,15 +1,35 @@
 /*
  Name:		Feather_M0.ino
  Created:	2020/11/18
- Author:	jcourtec
- Description :
- TODO
+ Author:	jcourtec - plafoux - yleguere - btenaud
 
- For more information about this project please visit us at
- https://rfid_m0.pages.in2p3.fr/rfid_m0.wiki/
+ Description
+ ****************************************
+ This program checks at regular intervals the passage of individuals thanks to infrared barriers. 
+ If an infrared event has occurred, the RFID sensor is read a number of times and the RFID tag 
+ (if detected) is saved. Following this event and the configuration, an optional door can be closed
+  to capture the individual. An optional temperature measurement is regularly performed and saved if
+  the temperature value has saved. All the events are saved in an SD memory card with timestamp (UTC
+  format). The system status (battery voltage, user interaction...) are also saved. The software is
+  customizable thanks to a configuration file stored into the SD card. For more information about 
+  this project please visit us at https://rfid_m0.pages.in2p3.fr/rfid_m0.wiki/
 
- Copyright (C) 2023  jcourtec
+* Hardware configuration
+****************************************
+* Processor	Feather M0 Adalogger board
+* RTC x 1 DS3231
+* Sensors
+*	Infra-Red board
+*		x 2	standard device
+*	Temperature probe
+*		x 1	PT100 wih MAX31865 digitilazer
+*	RFID
+*		x 1 Tectus TLB-30-SER
+* Servomotor x 1 Feetech FS90
 
+* License
+****************************************
+ Copyright (C) 2023  jcourtec - plafoux - yleguere - btenaud
  Copyright (c) 2017 Adafruit Industries
  Copyright © 2014-2023, Benoit BLANCHON
  Copyright (c) 2015-2016 Arduino LLC.
@@ -30,21 +50,6 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
-*/
-
-/*
-* Hardware configuration
-****************************************
-* Processor	Feather M0 Adalogger board
-* RTC x 1 DS3231
-* Sensors
-*	Infra-Red board
-*		x 2	standard device
-*	Temperature probe
-*		x 1	PT100 wih MAX31865 digitilazer
-*	RFID
-*		x 1 Tectus TLB-30-SER
-* Servomotor x 1 Feetech FS90
 */
 
 //Libraries
