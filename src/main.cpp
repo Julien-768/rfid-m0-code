@@ -635,7 +635,7 @@ void loop() {
 			now_ms = millis() % 1000;
 			if (moving_average(&Temperature, current_temperature)) {
 				now_ms = millis() % 1000;
-				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "C°;";
+				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "°C;";
 				log_data(data, filename_data);
 			}
 
