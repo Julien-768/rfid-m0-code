@@ -103,20 +103,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define SERVO_POS_OPENED         132        // Opened position for servo in degrees
 #define SERVO_POS_CLOSED         65         // Closed position for servo in degrees
 
-//---- Temperature measurment with thermistor --------//
-//#define THERMISTOR_SECURITY
-
-#ifdef THERMISTOR_SECURITY
-	#define SERIESRESISTOR 10000 				// the value of the NTC resistor
-	#define THERMISTORNOMINAL 10000 			// resistance at 25 degrees C
-	#define TEMPERATURENOMINAL 25 				// temp. for nominal resistance (almost always 25 C)
-	#define NUMSAMPLES 5 						// how many samples to take and average, more takes longer  but is smoother
-	#define BCOEFFICIENT 3950 					// The beta coefficient of the thermistor (usually 3000-4000)
-	#define THERMISTORPIN A4  					// What pin to connect the sensor to
-
-	int samples[NUMSAMPLES];
-#endif
-
 // User parameters
 struct Config {
 	// Hardware options
@@ -169,7 +155,6 @@ File logfile;
 
 Adafruit_MAX31865 Temp = Adafruit_MAX31865(PIN_TEMP_CS);       // Temperature MAX31865
 pt100rtd PT100 = pt100rtd();                                   // Init the Pt100 table lookup module
-const float temp_max = 50;									   // Temperature Thermistor
 Average_value Temperature = {{0,0,0}, 0, 0, 0.02};		       // Temperature : Current and previous raw values, current and previous mean value	
 
 RTC_DS3231 rtc;                                                // Real Time Clock
@@ -231,9 +216,6 @@ String tag_hex_to_NIC(String src);
 void switchButtonMgmt(void);
 void closeDoor(bool door_cmd_closed, String reason = "");
 bool moving_average(struct Average_value *s, float updated_value);
-#ifdef THERMISTOR_SECURITY
-float readThermistorTemperature();
-#endif
 
 // The setup function runs once when you press reset or power the board
 void setup() {
@@ -252,13 +234,9 @@ void setup() {
 	pinMode(PIN_PW_3V, OUTPUT);
 	pinMode(PIN_IR_SEND, OUTPUT);
 	pinMode(PIN_BUZZER_LED, OUTPUT);
-    pinMode(PIN_PW_EN, OUTPUT);
-#ifndef THERMISTOR_SECURITY
+	pinMode(PIN_PW_EN, OUTPUT);
 	pinMode(PIN_PW_SERVO, OUTPUT);
 	digitalWrite(PIN_PW_SERVO, LOW);
-#else
-	pinMode(THERMISTORPIN, INPUT);
-#endif
 	digitalWrite(PIN_PW_EN, HIGH);
 	digitalWrite(PIN_PW_RFID, HIGH);
 	digitalWrite(PIN_PW_3V, LOW);
@@ -377,7 +355,7 @@ void setup() {
 		pwm.analogWrite(PIN_IR_SEND, 500);  // PWM frequency is now around 36KHz, dutycycle is 500 / 1000 * 100% = 50%
 	}
 
-	// initialization of the temperature sensor
+	// Initialization of the temperature sensor
 	if (config.opt_temp_prec == true) {
 		Serial.println("MAX31865 PT100 Sensor Test using NIST resistance table.");
 		Temp.begin(MAX31865_2WIRE);  // set to 2WIRE
@@ -403,10 +381,8 @@ void setup() {
 	cmd_read.toCharArray(cmd_read_tag, 6);
 
 	// Initialization of the servo motor : Door is opened by default
-#ifndef THERMISTOR_SECURITY
 	Servo_control.attach(PIN_SERVO);
 	closeDoor(false, "Init");
-#endif
 
 	//Initialization battery voltage & log data
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
@@ -426,13 +402,8 @@ void setup() {
 	delay(3000);
 }
 
-// the loop function runs over and over again until power down or reset
+// The loop function runs over and over again until power down or reset
 void loop() {
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// TODO Time offset !
-	// !!
-	// Set an offset when the RTC second change happen else you could get 40.914s , 40.230s, 40.734s, 41.238s as real time
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// Refresh time for the loop
 	now_ms = millis() % 1000;
@@ -607,11 +578,6 @@ void loop() {
 
 			float current_temperature;
 
-#ifdef THERMISTOR_SECURITY
-
-			current_temperature = readThermistorTemperature();
-
-#else
 			uint16_t rtd, ohmsx100;
 			uint32_t dummy;
 			rtd = Temp.readRTD();
@@ -629,7 +595,6 @@ void loop() {
 			// LookUp Table method
 			current_temperature = PT100.celsius(ohmsx100);
 			checkFault();
-#endif
 
 			time_last_temp = rtc.now();
 			now_ms = millis() % 1000;
@@ -637,17 +602,6 @@ void loop() {
 				now_ms = millis() % 1000;
 				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "°C;";
 				log_data(data, filename_data);
-			}
-
-
-			// Power off 
-			if (Temperature.mean_value > temp_max) {
-				// Security : Open the door if closed
-				closeDoor(false, "Security");
-				data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : High temp;";
-				log_data(data, filename_data);
-				blink(PIN_BUZZER_LED, 100, 6);
-				digitalWrite(PIN_PW_EN, LOW);
 			}
 		}
 
@@ -802,7 +756,7 @@ String get_component(String data_type){
 		data = assembly.uid_mainboard + ";inv_mainboard;" + data_type + ";"; 
 	}
 	else {
-		 data = assembly.uid_rfid_sensor + ";inv_rfid_sensor;" + data_type + ";";
+		data = assembly.uid_rfid_sensor + ";inv_rfid_sensor;" + data_type + ";";
 	}
 	return data;
 }
@@ -1068,79 +1022,75 @@ bool compare(const char* TAG_1, const char* TAG_2) {
 
 // Convert char hexadecimal to int number
 unsigned int hex2int(char input) {
-  if (input >= '0' && input <= '9') {
-    return input - '0';
-  }
-  else {
-    if (input >= 'A' && input <= 'F') {
-      return input - 'A' + 10;
-    }
-    else {
-      if (input >= 'a' && input <= 'f') {
-        return input - 'a' + 10;
-      }
-      else {
-        return '0';
-      }
-    }
-  }
+	if (input >= '0' && input <= '9') {
+		return input - '0';
+	}
+	else {
+		if (input >= 'A' && input <= 'F') {
+			return input - 'A' + 10;
+		}
+		else {
+			if (input >= 'a' && input <= 'f') {
+				return input - 'a' + 10;
+			}
+			else {
+				return '0';
+			}
+		}
+	}
 }
 
 // Conversion long long int number to a String
 String longlong2String(unsigned long long int bigint) {
-  String s = "";
-  int digit;
-
-  //for each decimal digit of the long long bigint, extract it and convert it in string
-  while (bigint > 0) {
-    digit = (bigint % 10);		// get the last decimal digit of bigint
-    s = String(digit) + s;		// convert the digit in string and add it to output
-    bigint = bigint / 10;		// truncate the last decimal digit
-
-  }
-
-  return s;
+	String s = "";
+	int digit;
+	
+	//for each decimal digit of the long long bigint, extract it and convert it in string
+	while (bigint > 0) {
+		digit = (bigint % 10);		// get the last decimal digit of bigint
+		s = String(digit) + s;		// convert the digit in string and add it to output
+		bigint = bigint / 10;		// truncate the last decimal digit
+	}
+	return s;
 }
 
 // Conversion Tag FDX from Hexadecimal to National Identification Code(NIC)
 String tag_hex_to_NIC(String src) {
-  /*
-  input : String of tag hexadecimal number. exemple: [ scr = "80003EB533A9F1FA" ]
-  output : String of tag converted with countryCode - CodeNIC [ "250-228500042234" ]
-  */
-  char hex[12];
-  unsigned int a, z = 0;
-  unsigned int codePays = 0;        //country code 3 decimals / 10bits [ 250 ]
-  unsigned long long int codeNIC = 0;   // National Identificatin Code (NIC) on 12decimals / 38bits [ 228500042234 ]
-  if (src.length() == 16)         //FDX tag length is 16 hex [ 0x80003EB533A9F1FA ]
-  {
-    /*keep only the last 12 hexa digit that contain the Codes [0x3EB533A9F1FA] and convert it to char array*/
-    src.toCharArray(hex, 13, 4);
+	/*
+	input : String of tag hexadecimal number. exemple: [ scr = "80003EB533A9F1FA" ]
+	output : String of tag converted with countryCode - CodeNIC [ "250-228500042234" ]
+	*/
+	char hex[12];
+	unsigned int a, z = 0;
+	unsigned int codePays = 0;        //country code 3 decimals / 10bits [ 250 ]
+	unsigned long long int codeNIC = 0;   // National Identificatin Code (NIC) on 12decimals / 38bits [ 228500042234 ]
+	
+	if (src.length() == 16)         //FDX tag length is 16 hex [ 0x80003EB533A9F1FA ]
+	{
+		/*keep only the last 12 hexa digit that contain the Codes [0x3EB533A9F1FA] and convert it to char array*/
+		src.toCharArray(hex, 13, 4);
 
-    //Conversion of the 3 first hex digit to get the codePays
-    for (int i = 0; i < 3; i++) {
-                      // get hex digit [ for i = 2; hexL[i] = 0xB ]
-      a = hex2int(hex[i]);      //conversion to int [ a = 11 = 0b1011 ]
-      z = (z << 4) | a;       // add the 4 bits of the hexa digit at the end of z
-                      // [ z = 62 = 0b 0011 1110  -> becomes -> z = 1003 = 0b 0011 1110 1011]
+		//Conversion of the 3 first hex digit to get the codePays
+		for (int i = 0; i < 3; i++) {
+									// get hex digit [ for i = 2; hexL[i] = 0xB ]
+			a = hex2int(hex[i]);	//conversion to int [ a = 11 = 0b1011 ]
+			z = (z << 4) | a;		// add the 4 bits of the hexa digit at the end of z
+									// [ z = 62 = 0b 0011 1110  -> becomes -> z = 1003 = 0b 0011 1110 1011]
+		}
+		codePays = z >> 2;          // supress last 2 bits of z to get code Pays [ codePays = 0b 0011 1110 10 = 250]
+		codeNIC = (3 & z);          //get the last 2 bits to begin codeNIC [ codeNIC = 0b 11 ]
 
-    }
-    codePays = z >> 2;          // supress last 2 bits of z to get code Pays [ codePays = 0b 0011 1110 10 = 250]
+		//Conversion of the rest of hex digit to get the codeNIC
+		for (size_t i = 3; i < strlen(hex); i++) {
+											// get hex digit [ for i = 3; hexL[i] = 0x5 ]
+			a = hex2int(hex[i]);			//conversion to int [ a = 5 = 0b0101 ]
+			codeNIC = (codeNIC << 4) | a; 	// add the 4 bits of the hexa digit at the end of codeNIC
+											// [ codeNIC = 0b 11  -> becomes -> codeNIC = 0b 11 0101]
+		}
 
-    codeNIC = (3 & z);          //get the last 2 bits to begin codeNIC [ codeNIC = 0b 11 ]
-
-    //Conversion of the rest of hex digit to get the codeNIC
-    for (size_t i = 3; i < strlen(hex); i++) {
-		                  // get hex digit [ for i = 3; hexL[i] = 0x5 ]
-      a = hex2int(hex[i]);      //conversion to int [ a = 5 = 0b0101 ]
-      codeNIC = (codeNIC << 4) | a; // add the 4 bits of the hexa digit at the end of codeNIC
-                      // [ codeNIC = 0b 11  -> becomes -> codeNIC = 0b 11 0101]
-    }
-
-    return (String(codePays) + "-" + longlong2String(codeNIC));
-  }
-  else return "misread tag";
-
+		return (String(codePays) + "-" + longlong2String(codeNIC));
+	}
+	else return "misread tag";
 }
 
 // Check switch button
@@ -1187,29 +1137,8 @@ void switchButtonMgmt(void) {
 	}
 }
 
-#ifdef THERMISTOR_SECURITY
-float readThermistorTemperature() {
-	float temp_reading;
-	float steinhart;
-	temp_reading = analogRead(THERMISTORPIN);
-	// convert the value to resistance
-	temp_reading = (1023 / temp_reading) - 1;     // (1023/ADC - 1)
-	temp_reading = SERIESRESISTOR / temp_reading;  // 10K / (1023/ADC - 1)
-	// convert the resistance to temperature in Celcus
-	steinhart = temp_reading / THERMISTORNOMINAL;     // (R/Ro)
-	steinhart = log(steinhart);                  // ln(R/Ro)
-	steinhart /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
-	steinhart += 1.0 / (TEMPERATURENOMINAL + 273.15); // + (1/To)
-	steinhart = 1.0 / steinhart;                 // Invert
-	steinhart -= 273.15;                         // convert absolute temp to C
-	return steinhart;
-}
-#endif
-
-
 // Management of the door
 void closeDoor(bool door_cmd_closed, String reason){
-#ifndef THERMISTOR_SECURITY
 	if (door_cmd_closed != door_already_closed) {
 		digitalWrite(PIN_PW_SERVO, HIGH);
 		// Close the door
@@ -1232,7 +1161,6 @@ void closeDoor(bool door_cmd_closed, String reason){
 		delay(2000);
 		digitalWrite(PIN_PW_SERVO, LOW);
 	}
-#endif
 }
 
 // Average value filtering
@@ -1243,15 +1171,15 @@ bool moving_average(struct Average_value *s, float updated_value) {
 	s->array[1] = s->array[0];
 	s->array[0] = updated_value;
 
-    // Calculation of the new moving average
-    s->mean_value = (s->array[0] + s->array[1] + s->array[2]) / 3.0;
+	// Calculation of the new moving average
+	s->mean_value = (s->array[0] + s->array[1] + s->array[2]) / 3.0;
 	
-    // Comparison with the previous moving average and threshold
-    if (fabs(s->mean_value - s->mean_value_previous) <= s->threshold) {
-        return false;
-    } else {
-        // Update the values in the structure
-        s->mean_value_previous = s->mean_value;
-        return true;
-    }
+	// Comparison with the previous moving average and threshold
+	if (fabs(s->mean_value - s->mean_value_previous) <= s->threshold) {
+		return false;
+	} else {
+		// Update the values in the structure
+		s->mean_value_previous = s->mean_value;
+		return true;
+	}
 }
