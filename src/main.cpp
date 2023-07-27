@@ -87,7 +87,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-#define LIION_BATTERY							// Comment this line to use lead battery parameters
+//#define LIION_BATTERY							// Comment this line to use lead battery parameters
 
 #ifdef LIION_BATTERY
 	#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
@@ -364,7 +364,7 @@ void setup() {
 	// Small delay to let time to IR receiver to start
 	delay(50);
 
-	// initialization of IR variables
+	// Initialization of IR variables
 	if (config.opt_IR_1 == true) {
 		IR_1_previous = digitalRead(PIN_IR_1);
 	}
@@ -683,6 +683,28 @@ void error(int error_number) {
 		blink(PIN_BUZZER_LED, 200, error_number);
 		for (uint8_t i = error_number; i < 10; i++) {
 			delay(200);
+		}
+		// If the RTC losts power and user requests a reset by a long press, define a default date : 2099-01-01 00:00:00
+		bool stateButton = digitalRead(PIN_PW_SW);
+		if ((error_number == 4) and (stateButton)) {
+			int loops = 0;
+			while (stateButton == true) {
+				stateButton = digitalRead(PIN_PW_SW);
+				delay(200);
+				loops = loops + 1;
+				// It switch button maintained at least 2 second, consider it's a reset request
+				if (loops == 10) {
+					rtc.adjust(DateTime(2099,01,01,00,00,00));
+					String data = isoformat(time_start, now_ms, ";") + get_component("System") + "RTC set time to default date;";
+					log_data(data, filename_data);
+					// Blink two times to indicate user the reset is done
+					blink(PIN_BUZZER_LED, 200, 2);
+					// Infinite loop to force user to restart the device
+					while (1) {
+						delay(10000);
+					}
+				}
+			}
 		}
 	}
 }
