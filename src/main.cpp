@@ -12,7 +12,7 @@
   the temperature value has saved. All the events are saved in an SD memory card with timestamp (UTC
   format). The system status (battery voltage, user interaction...) are also saved. The software is
   customizable thanks to a configuration file stored into the SD card. For more information about 
-  this project please visit us at https://rfid_m0.pages.in2p3.fr/rfid_m0.wiki/
+  this project please visit us at https://rfid.m0.pages.in2p3.fr/rfid.m0.wiki/
 
 * Hardware configuration
 ****************************************
@@ -66,21 +66,46 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "FlashStorage.h"
 
 // Adafruit board pin mapping
-#define PIN_VBAT		A1                 // analog input for battery voltage measurement
-#define PIN_PW_SW		A2				   // input for power switch
-#define PIN_PW_EN  		A3             	   // output for power relay low battery
-#define PIN_TEMP_CS		6                  // input for RTD sensor
-#define PIN_LED_SD		8	               // input/output for SD card
-#define PIN_SD_CS		4	               // input/output for SD card
-#define PIN_SD_CD		7	               // input/output for SD card
-#define PIN_BUZZER_LED 	9                  // output for buzzer or led
-#define PIN_PW_SERVO  	A4	               // output for power relay of servomotor
-#define PIN_PW_3V       5                  // output for power relay of IRs and RTD
-#define PIN_PW_RFID     A5                 // output for power relay of RFID
-#define PIN_IR_1		A0                 // input for IR sensor 1
-#define PIN_IR_2	    10             	   // input for IR sensor 2
-#define PIN_IR_SEND     11                 // output pwm 36kHz for IR sensor
-#define PIN_SERVO		12	               // output pwm for signal servo pin
+//#define LEGACY_PINOUT                        // Uncomment this line to use previous release of main board (before august 2023)
+#ifndef LEGACY_PINOUT
+	#define PIN_VBAT		A2                 // analog input for battery voltage measurement
+	#define PIN_PW_SW		A3				   // input for power switch
+	#define PIN_PW_EN  		A4             	   // output for power relay low battery
+	#define PIN_TEMP_CS		12                 // input for RTD sensor
+	#define PIN_LED_SD		8	               // input/output for SD card
+	#define PIN_SD_CS		4	               // input/output for SD card
+	#define PIN_SD_CD		7	               // input/output for SD card
+	#define PIN_BUZZER_LED 	19                 // output for buzzer or led
+	#define PIN_PW_SERVO  	A1	               // output for power relay of servomotor
+	#define PIN_PW_3V       10                 // output for power relay of IRs and RTD
+	#define PIN_PW_RFID     14                 // output for power relay of RFID
+	#define PIN_PR_1		5                  // input for IR receiver 1
+	#define PIN_PR_2	    6             	   // input for IR receiver 2
+	#define PIN_IR_SEND     9                  // output pwm 36kHz for IR sensor
+	#define PIN_SERVO		11	               // output pwm for signal servo pin
+	#define PIN_ENABLED LOW                    // Logic level to activate transistor
+	#define PIN_DISABLED HIGH                  // Logic level to disactivate transistor
+	#define PWM_TIMER 1                        // Timer associated to PWM pin 9
+#else
+	#define PIN_VBAT		A1                 // analog input for battery voltage measurement
+	#define PIN_PW_SW		A2				   // input for power switch
+	#define PIN_PW_EN  		A3             	   // output for power relay low battery
+	#define PIN_TEMP_CS		6                  // input for RTD sensor
+	#define PIN_LED_SD		8	               // input/output for SD card
+	#define PIN_SD_CS		4	               // input/output for SD card
+	#define PIN_SD_CD		7	               // input/output for SD card
+	#define PIN_BUZZER_LED 	9                  // output for buzzer or led
+	#define PIN_PW_SERVO  	A4	               // output for power relay of servomotor
+	#define PIN_PW_3V       5                  // output for power relay of IRs and RTD
+	#define PIN_PW_RFID     A5                 // output for power relay of RFID
+	#define PIN_PR_1		A0                 // input for IR receiver 1
+	#define PIN_PR_2	    10             	   // input for IR receiver 2
+	#define PIN_IR_SEND     11                 // output pwm 36kHz for IR sensor
+	#define PIN_SERVO		12	               // output pwm for signal servo pin
+	#define PIN_ENABLED HIGH                   // Logic level to activate transistor
+	#define PIN_DISABLED LOW                   // Logic level to disactivate transistor
+	#define PWM_TIMER 2                        // Timer associated to PWM pin 11
+#endif
 
 // output for CS temperature with MAX31865
 #define RREF            430.0               // resistance reference for RTD
@@ -112,7 +137,7 @@ struct Config {
 	// Modes and key parameters
 	int delay_loop = 10;			    // loop delay in ms (time to sleep between checking sensors) RFID timeout is always adding to this delay_loop
 	String tag_type = "FDX";            // TAG supported "FDX" / "EM4102"
-    int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR event
+	int rfid_attempts = 10;             // how many times the RFID will try to read TAG after IR event
 	int delay_tag_save = 1; 	        // time in seconds to save a tag sitting on the antenna
 	int delay_temp = 60;				// period in seconds to record temperature
 	bool mode_time_period = false;   	// activation only between start_time and stop_time hours 
@@ -138,10 +163,10 @@ struct Assembly {
 };
 
 struct Average_value {
-    float array[3];
-    float mean_value;
-    float mean_value_previous;
-    float threshold;
+	float array[3];
+	float mean_value;
+	float mean_value_previous;
+	float threshold;
 };
 
 
@@ -160,9 +185,8 @@ Average_value Temperature = {{0,0,0}, 0, 0, 0.02};		       // Temperature : Curr
 RTC_DS3231 rtc;                                                // Real Time Clock
 bool rtc_error = false;										   // RTC lost power or wrong date
 FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
-DateTime time_compil, now, time_start, time_last_tag, time_last_door_closed, time_last_temp, time_file, time_last_voltage, time_off_user_buzzer, time_last_up;
-TimeSpan last_tag_diff;
-int now_ms;													   // Current millisecond from millis()
+DateTime time_compil, time_start, time_file, time_off_user_buzzer;
+long time_last_tag, time_last_up, time_last_door_closed, time_last_voltage, time_last_temp;
 bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
 
@@ -226,8 +250,8 @@ void setup() {
 	Serial1.setTimeout(500);
 	// Configure the IO
 	pinMode(PIN_LED_SD, OUTPUT);
-	pinMode(PIN_IR_1, INPUT);
-	pinMode(PIN_IR_2, INPUT);
+	pinMode(PIN_PR_1, INPUT);
+	pinMode(PIN_PR_2, INPUT);
 	pinMode(PIN_VBAT, INPUT);
 	pinMode(PIN_PW_SW, INPUT);	
 	pinMode(PIN_PW_RFID, OUTPUT);
@@ -236,13 +260,13 @@ void setup() {
 	pinMode(PIN_BUZZER_LED, OUTPUT);
 	pinMode(PIN_PW_EN, OUTPUT);
 	pinMode(PIN_PW_SERVO, OUTPUT);
-	digitalWrite(PIN_PW_SERVO, LOW);
+	digitalWrite(PIN_PW_SERVO, PIN_DISABLED);
 	digitalWrite(PIN_PW_EN, HIGH);
-	digitalWrite(PIN_PW_RFID, HIGH);
-	digitalWrite(PIN_PW_3V, LOW);
+	digitalWrite(PIN_PW_RFID, PIN_ENABLED);
+	digitalWrite(PIN_PW_3V, PIN_DISABLED);
 	digitalWrite(PIN_BUZZER_LED, HIGH);
-	pwm.setClockDivider(16, false);		// Main clock divided by 16 => 3MHz
-	pwm.timer(2, 4, 20, true);			// Use timer 2 for pin PIN_IR_SEND, divide clock by 4, resolution 20, single-slope PWM
+	pwm.setClockDivider(16, false);				// Main clock divided by 16 => 3MHz
+	pwm.timer(PWM_TIMER, 4, 20, true);			// Use timer PWM_TIMER for pin PIN_IR_SEND, divide clock by 4, resolution 20, single-slope PWM
 
 	// RTC initialisation
 	if (!rtc.begin()) {
@@ -291,49 +315,47 @@ void setup() {
 		error(2);
 	}
 
-	now_ms = millis() % 1000;
-	now = rtc.now();
-
 	// load the assembly description
 	loadAssembly(assembly);
 
 	// Log system start-up
-	data = isoformat(time_start, now_ms, ";") + get_component("System") + "Start;\n";
+	data = isoformat(time_start, millis() % 1000, ";") + get_component("System") + "Start;\n";
 
 	// If the flash memory is reset, a new code was uploaded and the RTC update was just done (previously in the code)
 	if (not rtc_updated.read()){
 		rtc_updated.write(true);
-		data = data + isoformat(time_start, now_ms, ";") + get_component("System") + "RTC set time to compilation date;";
+		data = data + isoformat(time_start, millis() % 1000, ";") + get_component("System") + "RTC set time to compilation date;";
 	}
 	else {
 		// Check for RTC errors : wrong date or power loss
 		if (rtc.lostPower()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC lost power;";
+			data = data + isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC lost power;";
 		}
-		else if (now.unixtime() < time_compil.unixtime()) {
+		else if (rtc.now().unixtime() < time_compil.unixtime()) {
 			rtc_error = true;
-			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC has unknow error;";
+			data = data + isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC has unknow error;";
 		}
 		else {
-			data = data + isoformat(now, now_ms, ";") + get_component("System") + "RTC is ok;";
+			data = data + isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC is ok;";
 		}
 	}
 
 	// Creating a new file at setup
-	time_file = now;
-	daily_data_file(filename_data, now);
+	time_file = rtc.now();
+	daily_data_file(filename_data, rtc.now());
 	log_data(data, filename_data);
 
 	if (rtc_error) {
 		error(4);
 	}
 
-	time_last_tag = now;
-	time_last_door_closed = now;
-	time_last_temp = now;
-	time_last_up = now;
-	time_off_user_buzzer = now + delay_user_buzzer;
+	time_last_tag = millis();
+	time_last_door_closed =  millis();
+	time_last_temp =  millis();
+	time_last_voltage = millis();
+	time_last_up = millis();
+	time_off_user_buzzer = rtc.now() + delay_user_buzzer;
 
 	// use this line to load configuration from SD config.cfg file
 	Serial.println(F("Loading SD card configuration..."));
@@ -347,7 +369,7 @@ void setup() {
 
 	// Activation of 3.3V only if at least one IR sensor active or temp sensor active
 	if (config.opt_IR_1 == true or config.opt_IR_2 == true or config.opt_temp_prec == true){
-		digitalWrite(PIN_PW_3V, HIGH);
+		digitalWrite(PIN_PW_3V, PIN_ENABLED);
 	}
 
 	// Activation of PWM only if at least one IR sensor is active
@@ -366,11 +388,11 @@ void setup() {
 
 	// Initialization of IR variables
 	if (config.opt_IR_1 == true) {
-		IR_1_previous = digitalRead(PIN_IR_1);
+		IR_1_previous = digitalRead(PIN_PR_1);
 	}
 
 	if (config.opt_IR_2 == true) {
-		IR_2_previous = digitalRead(PIN_IR_2);
+		IR_2_previous = digitalRead(PIN_PR_2);
 	}
 
 	// Loading RFID settings
@@ -390,7 +412,7 @@ void setup() {
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
 	delay(100);
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
-	data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+	data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 	log_data(data, filename_data);
 
 	user_buzzer_on = true;
@@ -405,19 +427,15 @@ void setup() {
 // The loop function runs over and over again until power down or reset
 void loop() {
 
-	// Refresh time for the loop
-	now_ms = millis() % 1000;
-	now = rtc.now();
-	
 	// Creating a new file each day
-	if (now.day() != time_file.day()) {
-		time_file = now;
-		daily_data_file(filename_data, now);
+	if (rtc.now().day() != time_file.day()) {
+		time_file = rtc.now();
+		daily_data_file(filename_data, rtc.now());
 	}
 
 	// Disable user signal - Led_ext or Buzzer - after a delay # 300s
 	if (user_buzzer_on) { 				// then check time
-		if (now.unixtime() > time_off_user_buzzer.unixtime()) {
+		if (rtc.now().unixtime() > time_off_user_buzzer.unixtime()) {
 			user_buzzer_on = false;
 		}
 	}
@@ -425,7 +443,7 @@ void loop() {
 
 	// Check if acquisition should run according to day only mode
 	if (config.mode_time_period == true) {
-		int hours_current = now.hour();
+		int hours_current = rtc.now().hour();
 		time_period_condition = false;
 		// If the time period is defined on the same day
 		if (config.start_time < config.stop_time) {
@@ -449,9 +467,9 @@ void loop() {
 		// Security : Open the door if closed
 		closeDoor(false, "Security");
 		acquisition = false;
-		digitalWrite(PIN_PW_3V, LOW);
-		digitalWrite(PIN_PW_RFID, LOW);
-		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Sleep mode;";
+		digitalWrite(PIN_PW_3V, PIN_DISABLED);
+		digitalWrite(PIN_PW_RFID, PIN_DISABLED);
+		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Sleep mode;";
 		log_data(data, filename_data);
 	}
 
@@ -459,9 +477,9 @@ void loop() {
 	// Start acquisition if currently sleeping and conditions are satisfied
 	if (battery_condition and time_period_condition and (!acquisition)) {
 		acquisition = true;
-		digitalWrite(PIN_PW_3V, HIGH);
-		digitalWrite(PIN_PW_RFID, HIGH);
-		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Wake up mode;";
+		digitalWrite(PIN_PW_3V, PIN_ENABLED);
+		digitalWrite(PIN_PW_RFID, PIN_ENABLED);
+		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Wake up mode;";
 		log_data(data, filename_data);
 	}
 
@@ -473,7 +491,7 @@ void loop() {
 		// Event on infrared sensor 1
 		if (config.opt_IR_1 == true) {
 			// record infrared beam events
-			IR_1 = digitalRead(PIN_IR_1);
+			IR_1 = digitalRead(PIN_PR_1);
 			if (IR_1 != IR_1_previous) {
 				IR_1_previous = IR_1;
 				IR_event = true;
@@ -485,7 +503,7 @@ void loop() {
 
 		// Event on infrared sensor 2
 		if (config.opt_IR_2 == true) {
-			IR_2 = digitalRead(PIN_IR_2);
+			IR_2 = digitalRead(PIN_PR_2);
 			if (IR_2 != IR_2_previous) {
 				IR_2_previous = IR_2;
 				IR_event = true;
@@ -510,8 +528,7 @@ void loop() {
 				trx.replace("ru", "");
 				if (trx.length() >= 5) {	// avoid tagless file names
 					if (trx == trx_previous) {	// avoid repeated records
-						last_tag_diff = rtc.now() - time_last_tag;
-						if (last_tag_diff.seconds() >= config.delay_tag_save) {
+						if (((millis() - time_last_tag) / 1000) >= uint32_t(config.delay_tag_save)) {
 							tag_record = true;
 						}
 					}
@@ -527,8 +544,7 @@ void loop() {
 					digitalWrite(PIN_BUZZER_LED, HIGH);
 				}
 
-				time_last_tag = rtc.now();
-				now_ms = millis() % 1000;
+				time_last_tag = millis();
 
 				if (config.tag_type == "FDX") {
 					tag = tag_hex_to_NIC(trx);
@@ -536,7 +552,7 @@ void loop() {
 				else {
 					tag = trx;
 				}
-				data = isoformat(time_last_tag, now_ms, ";") + get_component("A0") + tag + ";";
+				data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("A0") + tag + ";";
 				log_data(data, filename_data);
 				tag_record = false;
 				trx_previous = trx;
@@ -574,8 +590,9 @@ void loop() {
 		}
 
 		// Temperature
-		if (config.opt_temp_prec == true and ((time_last_temp.unixtime() + config.delay_temp) <= now.unixtime())) {
+		if (config.opt_temp_prec == true and (((millis() - time_last_temp) / 1000) >= uint32_t(config.delay_temp))) {
 
+			time_last_temp = millis();
 			float current_temperature;
 
 			uint16_t rtd, ohmsx100;
@@ -596,11 +613,8 @@ void loop() {
 			current_temperature = PT100.celsius(ohmsx100);
 			checkFault();
 
-			time_last_temp = rtc.now();
-			now_ms = millis() % 1000;
 			if (moving_average(&Temperature, current_temperature)) {
-				now_ms = millis() % 1000;
-				data = isoformat(time_last_temp, now_ms, ";") + get_component("Temperature") + String(Temperature.mean_value) + "°C;";
+				data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Temperature") + String(Temperature.mean_value) + "°C;";
 				log_data(data, filename_data);
 			}
 		}
@@ -609,33 +623,32 @@ void loop() {
 
 
 	// SECURITY : Open door if closed for a certain time 
-	if (((time_last_door_closed.unixtime() + config.release_time) <= now.unixtime()) and door_already_closed) {
+	if ((((millis() - time_last_door_closed) / 1000) >= uint32_t(config.release_time)) and door_already_closed) {
 		closeDoor(false, "Release time");
 	}
 
 
 	// Check battery voltage every 2 seconds
-	if ((time_last_voltage.unixtime() + 2) <= now.unixtime()) {
+	if (((millis() - time_last_voltage) / 1000) >= 2) {
 
-		time_last_voltage = now;
+		time_last_voltage = millis();
 		
 		// Voltage measurement
 		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
-			now_ms = millis() % 1000;
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 		}
 		// Force sleep mode if battery voltage is too low
 		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Power saving;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + "Power saving;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
 		// Ask for wake up if battery voltage reaches acceptable voltage
 		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Battery restored;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + "Battery restored;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
@@ -643,8 +656,8 @@ void loop() {
 		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
 			// Security : Open the door if closed
 			closeDoor(false, "Security");
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : Battery Low;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Shutdown : Battery Low;";
 			log_data(data, filename_data);
 			blink(PIN_BUZZER_LED, 100, 6);
 			digitalWrite(PIN_PW_EN, LOW);
@@ -652,10 +665,10 @@ void loop() {
 	}
 	
 	// Write a periodic message to indicate the system is still alive
-	if ((time_last_up.unixtime() + 3600) <= now.unixtime()) {
-		data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Up;";
+	if (((millis() - time_last_up) / 1000) >= 3600) {
+		time_last_up =  millis();
+		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Up;";
 		log_data(data, filename_data);
-		time_last_up = rtc.now();
 	}
 
 	// Check general switch
@@ -695,7 +708,7 @@ void error(int error_number) {
 				// It switch button maintained at least 2 second, consider it's a reset request
 				if (loops == 10) {
 					rtc.adjust(DateTime(2099,01,01,00,00,00));
-					String data = isoformat(time_start, now_ms, ";") + get_component("System") + "RTC set time to default date;";
+					String data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC set time to default date;";
 					log_data(data, filename_data);
 					// Blink two times to indicate user the reset is done
 					blink(PIN_BUZZER_LED, 200, 2);
@@ -760,8 +773,7 @@ void log_data(String data, const char* filename) {
 
 // Log data according to IR state
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename) {
-	now_ms = millis() % 1000;
-	data = isoformat(rtc.now(), now_ms, ";") + get_component(IR_name);
+	data = isoformat(rtc.now(), millis() % 1000, ";") + get_component(IR_name);
 	if (IR_state == 1) {
 		data += "broken beam;";
 	}
@@ -817,7 +829,7 @@ void daily_data_file(char* filename, DateTime now) {
 		Serial.println(filename);
 		// If it's a new file, write the header
 		if (write_header){
-			String data = isoformat(now, now_ms, ";") + assembly.uid_mainboard + ";inv_mainboard;inv_experiment;" + assembly.uid_experiment + ";";
+			String data = isoformat(now, millis() % 1000, ";") + assembly.uid_mainboard + ";inv_mainboard;inv_experiment;" + assembly.uid_experiment + ";";
 			logfile.println(data);
 		}
 	}
@@ -1129,7 +1141,7 @@ void switchButtonMgmt(void) {
 		// It switch button maintained at least 1.2 second, consider it's a shutdown request
 		if (loops == 6) {
 			digitalWrite(PIN_BUZZER_LED, HIGH);
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("System") + "Shutdown : User;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Shutdown : User;";
 			log_data(data, filename_data);
 			delay(1000);
 			digitalWrite(PIN_PW_EN, LOW);
@@ -1141,9 +1153,9 @@ void switchButtonMgmt(void) {
 	// If the button is released before shutdown, consider it's a battery check
 	if (loops > 0){
 		moving_average(&Vbat, get_voltage(PIN_VBAT));
-		data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + "Battery check by user;";
+		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + "Battery check by user;";
 		log_data(data, filename_data);
-		data = isoformat(rtc.now(), now_ms, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 		log_data(data, filename_data);
 
 		delay(1000); // Delay to let time for user to understand the battery indication is starting
@@ -1162,14 +1174,14 @@ void switchButtonMgmt(void) {
 // Management of the door
 void closeDoor(bool door_cmd_closed, String reason){
 	if (door_cmd_closed != door_already_closed) {
-		digitalWrite(PIN_PW_SERVO, HIGH);
+		digitalWrite(PIN_PW_SERVO, PIN_ENABLED);
 		// Close the door
 		if (door_cmd_closed) {
 			Servo_control.write(SERVO_POS_CLOSED);
-			time_last_door_closed = rtc.now();
+			time_last_door_closed = millis();
 			door_already_closed = true;
 			Serial.println("Door closed");
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Door") + "Closed;";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Door") + "Closed;";
 			log_data(data, filename_data);
 		}
 		// Else open the door
@@ -1177,11 +1189,11 @@ void closeDoor(bool door_cmd_closed, String reason){
 			Servo_control.write(SERVO_POS_OPENED);
 			door_already_closed = false;
 			Serial.println("Door opened");
-			data = isoformat(rtc.now(), now_ms, ";") + get_component("Door") + "Open : " + reason + ";";
+			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Door") + "Open : " + reason + ";";
 			log_data(data, filename_data);
 		}
 		delay(2000);
-		digitalWrite(PIN_PW_SERVO, LOW);
+		digitalWrite(PIN_PW_SERVO, PIN_DISABLED);
 	}
 }
 
