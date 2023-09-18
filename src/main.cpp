@@ -112,7 +112,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define C2F(c)          ((9 * c / 5) + 32)  // temperature conversion function, celcius to fahrenheit
 
 // Electrical characteristics of the power board
-//#define LIION_BATTERY							// Comment this line to use lead battery parameters
+#define LIION_BATTERY							// Comment this line to use lead battery parameters
 
 #ifdef LIION_BATTERY
 	#define POWER_BOARD_BATT_RATIO   2			// Ratio of the voltage divider : 2 for a 5V-board - 6 for a 12V-board
@@ -185,10 +185,12 @@ Average_value Temperature = {{0,0,0}, 0, 0, 0.02};		       // Temperature : Curr
 RTC_DS3231 rtc;                                                // Real Time Clock
 bool rtc_error = false;										   // RTC lost power or wrong date
 FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
-DateTime time_compil, time_start, time_file, time_off_user_buzzer;
-long time_last_tag, time_last_up, time_last_door_closed, time_last_voltage, time_last_temp;
-bool user_buzzer_on;									  	   // User signal activation BUZZER or LED
+DateTime time_compil, time_start, time_file, time_off_user_buzzer, time_last_synchro;
+long time_last_tag, time_last_up, time_last_door_closed, time_last_voltage, time_last_temp, time_last_synchro_ms;
+bool user_buzzer_on;                                           // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
+uint32_t synchro_offset_ms, previous_synchro_offset_ms;        // Offset in millisecond between the RTC and millis()
+float synchro_slope = 0;									   // Slope that represents the drift of the offet over the time
 
 Servo Servo_control;		                                   // Servo object
 bool capture_order = false;                                    // Command to close the door
@@ -197,21 +199,21 @@ bool door_already_closed = true;                               // Status of the 
 bool IR_1 = false, IR_1_previous = false;                      // IR_1 tracker variables
 bool IR_2 = false, IR_2_previous = false;                      // IR_2 tracker variables
 bool IR_state = false, IR_event = false;                       // IR events variables
-TurboPWM pwm;												   // PWM used for infrared emitter
+TurboPWM pwm;                                                  // PWM used for infrared emitter
 
-int RFID_awake = config.rfid_attempts;						   // Number of remaining attempts to read the RFID
-String trx, trx_previous, tag;								   // Current and previous output of the RID reader
-char cmd_read_tag[6];               						   // RFID reading command
+int RFID_awake = config.rfid_attempts;                         // Number of remaining attempts to read the RFID
+String trx, trx_previous, tag;                                 // Current and previous output of the RID reader
+char cmd_read_tag[6];                                          // RFID reading command
 char tag_to_compare[11];
 
-bool acquisition = true;									   // Status of the acquisition
+bool acquisition = true;                                       // Status of the acquisition
 bool tag_record = false, tag_event = false;                    // Flag to kow if a tag was detected and need to be saved
 bool search_tag = false;                                       // Flag to know if we are currently looking for a tag after an IR event (used for capture mode #4)
-bool battery_condition = true;							       // Condition to run acquisition based on battery voltage
-bool time_period_condition = true;						       // Condition to run acquisition based on time period (if mode_time_period = true)
+bool battery_condition = true;                                 // Condition to run acquisition based on battery voltage
+bool time_period_condition = true;                             // Condition to run acquisition based on time period (if mode_time_period = true)
 String data;
 
-Average_value Vbat = {{0,0,0}, 0, 0, 0.1};					   // Battery voltage : Current and previous raw values, current and previous mean value	
+Average_value Vbat = {{0,0,0}, 0, 0, 0.1};                     // Battery voltage : Current and previous raw values, current and previous mean value	
 
 // Functions
 /*
@@ -240,6 +242,8 @@ String tag_hex_to_NIC(String src);
 void switchButtonMgmt(void);
 void closeDoor(bool door_cmd_closed, String reason = "");
 bool moving_average(struct Average_value *s, float updated_value);
+void synchroTime(bool initCalculation = false);
+uint16_t millisSynchro() ;
 
 // The setup function runs once when you press reset or power the board
 void setup() {
@@ -318,26 +322,29 @@ void setup() {
 	// load the assembly description
 	loadAssembly(assembly);
 
+	// Synchronize RTC and millis()
+	synchroTime(true);
+
 	// Log system start-up
-	data = isoformat(time_start, millis() % 1000, ";") + get_component("System") + "Start;\n";
+	data = isoformat(time_start, millisSynchro(), ";") + get_component("System") + "Start;\n";
 
 	// If the flash memory is reset, a new code was uploaded and the RTC update was just done (previously in the code)
 	if (not rtc_updated.read()){
 		rtc_updated.write(true);
-		data = data + isoformat(time_start, millis() % 1000, ";") + get_component("System") + "RTC set time to compilation date;";
+		data = data + isoformat(time_start,millisSynchro(), ";") + get_component("System") + "RTC set time to compilation date;";
 	}
 	else {
 		// Check for RTC errors : wrong date or power loss
 		if (rtc.lostPower()) {
 			rtc_error = true;
-			data = data + isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC lost power;";
+			data = data + isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "RTC lost power;";
 		}
 		else if (rtc.now().unixtime() < time_compil.unixtime()) {
 			rtc_error = true;
-			data = data + isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC has unknow error;";
+			data = data + isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "RTC has unknow error;";
 		}
 		else {
-			data = data + isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC is ok;";
+			data = data + isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "RTC is ok;";
 		}
 	}
 
@@ -412,7 +419,7 @@ void setup() {
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
 	delay(100);
 	moving_average(&Vbat, get_voltage(PIN_VBAT));
-	data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+	data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 	log_data(data, filename_data);
 
 	user_buzzer_on = true;
@@ -426,6 +433,9 @@ void setup() {
 
 // The loop function runs over and over again until power down or reset
 void loop() {
+
+	// Synchronize RTC and millis()
+	synchroTime();
 
 	// Creating a new file each day
 	if (rtc.now().day() != time_file.day()) {
@@ -469,7 +479,7 @@ void loop() {
 		acquisition = false;
 		digitalWrite(PIN_PW_3V, PIN_DISABLED);
 		digitalWrite(PIN_PW_RFID, PIN_DISABLED);
-		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Sleep mode;";
+		data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "Sleep mode;";
 		log_data(data, filename_data);
 	}
 
@@ -479,7 +489,7 @@ void loop() {
 		acquisition = true;
 		digitalWrite(PIN_PW_3V, PIN_ENABLED);
 		digitalWrite(PIN_PW_RFID, PIN_ENABLED);
-		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Wake up mode;";
+		data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "Wake up mode;";
 		log_data(data, filename_data);
 	}
 
@@ -552,7 +562,7 @@ void loop() {
 				else {
 					tag = trx;
 				}
-				data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("A0") + tag + ";";
+				data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("A0") + tag + ";";
 				log_data(data, filename_data);
 				tag_record = false;
 				trx_previous = trx;
@@ -614,7 +624,7 @@ void loop() {
 			checkFault();
 
 			if (moving_average(&Temperature, current_temperature)) {
-				data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Temperature") + String(Temperature.mean_value) + "°C;";
+				data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Temperature") + String(Temperature.mean_value) + "°C;";
 				log_data(data, filename_data);
 			}
 		}
@@ -635,20 +645,20 @@ void loop() {
 		
 		// Voltage measurement
 		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 		}
 		// Force sleep mode if battery voltage is too low
 		if ((Vbat.mean_value <= (BATTERY_MIN_VOLTAGE + 0.1)) and battery_condition) {
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + "Power saving;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + "Power saving;";
 			log_data(data, filename_data);
 			battery_condition = false;
 		}
 		// Ask for wake up if battery voltage reaches acceptable voltage
 		if ((Vbat.mean_value >= (BATTERY_MIN_VOLTAGE + 0.2)) and not battery_condition) {
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + "Battery restored;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + "Battery restored;";
 			log_data(data, filename_data);
 			battery_condition = true;
 		}
@@ -656,8 +666,8 @@ void loop() {
 		if (Vbat.mean_value <= BATTERY_MIN_VOLTAGE) {
 			// Security : Open the door if closed
 			closeDoor(false, "Security");
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Shutdown : Battery Low;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "Shutdown : Battery Low;";
 			log_data(data, filename_data);
 			blink(PIN_BUZZER_LED, 100, 6);
 			digitalWrite(PIN_PW_EN, LOW);
@@ -667,7 +677,7 @@ void loop() {
 	// Write a periodic message to indicate the system is still alive
 	if (((millis() - time_last_up) / 1000) >= 3600) {
 		time_last_up =  millis();
-		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Up;";
+		data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "Up;";
 		log_data(data, filename_data);
 	}
 
@@ -708,7 +718,7 @@ void error(int error_number) {
 				// It switch button maintained at least 2 second, consider it's a reset request
 				if (loops == 10) {
 					rtc.adjust(DateTime(2099,01,01,00,00,00));
-					String data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "RTC set time to default date;";
+					String data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "RTC set time to default date;";
 					log_data(data, filename_data);
 					// Blink two times to indicate user the reset is done
 					blink(PIN_BUZZER_LED, 200, 2);
@@ -773,7 +783,7 @@ void log_data(String data, const char* filename) {
 
 // Log data according to IR state
 void log_data_IR(RTC_DS3231 rtc, bool IR_state, String IR_name, const char* filename) {
-	data = isoformat(rtc.now(), millis() % 1000, ";") + get_component(IR_name);
+	data = isoformat(rtc.now(), millisSynchro(), ";") + get_component(IR_name);
 	if (IR_state == 1) {
 		data += "broken beam;";
 	}
@@ -829,7 +839,7 @@ void daily_data_file(char* filename, DateTime now) {
 		Serial.println(filename);
 		// If it's a new file, write the header
 		if (write_header){
-			String data = isoformat(now, millis() % 1000, ";") + assembly.uid_mainboard + ";inv_mainboard;inv_experiment;" + assembly.uid_experiment + ";";
+			String data = isoformat(now, millisSynchro(), ";") + assembly.uid_mainboard + ";inv_mainboard;inv_experiment;" + assembly.uid_experiment + ";";
 			logfile.println(data);
 		}
 	}
@@ -1141,7 +1151,7 @@ void switchButtonMgmt(void) {
 		// It switch button maintained at least 1.2 second, consider it's a shutdown request
 		if (loops == 6) {
 			digitalWrite(PIN_BUZZER_LED, HIGH);
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("System") + "Shutdown : User;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("System") + "Shutdown : User;";
 			log_data(data, filename_data);
 			delay(1000);
 			digitalWrite(PIN_PW_EN, LOW);
@@ -1153,9 +1163,9 @@ void switchButtonMgmt(void) {
 	// If the button is released before shutdown, consider it's a battery check
 	if (loops > 0){
 		moving_average(&Vbat, get_voltage(PIN_VBAT));
-		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + "Battery check by user;";
+		data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + "Battery check by user;";
 		log_data(data, filename_data);
-		data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
+		data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 		log_data(data, filename_data);
 
 		delay(1000); // Delay to let time for user to understand the battery indication is starting
@@ -1181,7 +1191,7 @@ void closeDoor(bool door_cmd_closed, String reason){
 			time_last_door_closed = millis();
 			door_already_closed = true;
 			Serial.println("Door closed");
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Door") + "Closed;";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Door") + "Closed;";
 			log_data(data, filename_data);
 		}
 		// Else open the door
@@ -1189,7 +1199,7 @@ void closeDoor(bool door_cmd_closed, String reason){
 			Servo_control.write(SERVO_POS_OPENED);
 			door_already_closed = false;
 			Serial.println("Door opened");
-			data = isoformat(rtc.now(), millis() % 1000, ";") + get_component("Door") + "Open : " + reason + ";";
+			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Door") + "Open : " + reason + ";";
 			log_data(data, filename_data);
 		}
 		delay(2000);
@@ -1216,4 +1226,61 @@ bool moving_average(struct Average_value *s, float updated_value) {
 		s->mean_value_previous = s->mean_value;
 		return true;
 	}
+}
+
+// Detect time difference between RTC and millis() as offset = a.x + b
+// with x the time elapsed since the last synchronization in ms
+// Store these parameters in memory to be used by millisSynchro() function
+void synchroTime(bool initCalculation) {
+	
+	if ((((millis() - time_last_synchro_ms) / 1000) >= 300) or initCalculation) {
+		// Operates every 5 minutes only if there is no acquisition in progress
+		// IR_event variable cannot be used as it's reset at each loop
+		if ((RFID_awake == config.rfid_attempts) or (RFID_awake == 0)) {
+
+			uint32_t time_synchro = millis();
+			uint32_t delta_time = time_synchro - time_last_synchro_ms;
+			previous_synchro_offset_ms = synchro_offset_ms;
+
+			// Wait for the change of second
+			uint8_t previousSecond_s = rtc.now().second();
+			while(previousSecond_s == rtc.now().second()) {}
+			synchro_offset_ms = millis();
+
+			if (initCalculation) {
+				synchro_slope = 0; // No drift compensation for the first iteration
+			}
+			else {
+				// Compute the drift of the offset over the time
+				int32_t synchro_drift_measured_ms = synchro_offset_ms - previous_synchro_offset_ms - delta_time;
+				delta_time /= 1000; // Pass the delta time in second to improve precision for slope calculation
+				// Add or remove additional second if the drift induces a change of second
+				synchro_drift_measured_ms = synchro_drift_measured_ms - int32_t((rtc.now().unixtime() - time_last_synchro.unixtime() - delta_time) * 1000);
+
+				if (delta_time != 0) {
+					synchro_slope = float(synchro_drift_measured_ms) / float(delta_time);
+				}
+				else {synchro_slope = 0;}
+			}
+			time_last_synchro_ms = time_synchro;
+			time_last_synchro = rtc.now();
+		}
+	}
+}
+
+
+// Return the millis time synchronized on the RTC
+uint16_t millisSynchro() {
+
+	// Estimate the drift since the last synchronization
+	int32_t synchro_drift_est_ms = synchro_slope * (millis() - synchro_offset_ms);
+	synchro_drift_est_ms /= 1000;
+
+	// Compute synchronized version of millis based on the last identified offset and the estimated drift
+	uint32_t millisSynchro_ms = int32_t(millis() - synchro_offset_ms) - synchro_drift_est_ms;
+
+	// Keep only the modulo
+	millisSynchro_ms = uint16_t(millisSynchro_ms % 1000);
+
+	return millisSynchro_ms;
 }
