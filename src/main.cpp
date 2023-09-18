@@ -66,7 +66,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "FlashStorage.h"
 
 // Adafruit board pin mapping
-//#define LEGACY_PINOUT                        // Uncomment this line to use previous release of main board (before august 2023)
+#define LEGACY_PINOUT                        // Uncomment this line to use previous release of main board (before august 2023)
 #ifndef LEGACY_PINOUT
 	#define PIN_VBAT		A2                 // analog input for battery voltage measurement
 	#define PIN_PW_SW		A3				   // input for power switch
@@ -143,8 +143,9 @@ struct Config {
 	bool mode_time_period = false;   	// activation only between start_time and stop_time hours 
 	int start_time = 5;			        // in day only mode, hour to start the device, value 0 to 23
 	int stop_time = 23;			        // in day only mode, hour to stop the device, 1 to 24
-	int mode_capture = 1;               // 1 no captures, 2 capture all, 3 capture specific tags, 4 capture non tagged
+	int mode_capture = 1;               // 1 no capture, 2 capture all, 3 capture specific tags, 4 capture non tagged
 	int release_time = 10;   			// time in seconds for a release after capture
+	int close_time = 1;                 // time in seconds to wait before closing the door after a positive detection
 	const char* tag_1 = "01101728E6";   // tags for mode capture 3
 	const char* tag_2 = "01101728E6";   // tags for mode capture 3
 	const char* tag_3 = "01101728E6";   // tags for mode capture 3
@@ -186,7 +187,7 @@ RTC_DS3231 rtc;                                                // Real Time Cloc
 bool rtc_error = false;										   // RTC lost power or wrong date
 FlashStorage(rtc_updated, bool);							   // Flag to know if the RTC was already updated - Automatically reset during upload
 DateTime time_compil, time_start, time_file, time_off_user_buzzer, time_last_synchro;
-long time_last_tag, time_last_up, time_last_door_closed, time_last_voltage, time_last_temp, time_last_synchro_ms;
+long time_last_tag, time_last_up, time_last_door_closed, time_last_voltage, time_last_temp, time_last_synchro_ms, time_capture_order;
 bool user_buzzer_on;                                           // User signal activation BUZZER or LED
 TimeSpan delay_user_buzzer = TimeSpan(300);
 uint32_t synchro_offset_ms, previous_synchro_offset_ms;        // Offset in millisecond between the RTC and millis()
@@ -578,24 +579,29 @@ void loop() {
 		// Action with the servo - Capture
 		if (config.mode_capture != 1) {
 			// Mode 2 : Capture if one infrared event detected
-			if (config.mode_capture == 2 and IR_event == true) {
+			if (config.mode_capture == 2 and IR_event == true and capture_order == false) {
 				capture_order = true;
+				time_capture_order = millis();
 			}
 			// Mode 3 : Capture if the detected tag matches the ones defined by user
-			if (config.mode_capture == 3 and tag_event == true) {
+			if (config.mode_capture == 3 and tag_event == true and capture_order == false) {
 				tag.toCharArray(tag_to_compare, 11);
 				capture_order = compare(tag_to_compare, config.tag_1) or compare(tag_to_compare, config.tag_2) or compare(tag_to_compare, config.tag_3) or compare(tag_to_compare, config.tag_4) or compare(tag_to_compare, config.tag_5);
+				if (capture_order) {time_capture_order = millis();}
 			}
 			// Mode 4 : Capture if infrared event with no succeed to read RFID tag
-			if (config.mode_capture == 4 and search_tag and (RFID_awake == 0)) {
+			if (config.mode_capture == 4 and search_tag and (RFID_awake == 0) and capture_order == false) {
 				capture_order = true;
+				time_capture_order = millis();
 				search_tag = false;
 			}
 			// Control the door
 			if (capture_order == true)
 			{
-				closeDoor(true);
-				capture_order = false;
+				if (((millis() - time_capture_order) / 1000) > uint32_t(config.close_time)) {
+					closeDoor(true);
+					capture_order = false;
+				}
 			}
 		}
 
@@ -874,6 +880,7 @@ void loadConfiguration(Config& config) {
 			config.delay_tag_save = doc["delay_tag_save"];
 			config.delay_temp = doc["delay_temp"];
 			config.release_time = doc["release_time"];
+			config.close_time = doc["close_time"];
 			config.tag_1 = doc["tag_1"];
 			config.tag_2 = doc["tag_2"];
 			config.tag_3 = doc["tag_3"];
@@ -953,6 +960,7 @@ void create_config_file() {
 		doc["delay_tag_save"] = config.delay_tag_save;
 		doc["delay_temp"] = config.delay_temp;
 		doc["release_time"] = config.release_time;
+		doc["close_time"] =	config.close_time;
 		doc["tag_1"] = config.tag_1;
 		doc["tag_2"] = config.tag_2;
 		doc["tag_3"] = config.tag_3;
