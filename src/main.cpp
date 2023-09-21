@@ -124,6 +124,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 	#define BATTERY_MAX_VOLTAGE     13.5        // Battery voltage when 100% full : 4.2 for LiPo battery - 13.5 for a 12V lead battery
 #endif
 
+#define BATTERY_RELOAD_MV_P_MIN   1          // Battery voltage variation in mV per minute when charging with solar panel - Used for filtering
+
 // Characteristics of the servo
 #define SERVO_POS_OPENED         132        // Opened position for servo in degrees
 #define SERVO_POS_CLOSED         65         // Closed position for servo in degrees
@@ -646,11 +648,21 @@ void loop() {
 
 	// Check battery voltage every 2 seconds
 	if (((millis() - time_last_voltage) / 1000) >= 2) {
+		
+		float delta_Vbat = get_voltage(PIN_VBAT) - Vbat.mean_value;
+
+		// In the case where the battery is charging, apply ramp limitation
+		if (delta_Vbat > 0) {	
+			// Max battery variation in volts = Delta time [ms] * Max_battery_variation [mV / min]
+			// + Unit conversion [ms --> min] & [mV --> V]
+			float max_delta_Vbat = (float(millis() - time_last_voltage) * BATTERY_RELOAD_MV_P_MIN) / 1000 / 60 / 1000; 
+			delta_Vbat = min(delta_Vbat, max_delta_Vbat);
+		}
 
 		time_last_voltage = millis();
-		
+
 		// Voltage measurement
-		if (moving_average(&Vbat, get_voltage(PIN_VBAT))) {
+		if (moving_average(&Vbat, Vbat.mean_value + delta_Vbat)) {
 			data = isoformat(rtc.now(), millisSynchro(), ";") + get_component("Vbat") + String(Vbat.mean_value) + "V;";
 			log_data(data, filename_data);
 		}
