@@ -370,3 +370,6 @@ FodyWeavers.xsd
 /.vs
 /__vm
 /Debug
+
+# Ignore the folder .vscode
+/.vscode
