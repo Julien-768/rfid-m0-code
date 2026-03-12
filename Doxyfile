@@ -1,0 +1,107 @@
+# ---------------------------------------------------------------------------
+# Doxyfile for Project Documentation
+# ---------------------------------------------------------------------------
+
+# Project metadata
+PROJECT_NAME           = "Great tits behavioral tracking"
+PROJECT_NUMBER         = "x.x"
+PROJECT_BRIEF          = ""
+OUTPUT_DIRECTORY       = docs
+
+# ---------------------------------------------------------------------------
+# Input
+# ---------------------------------------------------------------------------
+
+INPUT                  = src \
+                         include \
+
+FILE_PATTERNS          = *.cpp *.h *.md
+
+RECURSIVE              = YES
+
+EXCLUDE_PATTERNS       = */.pio/* \
+                         */test/*
+
+# ---------------------------------------------------------------------------
+# Markdown support
+# ---------------------------------------------------------------------------
+
+MARKDOWN_SUPPORT       = YES
+MARKDOWN_EXTENSIONS    = md
+MARKDOWN_ID_STYLE      = KEEP
+
+# Allow code blocks in Markdown being treated like Doxygen
+AUTOLINK_SUPPORT       = YES
+# USE_MDFILE_AS_MAINPAGE = docs/main.md
+
+# ---------------------------------------------------------------------------
+# Build options
+# ---------------------------------------------------------------------------
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+EXTRACT_ANON_NSPACES   = YES
+
+EXTRACT_PACKAGE        = YES
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+
+# ---------------------------------------------------------------------------
+# Output formats
+# ---------------------------------------------------------------------------
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_DOCSET        = NO
+
+# HTML configuration
+HTML_OUTPUT            = html
+HTML_TIMESTAMP         = YES
+HTML_DYNAMIC_MENUS     = YES
+HTML_DYNAMIC_SECTIONS  = YES
+FULL_SIDEBAR           = YES
+
+# ---------------------------------------------------------------------------
+# UML / Graph generation (GraphViz & UML-like diagrams)
+# ---------------------------------------------------------------------------
+
+HAVE_DOT               = YES
+DOT_NUM_THREADS        = 4
+DOT_IMAGE_FORMAT       = svg
+DOT_TRANSPARENT        = YES
+DOT_GRAPH_MAX_NODES    = 200
+DOT_UML_DETAILS        = YES
+UML_LOOK               = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+GROUP_GRAPHS           = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+
+# PlantUML (optional)
+# If you have plantuml.jar, set the path here:
+# PLANTUML_JAR_PATH    = /usr/local/bin/plantuml.jar
+
+# ---------------------------------------------------------------------------
+# Warnings
+# ---------------------------------------------------------------------------
+
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_FORMAT            = "$file:$line: $text"
+
+# ---------------------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------------------
+
+QUIET                  = NO
+JAVADOC_AUTOBRIEF      = YES
+TAB_SIZE               = 4
+OPTIMIZE_OUTPUT_FOR_C  = NO
+OPTIMIZE_OUTPUT_JAVA   = NO
+OPTIMIZE_FOR_C         = YES
+

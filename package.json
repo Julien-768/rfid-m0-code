@@ -1,0 +1,8 @@
+{
+  "name": "rfid-m0-code",
+  "version": "x.x.x",
+  "private": true,
+  "scripts": {
+    "release": "standard-version"
+  }
+}

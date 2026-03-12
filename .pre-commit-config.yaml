@@ -1,0 +1,33 @@
+default_language_version:
+  python: python3.12
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: end-of-file-fixer
+    files: ^(src/|include/|lib/|test/)
+  - id: trailing-whitespace
+    files: ^(src/|include/|lib/|test/)
+  - id: check-json
+    files: ^(src/|include/|lib/|test/)
+  - id: check-toml
+    files: ^(src/|include/|lib/|test/)
+  - id: check-yaml
+    args: [ "--unsafe" ]
+  - id: requirements-txt-fixer
+
+- repo: https://github.com/pocc/pre-commit-hooks
+  rev: v1.3.5
+  hooks:
+  - id: clang-format
+    args: [ "--style=file", "-i" ]
+    files: "(src|include|lib|test)/.*\\.(c|cpp|h|hpp)$"
+
+# - repo: https://github.com/pocc/pre-commit-hooks
+#   rev: v1.3.5
+#   hooks:
+#   - id: clang-tidy
+#     files: "(src|include|lib|test)/.*\\.(c|cpp|h|hpp)$"
+#     args:
+#     - "-p=build"
