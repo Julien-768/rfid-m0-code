@@ -373,3 +373,4 @@ FodyWeavers.xsd
 
 # Ignore the folder .vscode
 /.vscode
+compile_commands.json

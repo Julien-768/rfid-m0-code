@@ -1,0 +1,67 @@
+# .gitlab-ci.yml
+#
+# GitLab CI configuration for the "rfid.code" project.
+#
+# Covered steps:
+#  - Code formatting checks (clang-format)
+#  - Firmware build using PlatformIO
+#  - Documentation generation (Doxygen)
+#  - Versioning and release (tag + archive + GitLab release)
+
+# --------------------------------------------------
+# Include reusable CI templates from IPHC
+# --------------------------------------------------
+include:
+- project: 'iphc/ci-templates'
+  file: '/ci-templates/clang.gitlab-ci.yml'
+  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+
+- project: 'iphc/ci-templates'
+  file: '/ci-templates/platformio.gitlab-ci.yml'
+  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+
+- project: 'iphc/ci-templates'
+  file: '/ci-templates/doxygen.gitlab-ci.yml'
+  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+
+- project: 'iphc/ci-templates'
+  file: '/ci-templates/release.gitlab-ci.yml'
+  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+
+# --------------------------------------------------
+# Project-specific variables used by the CI templates
+# --------------------------------------------------
+variables:
+  # Clang-format configuration
+  CLANG_FORMAT_FILE: .clang-format
+  CLANG_PATH: "src"
+  # PlatformIO configuration:
+  PIO_ENV: "clangtidy"
+
+  # Doxygen configuration:
+  # The project provides a doxygen/Doxyfile at repository root,
+  # which includes the shared Doxyfile.base fetched by the CI template.
+  DOXYFILE_PATH: "."
+
+  # List of files and directories packaged in the release archive
+  FILES_TO_PACKAGE: "src include lib platformio.ini README.md CHANGELOG.md"
+
+# --------------------------------------------------
+# Pipeline stages
+#
+# Order reflects a standard validation flow:
+#  - format: code style checks
+#  - build: firmware compilation
+#  - pages: documentation generation
+#  - release: versioning and publication
+# --------------------------------------------------
+stages:
+- format
+- build
+- pages
+- release
+
+clang-tidy:
+  extends: .clang-tidy-template
+  stage: format
+  allow_failure: true

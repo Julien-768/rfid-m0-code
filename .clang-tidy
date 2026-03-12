@@ -1,0 +1,63 @@
+---
+Checks: >
+  -*,
+
+  # ===== Static analysis / real bug detection ===== clang-analyzer-*, bugprone-*, performance-*,
+
+  # ===== Includes cleanup ===== misc-include-cleaner,
+
+  # ===== A few low-noise hygiene checks ===== misc-unused-parameters, misc-unused-using-decls, misc-unused-alias-decls,
+
+  # ===== Naming convention ===== readability-identifier-naming
+
+# Only report diagnostics for your own code
+HeaderFilterRegex: '^(src|include)/'
+
+# Uncomment when available in your clang-tidy version
+# AnalyzeTemporaryDtors: true
+
+WarningsAsErrors: >
+  clang-analyzer-*, bugprone-*, performance-*
+
+CheckOptions:
+# ===== Naming convention =====
+- key: readability-identifier-naming.VariableCase
+  value: lower_case
+- key: readability-identifier-naming.ParameterCase
+  value: lower_case
+- key: readability-identifier-naming.FunctionCase
+  value: lower_case
+- key: readability-identifier-naming.MethodCase
+  value: lower_case
+- key: readability-identifier-naming.MemberCase
+  value: lower_case
+- key: readability-identifier-naming.NamespaceCase
+  value: lower_case
+
+- key: readability-identifier-naming.ClassCase
+  value: CamelCase
+- key: readability-identifier-naming.StructCase
+  value: CamelCase
+- key: readability-identifier-naming.EnumCase
+  value: CamelCase
+- key: readability-identifier-naming.UnionCase
+  value: CamelCase
+- key: readability-identifier-naming.TypedefCase
+  value: CamelCase
+- key: readability-identifier-naming.UsingAliasCase
+  value: CamelCase
+
+- key: readability-identifier-naming.EnumConstantCase
+  value: UPPER_CASE
+- key: readability-identifier-naming.MacroDefinitionCase
+  value: UPPER_CASE
+
+# ===== Bug-prone configuration =====
+- key: bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion
+  value: 'true'
+- key: bugprone-narrowing-conversions.WarnOnFloatingPointNarrowingConversion
+  value: 'true'
+
+# ===== Include-cleaner noise control (Arduino-friendly) =====
+# - key: misc-include-cleaner.IgnoreHeaders
+#   value: '.*Arduino\.h'
