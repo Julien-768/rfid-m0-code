@@ -6,10 +6,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /** Maximum length (including '\0') of an FDX-B NIC string: "250-228500042234" => 17 bytes */
 #define RFID_NIC_STR_MAX 17u
 
@@ -55,9 +51,5 @@ bool rfid_tag_hex_to_nic(const char* src, char* out, size_t out_size);
  * @return true if the compared suffixes match, false otherwise.
  */
 bool rfid_compare_last10(const char* tag1, const char* tag2);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* UTILS_RFID_H */
