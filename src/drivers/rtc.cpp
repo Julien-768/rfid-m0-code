@@ -149,13 +149,13 @@ bool init_rtc() {
     if (i2c_status != 0)
         {
             LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
-            error(ERR_I2C_NOT_READY, false);
+            error_signal(ERR_I2C_NOT_READY, false);
             return false;
     }
 
     if (!rtc.begin())
         {
-            error(ERR_RTC_FAILURE, false);
+            error_signal(ERR_RTC_FAILURE, false);
             return false;
     }
 
