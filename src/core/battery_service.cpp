@@ -122,23 +122,14 @@ static bool evaluate_and_act(const char* context, int32_t vbat_mv) {
  * @see battery_service_apply_type_string()
  * @see battery_service_read_vbat_mv()
  */
-void battery_service_init(const BatteryMeasureConfig& cfg) {
-    // Map service config -> driver config
-    g_measure_cfg.pin = cfg.pin;
-
-    g_measure_cfg.adc_cfg.ratio = cfg.ratio;
-
-    g_measure_cfg.adc_cfg.adc_ref_mv = cfg.adc_ref_mv;
-    g_measure_cfg.adc_cfg.adc_max    = cfg.adc_max;
-    g_measure_cfg.plausible_min_mv   = cfg.plausible_min_mv;
-    g_measure_cfg.plausible_max_mv   = cfg.plausible_max_mv;
+bool battery_service_init(const battery_measure_config_t& cfg) {
 
     // Safe defaults until the configured type is applied.
     g_thr = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
-    LOG_INFO("Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV", (unsigned long)g_measure_cfg.pin,
-             g_measure_cfg.adc_cfg.ratio, g_measure_cfg.adc_cfg.adc_ref_mv, g_measure_cfg.adc_cfg.adc_max, g_measure_cfg.plausible_min_mv,
-             g_measure_cfg.plausible_max_mv);
+    LOG_INFO("Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV", (unsigned long)cfg.pin, cfg.adc_cfg.ratio,
+             cfg.adc_cfg.adc_ref_mv, cfg.adc_cfg.adc_max, cfg.plausible_min_mv, cfg.plausible_max_mv);
+    return battery_init();
 }
 
 /**
