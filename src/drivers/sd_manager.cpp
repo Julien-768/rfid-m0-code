@@ -57,14 +57,14 @@ CircularBuffer& get_sdBuffer() {
  * @return `true` if SD initialized successfully, `false` if not detected.
  *
  * @note This function must be called once during @ref STATE_BOOT.
- * @see error(), logSystemEvent(), ERR_SD_NOT_FOUND
+ * @see error_signal(), logSystemEvent(), ERR_SD_NOT_FOUND
  */
 bool initSD(uint8_t pin_cs) {
 
     if (!SD.begin(pin_cs))
         {
             // 🔴 Blink code 2× — non-blocking
-            error(ERR_SD_NOT_FOUND, false);
+            error_signal(ERR_SD_NOT_FOUND, false);
 
             return false;  // ❌ Initialization failed
     }
@@ -114,7 +114,7 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
  *
  * @param cb Pointer to the @ref CircularBuffer to flush.
  *
- * @see error(), logSystemEvent(), daily_data_file()
+ * @see error_signal(), logSystemEvent(), daily_data_file()
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb) {
     size_t buffered = (cb->head >= cb->tail) ? (cb->head - cb->tail) : (BUFFER_SIZE - cb->tail + cb->head);
@@ -124,7 +124,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log)
         {
-            error(ERR_SD_WRITE_FAIL, false);
+            error_signal(ERR_SD_WRITE_FAIL, false);
             return -1;
     }
 
@@ -146,7 +146,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
 
     if (!writeSuccess)
         {
-            error(ERR_SD_WRITE_FAIL, false);
+            error_signal(ERR_SD_WRITE_FAIL, false);
             return -1;
     } else
         {
@@ -174,7 +174,7 @@ u_int8_t daily_data_file(char* filename, const DateTime& now) {
     File logfile = SD.open(filename, FILE_WRITE);
     if (!logfile)
         {
-            error(ERR_SD_WRITE_FAIL, false);
+            error_signal(ERR_SD_WRITE_FAIL, false);
             return -1;
     }
 
@@ -220,7 +220,7 @@ u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, co
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log)
         {
-            error(ERR_SD_WRITE_FAIL, false);
+            error_signal(ERR_SD_WRITE_FAIL, false);
             return -1;
     }
 
@@ -229,7 +229,7 @@ u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, co
 
     if (written == 0)
         {
-            error(ERR_SD_WRITE_FAIL, false);
+            error_signal(ERR_SD_WRITE_FAIL, false);
             return -1;
     }
     return 0;
