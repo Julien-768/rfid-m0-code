@@ -9,13 +9,9 @@
  *  - Utility comparison on the last digits of tag strings
  *  - A simple non-blocking buzzer/LED helper for Arduino.
  */
-#include "utils_rfid.h"
-
-#include <stdio.h>  /* snprintf */
-#include <string.h> /* strlen, strcmp */
-
+#include <stdio.h> /* snprintf */
 #include <Arduino.h>
-#include <stdio.h>
+#include "utils_rfid.h"
 
 /**
  * @brief Return the minimum of two uint8_t values.
