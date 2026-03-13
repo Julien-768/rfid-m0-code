@@ -1,26 +1,4 @@
 /**
- * @file rfid_reader.h
- * @brief Header file for RFID reader utilities and definitions.
- * @author julien courtecuisse
- * @date 2026-02-24
- */
-
-#ifndef RFID_READER_H
-#define RFID_READER_H
-
-#ifndef ARDUINO_ARCH_SAMD
-#warning "This driver was validated on Feather M0 (SAMD21)"
-#endif
-
-#include <Arduino.h>
-#pragma once
-
-#include <Arduino.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-
-/**
  * @file rfid_driver.h
  * @brief Non-blocking, multi-port RFID driver with autonomous line reader, parsing, decoding and FIFO queue.
  *
@@ -29,11 +7,20 @@
  *  - Multi-port: create multiple rfid_driver_t instances (Serial1, Serial2, ...).
  *  - Non-blocking: call rfid_driver_tick() frequently from loop().
  *  - Robust parsing: CR-terminated line, overflow discard mode, sanitize + validate before decode.
+ *
+ * @author julien courtecuisse
+ * @date 2026-02-24
  */
 
-#ifdef __cplusplus
-extern "C" {
+#ifndef RFID_DRIVER_H
+#define RFID_DRIVER_H
+
+#ifndef ARDUINO_ARCH_SAMD
+#warning "This driver was validated on Feather M0 (SAMD21)"
 #endif
+
+#include <Arduino.h>
+#include <stddef.h>
 
 /** Supported RFID tag types. Extend as needed. */
 typedef enum : uint8_t
@@ -51,8 +38,54 @@ typedef struct
     uint32_t time_ms;
 } tag_info_t;
 
+/**
+ * @brief Autonomous CR-terminated line reader state structure.
+ *
+ * Handles:
+ *  - Ignoring '\n'
+ *  - Terminating lines on '\r'
+ *  - Overflow detection with discard-until-CR behavior
+ */
+typedef struct
+{
+    char buf[64];
+    size_t len;
+    bool discarding;
+    bool line_ready;
+} line_reader_t;
+
 /** Opaque driver instance type (defined in .cpp). */
 typedef struct rfid_driver rfid_driver_t;
+
+/**
+ * @brief Internal RFID driver state structure.
+ *
+ * Contains:
+ *  - Serial port reference
+ *  - Tag type configuration
+ *  - Poll timing management
+ *  - Line reader
+ *  - FIFO queue for decoded tags
+ */
+struct rfid_driver
+{
+    Stream* port;
+    tag_type_t type;
+
+    uint32_t last_poll;
+    uint32_t poll_interval_ms;
+
+    line_reader_t lr;
+
+    enum : uint8_t
+    {
+        QSIZE = 4
+    };
+    tag_info_t q[QSIZE];
+    uint8_t head;
+    uint8_t tail;
+    uint8_t count;
+};
 
 /**
  * @brief Initialize a driver instance.
@@ -100,8 +133,4 @@ bool rfid_driver_get_tag(rfid_driver_t* drv, tag_info_t* out);
  */
 bool rfid_should_record_tag(const tag_info_t* previous, const tag_info_t* current, uint32_t delay_ms);
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // RFID_READER_H
+#endif  // RFID_DRIVER_H
