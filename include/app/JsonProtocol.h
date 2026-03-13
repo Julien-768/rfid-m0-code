@@ -44,7 +44,7 @@ enum class CommandType : uint8_t
 struct SetConfigPayload
 {
     char dateCurrentIso[32];          ///< ISO8601 date/time string, e.g. "2025-08-04T10:30:00".
-    uint32_t acquisition_interval_s;  ///< Logging period in seconds.
+    uint16_t acquisition_interval_s;  ///< Logging period in seconds.
     bool enable_light1;               ///< Enable or disable light sensor 1.
     bool enable_light2;               ///< Enable or disable light sensor 2.
     bool enable_vbat;                 ///< Enable or disable battery voltage logging.
