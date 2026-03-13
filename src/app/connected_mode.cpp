@@ -120,12 +120,14 @@ void runConnectedMode(SystemState& state) {
                     // Factory identity stored in SAMD21 flash
                     const auto& id = loggerIdentity_get();
 
-                    const char* json = JsonProtocol::buildIdJSON(assembly.uid_mainboard.c_str(),  // MCU UID (from SD / assembly)
-                                                                 id.manufacturer,                 // Factory: manufacturer (flash)
-                                                                 id.date_fab,                     // Factory: fabrication date (flash)
-                                                                 id.logger_type,                  // Factory: logger type (flash)
-                                                                 id.serial_number                 // Factory: serial number (flash)
-                    );
+                    SetIdentityPayload payload{};
+                    strncpy(payload.UID, assembly.uid_mainboard.c_str(), sizeof(payload.UID));
+                    strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer));
+                    strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab));
+                    strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type));
+                    strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn));
+
+                    const char* json = JsonProtocol::buildIdJSON(payload);
 
                     Serial1.println(json);
                     break;
