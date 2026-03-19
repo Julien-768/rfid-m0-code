@@ -135,7 +135,7 @@ void runConnectedMode(SystemState& state) {
 
                 case CommandType::GET_VBAT: {
                     // One-shot battery measurement for GUI request (not used in DEPLOY loop)
-                    uint16_t vbat_mv = read_battery_voltage(PIN_A7);  // volts in mV (e.g. 3700)
+                    uint16_t vbat_mv = read_battery_voltage(PIN_VBAT);  // volts in mV (e.g. 3700)
                     const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
                     Serial1.println(json);
                     break;

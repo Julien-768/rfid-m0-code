@@ -163,7 +163,7 @@ void runBootSequence() {
 
     // TODO ?
     /* Battery diagnostic */
-    // uint32_t vbat_mv = read_battery_voltage(PIN_A7);
+    // uint32_t vbat_mv = read_battery_voltage(PIN_VBAT);
     // if (!battery_boot_diagnostic(vbat_mv))
     //     {
     //         currentState = STATE_ENDOFLIFE;
