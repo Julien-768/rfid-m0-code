@@ -27,8 +27,6 @@
 
 #include "battery.h"
 #include "Arduino.h"
-#include <unordered_map>
-#include <string>
 
 namespace
 {
@@ -68,15 +66,12 @@ uint8_t adc_resolution_bits_from_max(uint16_t adc_max) {
 battery_type_t battery_type_from_string(const char* s) {
     if (s == nullptr || s[0] == '\0') return battery_type_t::battery_lipo_1s;
 
-    static const std::unordered_map<std::string, battery_type_t> mapping = {
-        {"lipo_1s", battery_type_t::battery_lipo_1s},
-        {"liion_1s", battery_type_t::battery_liion_1s},
-        {"lifepo4_1s", battery_type_t::battery_lifepo4_1s},
-        {"lead_12v", battery_type_t::battery_lead_12v},
-    };
+    if (strcmp(s, "lipo_1s") == 0) return battery_type_t::battery_lipo_1s;
+    if (strcmp(s, "liion_1s") == 0) return battery_type_t::battery_liion_1s;
+    if (strcmp(s, "lifepo4_1s") == 0) return battery_type_t::battery_lifepo4_1s;
+    if (strcmp(s, "lead_12v") == 0) return battery_type_t::battery_lead_12v;
 
-    auto it = mapping.find(s);
-    return (it != mapping.end()) ? it->second : battery_type_t::battery_lipo_1s;
+    return battery_type_t::battery_lipo_1s;
 }
 
 /**
@@ -148,22 +143,26 @@ bool battery_init(const battery_measure_config_t& cfg) {
  * @brief Read the battery voltage from an ADC pin.
  *
  * @param pin ADC pin to read.
- * @param ratio Scaling factor (e.g. 2.0f for a /2 voltage divider).
- * @param adc_ref_mv ADC reference voltage in millivolts (mV).
- * @param adc_max Maximum ADC value (default: 1023 for 10-bit ADC).
- * @return Battery voltage in millivolts (mV), or 0 if an error occurs.
+ * @param cfg ADC configuration (reference voltage, max value, optional divider ratio).
+ * @return Battery voltage in millivolts (mV), or -1 if an error occurs.
  */
 int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg) {
     if (cfg.ratio <= 0.0f || cfg.adc_ref_mv == 0u || cfg.adc_max == 0u)
         {
-            return -1;  // cohérent avec doc
+            return -1;  // negative value on error
     }
 
     const uint32_t raw = analogRead(pin);
 
-    const float mv = (static_cast<float>(raw) / cfg.adc_max) * cfg.adc_ref_mv * cfg.ratio;
+    if (raw > cfg.adc_max)
+        {
+            return -1;  // invalid ADC reading/config mismatch
+    }
 
-    return static_cast<int32_t>(mv);
+    const float mv = (static_cast<float>(raw) / static_cast<float>(cfg.adc_max)) * static_cast<float>(cfg.adc_ref_mv) * cfg.ratio;
+
+    // round to nearest mV
+    return static_cast<int32_t>(mv + 0.5f);
 }
 
 /**
@@ -175,7 +174,7 @@ int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg) {
  * @return true if the voltage is plausible, false otherwise.
  */
 bool check_battery_voltage_plausibility(int32_t mv, uint16_t min_mv, uint16_t max_mv) {
-    return (mv >= (int32_t)min_mv && mv <= (int32_t)max_mv);
+    return (mv >= static_cast<int32_t>(min_mv) && mv <= static_cast<int32_t>(max_mv));
 }
 
 /**
@@ -192,19 +191,23 @@ bool check_battery_voltage_plausibility(int32_t mv, uint16_t min_mv, uint16_t ma
  * @param thr Thresholds used for classification.
  * @return Battery level classification.
  */
-battery_state_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t& thr) {
-    if (vbat_mv < 0) return battery_invalid;
-    if (thr.high_crit_mv != 0 && vbat_mv > thr.high_crit_mv)
+battery_state_t battery_classify_mv(int32_t mv, const battery_thresholds_t& thr) {
+    if (mv < 0)
+        {
+            return battery_invalid;
+    }
+
+    if (thr.high_crit_mv != 0u && mv > static_cast<int32_t>(thr.high_crit_mv))
         {
             return battery_critical_high;
     }
 
-    if (thr.low_crit_mv != 0 && vbat_mv < thr.low_crit_mv)
+    if (thr.low_crit_mv != 0u && mv < static_cast<int32_t>(thr.low_crit_mv))
         {
             return battery_critical_low;
     }
 
-    if (thr.low_warn_mv != 0 && vbat_mv < thr.low_warn_mv)
+    if (thr.low_warn_mv != 0u && mv < static_cast<int32_t>(thr.low_warn_mv))
         {
             return battery_warning_low;
     }

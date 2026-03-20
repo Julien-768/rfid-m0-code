@@ -78,7 +78,7 @@ typedef struct
  */
 typedef struct
 {
-    float ratio         = 2.0f;  ///< Scaling factor after ADC conversion (default: 1.0f).
+    float ratio         = 2.0f;  ///< Scaling factor after ADC conversion (default: 2.0f).
     uint16_t adc_ref_mv = 3300;  ///< ADC reference in mV (default: 3300).;
     uint16_t adc_max    = 4095;  ///< Maximum ADC code (default: 4095 for 12-bit on feather m0).
 } battery_adc_config_t;
@@ -103,12 +103,11 @@ struct battery_measure_config_t
  */
 typedef enum : uint8_t
 {
-    battery_invalid = 0,  ///< Invalid measurement (e.g. negative voltage).
-    battery_ok,
+    battery_invalid = 0,    ///< Invalid measurement (e.g. negative voltage).
+    battery_normal,         ///< Battery voltage is normal.
     battery_critical_high,  ///< Battery voltage is too high.
     battery_critical_low,   ///< Battery voltage is too low.
     battery_warning_low,    ///< Battery voltage is low (warning level).
-    battery_normal          ///< Battery voltage is normal.
 } battery_state_t;
 
 /**

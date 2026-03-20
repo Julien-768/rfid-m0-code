@@ -70,12 +70,7 @@
  * @see battery_service_apply_type_string()
  * @see battery_service_read_vbat_mv()
  */
-bool battery_service_init(const battery_measure_config_t& cfg = {});
-
-/**
- * @brief Override thresholds.
- */
-void battery_service_set_thresholds(const battery_thresholds_t& t);
+bool battery_service_init(const battery_measure_config_t& cfg);
 
 /**
  * @brief Apply battery defaults based on a battery type string.
@@ -97,7 +92,9 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
  * Wraps the driver ADC->mV conversion with board config provided via
  * @ref battery_service_init().
  *
- * @return Battery voltage in mV, or a negative error code from the driver.
+ * @return Battery voltage in mV
+        -1 = ADC/config error
+        -2 = plausibility error
  *
  * @ingroup BatteryService
  * @see battery_read_mv()
@@ -120,10 +117,5 @@ int32_t battery_service_read_vbat_mv();
  * @ingroup BatteryService
  */
 bool battery_service_periodic_check(int32_t vbat_mv, uint8_t& counter, uint8_t period);
-
-/**
- * @brief Get battery state.
- */
-battery_state_t battery_service_get_state();
 
 /** @} */  // end of BatteryService group

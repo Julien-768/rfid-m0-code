@@ -30,7 +30,6 @@
 #include "battery_service.h"
 #include "error_handler.h"
 #include "log.h"
-#include "battery.h"
 
 // -----------------------------------------------------------------------------
 // Internal state
@@ -52,8 +51,7 @@ static battery_measure_config_t batt_cfg_driver{};
  *
  * Populated by @ref battery_service_apply_type_string() and may be overridden by
  */
-static battery_thresholds_t batt_thr{};
-
+static battery_thresholds_t batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 // -----------------------------------------------------------------------------
 // Internal helpers
 // -----------------------------------------------------------------------------
@@ -75,7 +73,7 @@ static battery_thresholds_t batt_thr{};
  * @see battery_classify_mv()
  */
 bool evaluate_and_act(const char* context, int32_t vbat_mv) {
-    const battery_state_t level = battery_classify_mv(vbat_mv, batt_thr);
+    const battery_state_t level = battery_classify_mv(vbat_mv, batt_thresholds_active);
 
     switch (level)
         {
@@ -123,12 +121,13 @@ bool evaluate_and_act(const char* context, int32_t vbat_mv) {
  */
 bool battery_service_init(const battery_measure_config_t& cfg) {
     batt_cfg_driver = cfg;
-    return battery_init(cfg);
 
-    batt_thr = battery_thresholds_default(battery_type_t::battery_lipo_1s);
+    batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
     LOG_INFO("Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV", (unsigned long)cfg.pin, cfg.adc_cfg.ratio,
              cfg.adc_cfg.adc_ref_mv, cfg.adc_cfg.adc_max, cfg.plausible_min_mv, cfg.plausible_max_mv);
+
+    return battery_init(cfg);
 }
 
 /**
@@ -144,26 +143,25 @@ bool battery_service_init(const battery_measure_config_t& cfg) {
  * @see battery_type_from_string()
  * @see battery_thresholds_default()
  */
-// TODO batt_thr is unclear as a variable name
 battery_thresholds_t battery_service_apply_type_string(const String& battery_type) {
     const char* req = battery_type.length() ? battery_type.c_str() : "lipo_1s";
 
-    const battery_type_t type = battery_type_from_string(battery_type.c_str());
-    batt_thr                  = battery_thresholds_default(type);
+    const battery_type_t type = battery_type_from_string(req);
+    batt_thresholds_active    = battery_thresholds_default(type);
 
-    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req, batt_thr.low_warn_mv, batt_thr.low_crit_mv,
-             batt_thr.high_crit_mv);
-    return batt_thr;
+    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req, batt_thresholds_active.low_warn_mv,
+             batt_thresholds_active.low_crit_mv, batt_thresholds_active.high_crit_mv);
+    return batt_thresholds_active;
 }
-
-battery_adc_config_t cfg = batt_cfg_driver.adc_cfg;
 
 /**
  * @brief Read VBAT once using the configured measurement parameters.
  *
  * Internally calls the driver ADC conversion wrapper.
  *
- * @return Battery voltage in mV, or a negative error code from the driver.
+ * @return Battery voltage in mV
+        -1 = driver error (ADC/config)
+        -2 = plausibility error (service layer)
  *
  * @see read_battery_voltage()
  */
@@ -174,7 +172,7 @@ int32_t battery_service_read_vbat_mv() {
     if (v < 0) return v;
 
     // ✔ utilisation réelle de la plausibilité (déjà prévue dans ton design)
-    if (!check_battery_voltage_plausibility(v, batt_cfg_driver.plausible_min_mv, batt_cfg_driver.plausible_max_mv))
+    if (check_battery_voltage_plausibility(v, batt_cfg_driver.plausible_min_mv, batt_cfg_driver.plausible_max_mv) == false)
         {
             return -2;
     }
