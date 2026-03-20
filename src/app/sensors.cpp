@@ -17,14 +17,15 @@
  *       sensor-specific electrical/I2C details belong to their respective drivers.
  */
 
-#include "sensors.h"
+#include "sd_manager.h"
 #include "config.h"
 #include "sensors_hal.h"
 #include "sensors_internal.h"
 #include "log.h"
 #include "battery.h"
-#include "sd_manager.h"
+#include "battery_service.h"
 #include <RTClib.h>
+#include "sensors.h"
 
 /* ========================================================================= */
 /*  HAL acquisition callbacks                                                */
@@ -66,10 +67,14 @@
  *
  * @warning The caller must ensure @p ctx points to a valid @ref SensorFrame.
  */
-static void readVBATIntoContext(void* ctx) {
+static void battery_measurement(void* ctx) {
     auto* frame       = static_cast<SensorFrame*>(ctx);
-    frame->vbat       = read_battery_voltage(PIN_A7);
+    frame->vbat_mv    = read_battery_voltage(PIN_VBAT);
     frame->valid_vbat = true;
+}
+
+bool battery_initialisation() {
+    return battery_service_init();
 }
 
 /**
@@ -99,7 +104,8 @@ SensorSpec g_sensors[] = {
     // {"AS7341", &config.enable_light1, initAS7341, readAS7341IntoContext},
     // {"TSL2591", &config.enable_light2, initTSL2591, readTSL2591IntoContext},
     // TODO battery
-    {"VBAT", &config.enable_vbat, _, readVBATIntoContext}};
+    {"VBAT", &config.enable_vbat, battery_initialisation, battery_measurement},
+};
 
 /**
  * @brief Number of entries in @ref g_sensors.
@@ -176,6 +182,6 @@ void logSensorFrame(const DateTime& now, const SensorFrame& f) {
     // --- VBAT ---
     if (f.valid_vbat)
         {
-            logMeasurement(now, "VBAT", f.vbat, "V", config.use_buffer);
+            logMeasurement(now, "VBAT", (float)f.vbat_mv, "V", config.use_buffer);
     }
 }

@@ -37,43 +37,28 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-#include "drivers/battery.h"  // battery_* types + battery_read_mv()
+#include "battery.h"  // battery_* types + battery_read_mv()
 
-/**
- * @struct BatteryMeasureConfig
- * @brief Board-level measurement configuration for VBAT (service API).
- *
- * Provided by the integration/HAL layer. Defines:
- * - which ADC pin is used for VBAT
- * - which divider ratio is applied (if any)
- * - ADC reference and resolution for conversion
- * - plausibility bounds (sanity check after scaling)
- *
- * This service-level configuration is intentionally simple and stable.
- * Internally, it is converted to the driver configuration structures
- * (@ref battery_measure_config_t and @ref BatteryAdcConfig).
- *
- * @ingroup BatteryService
- */
-struct BatteryMeasureConfig
-{
-    uint32_t pin        = 0;     ///< ADC pin to read (Arduino pin id).
-    float ratio         = 1.0f;  ///< Divider compensation ratio (e.g. 2.0f for /2). Must be > 0.
-    uint16_t adc_ref_mv = 3300;  ///< ADC reference in mV (default: 3300).
-    uint16_t adc_max    = 1023;  ///< Maximum ADC code (default: 1023 for 10-bit).
-
-    /**
-     * @brief Plausibility bounds after scaling (mV).
-     *
-     * Used as a sanity check to detect miswiring, floating ADC input,
-     * wrong divider, etc.
-     *
-     * Plausibility checking is enabled only if BOTH bounds are non-zero.
-     * To disable plausibility checking, set both bounds to 0.
-     */
-    uint16_t plausible_min_mv = 2500;  ///< Min plausible VBAT (mV). Set to 0 to disable.
-    uint16_t plausible_max_mv = 4500;  ///< Max plausible VBAT (mV). Set to 0 to disable.
-};
+// /**
+//  * @struct BatteryMeasureConfig
+//  * @brief Board-level measurement configuration for VBAT (service API).
+//  *
+//  * Provided by the integration/HAL layer. Defines:
+//  * - which ADC pin is used for VBAT
+//  * - which divider ratio is applied (if any)
+//  * - ADC reference and resolution for conversion
+//  * - plausibility bounds (sanity check after scaling)
+//  *
+//  * This service-level configuration is intentionally simple and stable.
+//  * Internally, it is converted to the driver configuration structures
+//  * (@ref battery_measure_config_t and @ref BatteryAdcConfig).
+//  *
+//  * @ingroup BatteryService
+//  */
+// struct BatteryMeasureConfig
+// {
+//     battery_measure_config_t battery_config_t;
+// };
 
 /**
  * @struct BatteryThresholds
@@ -109,7 +94,7 @@ struct BatteryThresholds
  * @see battery_service_apply_type_string()
  * @see battery_service_read_vbat_mv()
  */
-void battery_service_init(const BatteryMeasureConfig& cfg);
+bool battery_service_init(const battery_measure_config_t& cfg = {});
 
 /**
  * @brief Apply battery defaults based on a battery type string.

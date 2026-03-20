@@ -58,22 +58,6 @@ static void safe_strcpy(char* dst, size_t dst_sz, const char* src) {
 /* ------------------------ Line reader (autonomous) ------------------------ */
 
 /**
- * @brief Autonomous CR-terminated line reader state structure.
- *
- * Handles:
- *  - Ignoring '\n'
- *  - Terminating lines on '\r'
- *  - Overflow detection with discard-until-CR behavior
- */
-typedef struct
-{
-    char buf[64];
-    size_t len;
-    bool discarding;
-    bool line_ready;
-} line_reader_t;
-
-/**
  * @brief Initialize a line reader instance.
  *
  * @param lr Pointer to line reader structure.
@@ -262,36 +246,6 @@ static bool is_valid_hex(const char* s, HexLengthConstraints constraints) {
 }
 
 /* ------------------------ Driver instance + FIFO queue ------------------------ */
-
-/**
- * @brief Internal RFID driver state structure.
- *
- * Contains:
- *  - Serial port reference
- *  - Tag type configuration
- *  - Poll timing management
- *  - Line reader
- *  - FIFO queue for decoded tags
- */
-struct rfid_driver
-{
-    Stream* port;
-    tag_type_t type;
-
-    uint32_t last_poll;
-    uint32_t poll_interval_ms;
-
-    line_reader_t lr;
-
-    enum : uint8_t
-    {
-        QSIZE = 4
-    };
-    tag_info_t q[QSIZE];
-    uint8_t head;
-    uint8_t tail;
-    uint8_t count;
-};
 
 /**
  * @brief Get the poll command string for a given tag type.

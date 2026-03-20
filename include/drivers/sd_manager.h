@@ -121,7 +121,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb);
  * @param filename Output buffer where the filename (8.3 format) is stored.
  * @param now      Current timestamp used to generate the filename.
  */
-u_int8_t daily_data_file(char* filename, DateTime now);
+u_int8_t daily_data_file(char* filename, const DateTime& now);
 
 /**
  * @brief Log a single measurement in semicolon-delimited format.
@@ -136,4 +136,4 @@ u_int8_t daily_data_file(char* filename, DateTime now);
  * @param value  Floating-point measurement value.
  * @param unit   Unit string (e.g. `"count"`, `"lux"`, `"V"`).
  */
-u_int8_t logMeasurement(DateTime now, const char* sensor, float value, const char* unit, bool use_buffer = false);
+u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer = false);

@@ -6,7 +6,7 @@ rfid_driver_t rfid2;  // optional second instance
 
 tag_info_t prev1 = {{0}, 0};
 
-void setup() {
+void rfid_example_setup() {
     Serial.begin(115200);
 
     Serial1.begin(9600);
@@ -17,7 +17,7 @@ void setup() {
     // rfid_driver_init(&rfid2, &Serial2, TAG_TYPE_HDX, 150);
 }
 
-void loop() {
+void rfid_example_loop() {
     rfid_driver_tick(&rfid1);
     // rfid_driver_tick(&rfid2);
 

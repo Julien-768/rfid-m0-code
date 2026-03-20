@@ -77,7 +77,7 @@ void runDeployState(SystemState& state) {
     if (frame.valid_vbat)
         {
             // TODO battery
-            if (!battery_service_periodic_check(frame.vbat, vbatCounter, 10))
+            if (!battery_service_periodic_check(frame.vbat_mv, vbatCounter, 10))
                 {
                     state = STATE_ENDOFLIFE;
                     return;

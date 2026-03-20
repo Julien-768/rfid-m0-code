@@ -16,8 +16,8 @@
  * @ingroup HalLayer
  */
 
-#include "hal/sensors_hal.h"
-#include "core/log.h"
+#include "sensors_hal.h"
+#include "log.h"
 
 /* ========================================================================== */
 /*  Initialization Routine                                                    */

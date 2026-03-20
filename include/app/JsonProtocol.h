@@ -22,7 +22,7 @@
  * @brief Supported communication commands for the JSON protocol.
  */
 
-enum class CommandType : std::uint8_t
+enum class CommandType : uint8_t
 {
     NONE,           ///< No command / parsing failed.
     GET_INFO,       ///< Request firmware version and compilation date.
@@ -44,7 +44,7 @@ enum class CommandType : std::uint8_t
 struct SetConfigPayload
 {
     char dateCurrentIso[32];          ///< ISO8601 date/time string, e.g. "2025-08-04T10:30:00".
-    uint32_t acquisition_interval_s;  ///< Logging period in seconds.
+    uint16_t acquisition_interval_s;  ///< Logging period in seconds.
     bool enable_light1;               ///< Enable or disable light sensor 1.
     bool enable_light2;               ///< Enable or disable light sensor 2.
     bool enable_vbat;                 ///< Enable or disable battery voltage logging.
@@ -183,7 +183,7 @@ const char* buildInfoJSON(const char* version);
  *
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
-const char* buildIdJSON(const char* UID, const char* manufacturer, const char* date, const char* logger_type, const char* logger_sn);
+const char* buildIdJSON(const SetIdentityPayload& payload);
 
 /**
  * @brief Build JSON with battery voltage (in millivolts).
@@ -200,7 +200,7 @@ const char* buildIdJSON(const char* UID, const char* manufacturer, const char* d
  * @param voltage_mV Battery voltage in millivolts.
  *
  * @return Pointer to a static internal buffer (overwritten at each call).
- */
+ **/
 const char* buildVbatJSON(unsigned int voltage_mV);
 
 /**

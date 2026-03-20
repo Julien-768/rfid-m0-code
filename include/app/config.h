@@ -47,11 +47,11 @@
  */
 struct Config
 {
-    bool use_buffer                     = false;  ///< Use circular-buffered SD logging
-    bool enable_light1                  = true;   ///< Enable AS7341 spectral sensor
-    bool enable_light2                  = false;  ///< Enable TSL2591 ambient light sensor
-    bool enable_vbat                    = true;   ///< Enable battery voltage measurement
-    unsigned int acquisition_interval_s = 120;    ///< Sensor acquisition interval (seconds)
+    bool use_buffer                  = false;  ///< Use circular-buffered SD logging
+    bool enable_light1               = true;   ///< Enable AS7341 spectral sensor
+    bool enable_light2               = false;  ///< Enable TSL2591 ambient light sensor
+    bool enable_vbat                 = true;   ///< Enable battery voltage measurement
+    u_int16_t acquisition_interval_s = 120;    ///< Sensor acquisition interval (seconds)
 };
 
 /**

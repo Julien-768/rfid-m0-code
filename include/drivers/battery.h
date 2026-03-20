@@ -156,6 +156,8 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type);
  */
 battery_level_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t& thr);
 
+bool battery_init();
+
 /**
  * @brief Read the battery voltage from an ADC pin.
  *

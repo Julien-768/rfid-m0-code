@@ -54,21 +54,21 @@ inline uint8_t blink_count(ErrorCode code) {
  * @param code         Error code to signal.
  * @param halt_system  If true, the system will halt after signaling the error.
  */
-void error_signal(ErrorCode code, bool halt_system) {
+void error_signal(ErrorCode code, bool halt_system, uint8_t blink_pin) {
     // Best-effort log (may be unavailable depending on failure path).
     LOG_ERROR("Error code %d", static_cast<int>(code));
 
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW);  // LED OFF (active-high boards)
+    pinMode(blink_pin, OUTPUT);
+    digitalWrite(blink_pin, LOW);  // LED OFF (active-high boards)
 
     const uint8_t n = blink_count(code);
 
     // Blink pattern: one blink per error code value.
     for (uint8_t i = 0; i < n; i++)
         {
-            digitalWrite(LED_BUILTIN, HIGH);  // LED ON
+            digitalWrite(blink_pin, HIGH);  // LED ON
             delay(kBlinkOnMs);
-            digitalWrite(LED_BUILTIN, LOW);  // LED OFF
+            digitalWrite(blink_pin, LOW);  // LED OFF
             delay(kBlinkOffMs);
         }
 

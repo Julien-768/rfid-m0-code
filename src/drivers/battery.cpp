@@ -150,6 +150,16 @@ battery_level_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t&
     return battery_level_t::battery_normal;
 }
 
+bool battery_init() {
+    // Configuration de l'ADC (optionnel mais recommandé pour des mesures précises)
+    analogReadResolution(12);     // Passe en 12 bits (0-4095) si nécessaire
+    analogReference(AR_DEFAULT);  // Utilise la référence par défaut (3.3V)
+
+    // Si vous utilisez une broche spécifique, vous pouvez aussi la configurer en entrée (optionnel)
+    pinMode(A0, INPUT);
+    return true;
+}
+
 /**
  * @brief Read the battery voltage from an ADC pin.
  *

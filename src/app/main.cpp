@@ -161,15 +161,14 @@ void runBootSequence() {
             LOG_INFO("RTC time unverified and logger connected — waiting for GUI time before creating daily data file");
         }
 
+    // TODO ?
     /* Battery diagnostic */
-    uint16_t vbat_mv = read_battery_voltage(PIN_A7);
-    // TODO battery
-    // if (!battery_boot_diagnostic(vbat_start))
-    if (vbat_mv < 0)  // DU*MMy condition to bypass battery check for now
-        {
-            currentState = STATE_ENDOFLIFE;
-            return;
-    }
+    // uint32_t vbat_mv = read_battery_voltage(PIN_VBAT);
+    // if (!battery_boot_diagnostic(vbat_mv))
+    //     {
+    //         currentState = STATE_ENDOFLIFE;
+    //         return;
+    // }
 
     // --- Load existing assembly.cfg ---
     loadAssembly(assembly);

@@ -268,11 +268,15 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
 /**
  * @brief Build JSON with logger identification details.
  *
+ * The identity fields are provided through a @ref SetIdentityPayload structure,
+ * typically filled either from factory-programmed data (flash) or from a parsed
+ * SET_IDENTITY command.
+ *
  * Example:
  * @code
  * {
  *   "id": {
- *     "uid_mcu":      "...",
+ *     "uid_mcu":      "ABCDEF1234567890",
  *     "manufacturer": "CNRS",
  *     "date_fab":     "2025-07-23",
  *     "logger_type":  "Moonraker",
@@ -281,24 +285,27 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
  * }
  * @endcode
  *
- * @param UID          MCU unique ID string (may be nullptr).
- * @param manufacturer Manufacturer string (may be nullptr).
- * @param date         Fabrication date string (may be nullptr).
- * @param logger_type  Logger type string (may be nullptr).
- * @param logger_sn    Serial number string (may be nullptr).
+ * @param payload Reference to a @ref SetIdentityPayload structure containing
+ *                the logger identity fields:
+ *                - UID          : MCU unique identifier string.
+ *                - manufacturer : Manufacturer name.
+ *                - logger_type  : Logger model/type.
+ *                - date_fab     : Fabrication date (ISO8601 date string).
+ *                - logger_sn    : Human-readable serial number.
  *
- * @return Pointer to a static internal buffer (overwritten at each call).
+ * @return Pointer to a static internal buffer containing the serialized JSON.
+ *         The buffer is overwritten at each call.
  */
-const char* JsonProtocol::buildIdJSON(SetIdentityPayload& payload) {
+const char* JsonProtocol::buildIdJSON(const SetIdentityPayload& payload) {
     static char buffer[192];
     StaticJsonDocument<192> doc;
 
     JsonObject obj      = doc.createNestedObject("id");
-    obj["uid_mcu"]      = payload.UID ? payload.UID : "UNKNOWN";
-    obj["manufacturer"] = payload.manufacturer ? payload.manufacturer : "UNKNOWN";
-    obj["date_fab"]     = payload.date_fab ? payload.date_fab : "";
-    obj["logger_type"]  = payload.logger_type ? payload.logger_type : "Moonraker";
-    obj["logger_sn"]    = payload.logger_sn ? payload.logger_sn : "";
+    obj["uid_mcu"]      = payload.UID[0] ? payload.UID : "UNKNOWN";
+    obj["manufacturer"] = payload.manufacturer[0] ? payload.manufacturer : "UNKNOWN";
+    obj["date_fab"]     = payload.date_fab[0] ? payload.date_fab : "";
+    obj["logger_type"]  = payload.logger_type[0] ? payload.logger_type : "Moonraker";
+    obj["logger_sn"]    = payload.logger_sn[0] ? payload.logger_sn : "";
 
     serializeJson(doc, buffer);
     return buffer;

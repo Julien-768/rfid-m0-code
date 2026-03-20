@@ -90,7 +90,7 @@ Cfg_t Cfg_rb = {};
  * @note Unknown JSON keys are ignored. Missing keys keep current defaults via
  *       ArduinoJson's `|` operator.
  */
-bool loadConfiguration(Config& config) {
+bool loadConfiguration(Config& config_var) {
 
     File file = SD.open("/config.cfg");
     if (!file)
@@ -109,21 +109,21 @@ bool loadConfiguration(Config& config) {
     }
 
     // Update configuration fields with JSON values or keep existing defaults
-    config.use_buffer             = doc["use_buffer"] | config.use_buffer;
-    config.enable_light1          = doc["enable_light1"] | config.enable_light1;
-    config.enable_light2          = doc["enable_light2"] | config.enable_light2;
-    config.enable_vbat            = doc["enable_vbat"] | config.enable_vbat;
-    config.acquisition_interval_s = doc["acquisition_interval_s"] | config.acquisition_interval_s;
+    config_var.use_buffer             = doc["use_buffer"] | config_var.use_buffer;
+    config_var.enable_light1          = doc["enable_light1"] | config_var.enable_light1;
+    config_var.enable_light2          = doc["enable_light2"] | config_var.enable_light2;
+    config_var.enable_vbat            = doc["enable_vbat"] | config_var.enable_vbat;
+    config_var.acquisition_interval_s = doc["acquisition_interval_s"] | config_var.acquisition_interval_s;
 
     file.close();
 
     // Compact summary log of effective configuration
     LOG_INFO("Configuration loaded:");
-    LOG_INFO(config.use_buffer ? "  use_buffer: true" : "  use_buffer: false");
-    LOG_INFO(config.enable_light1 ? "  light1: true" : "  light1: false");
-    LOG_INFO(config.enable_light2 ? "  light2: true" : "  light2: false");
-    LOG_INFO(config.enable_vbat ? "  vbat: true" : "  vbat: false");
-    LOG_INFO("  interval: %u s", config.acquisition_interval_s);
+    LOG_INFO(config_var.use_buffer ? "  use_buffer: true" : "  use_buffer: false");
+    LOG_INFO(config_var.enable_light1 ? "  light1: true" : "  light1: false");
+    LOG_INFO(config_var.enable_light2 ? "  light2: true" : "  light2: false");
+    LOG_INFO(config_var.enable_vbat ? "  vbat: true" : "  vbat: false");
+    LOG_INFO("  interval: %u s", config_var.acquisition_interval_s);
 
     return true;
 }
