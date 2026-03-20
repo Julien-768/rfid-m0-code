@@ -26,8 +26,26 @@
  */
 
 #include "battery.h"
-#include <string.h>  // strcmp
+#include "Arduino.h"
 #include <unordered_map>
+#include <string>
+
+namespace
+{
+uint8_t adc_resolution_bits_from_max(uint16_t adc_max) {
+    uint32_t levels = static_cast<uint32_t>(adc_max) + 1u;
+    uint8_t bits    = 0u;
+
+    while (levels > 1u && (levels % 2u) == 0u)
+        {
+            levels /= 2u;
+            ++bits;
+        }
+
+    return (levels == 1u) ? bits : 0u;
+}
+
+}  // namespace
 
 // -----------------------------------------------------------------------------
 // Battery technology model (type + default thresholds)
@@ -112,6 +130,54 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type) {
         }
 }
 
+bool battery_init(const battery_measure_config_t& cfg) {
+    const uint8_t resolution_bits = adc_resolution_bits_from_max(cfg.adc_cfg.adc_max);
+
+    if (resolution_bits != 0u)
+        {
+            analogReadResolution(resolution_bits);
+    }
+
+    pinMode(cfg.pin, INPUT);
+
+    // ⚠️ volontairement conservé minimal (pas de changement de ref ADC)
+    return true;
+}
+
+/**
+ * @brief Read the battery voltage from an ADC pin.
+ *
+ * @param pin ADC pin to read.
+ * @param ratio Scaling factor (e.g. 2.0f for a /2 voltage divider).
+ * @param adc_ref_mv ADC reference voltage in millivolts (mV).
+ * @param adc_max Maximum ADC value (default: 1023 for 10-bit ADC).
+ * @return Battery voltage in millivolts (mV), or 0 if an error occurs.
+ */
+int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg) {
+    if (cfg.ratio <= 0.0f || cfg.adc_ref_mv == 0u || cfg.adc_max == 0u)
+        {
+            return -1;  // cohérent avec doc
+    }
+
+    const uint32_t raw = analogRead(pin);
+
+    const float mv = (static_cast<float>(raw) / cfg.adc_max) * cfg.adc_ref_mv * cfg.ratio;
+
+    return static_cast<int32_t>(mv);
+}
+
+/**
+ * @brief Check if the battery voltage is within plausible bounds.
+ *
+ * @param vbat_mv Battery voltage in millivolts (mV).
+ * @param plausible_min_mv Minimum plausible voltage (mV).
+ * @param plausible_max_mv Maximum plausible voltage (mV).
+ * @return true if the voltage is plausible, false otherwise.
+ */
+bool check_battery_voltage_plausibility(int32_t mv, uint16_t min_mv, uint16_t max_mv) {
+    return (mv >= (int32_t)min_mv && mv <= (int32_t)max_mv);
+}
+
 /**
  * @brief Classify a battery voltage in mV against thresholds.
  *
@@ -126,87 +192,23 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type) {
  * @param thr Thresholds used for classification.
  * @return Battery level classification.
  */
-battery_level_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t& thr) {
-    if (vbat_mv < 0)
-        {
-            return battery_level_t::battery_invalid;
-    }
-
+battery_state_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t& thr) {
+    if (vbat_mv < 0) return battery_invalid;
     if (thr.high_crit_mv != 0 && vbat_mv > thr.high_crit_mv)
         {
-            return battery_level_t::battery_critical_high;
+            return battery_critical_high;
     }
 
     if (thr.low_crit_mv != 0 && vbat_mv < thr.low_crit_mv)
         {
-            return battery_level_t::battery_critical_low;
+            return battery_critical_low;
     }
 
     if (thr.low_warn_mv != 0 && vbat_mv < thr.low_warn_mv)
         {
-            return battery_level_t::battery_warning_low;
+            return battery_warning_low;
     }
 
-    return battery_level_t::battery_normal;
+    return battery_normal;
 }
-
-bool battery_init() {
-    // Configuration de l'ADC (optionnel mais recommandé pour des mesures précises)
-    analogReadResolution(12);     // Passe en 12 bits (0-4095) si nécessaire
-    analogReference(AR_DEFAULT);  // Utilise la référence par défaut (3.3V)
-
-    // Si vous utilisez une broche spécifique, vous pouvez aussi la configurer en entrée (optionnel)
-    pinMode(A0, INPUT);
-    return true;
-}
-
-/**
- * @brief Read the battery voltage from an ADC pin.
- *
- * @param pin ADC pin to read.
- * @param ratio Scaling factor (e.g. 2.0f for a /2 voltage divider).
- * @param adc_ref_mv ADC reference voltage in millivolts (mV).
- * @param adc_max Maximum ADC value (default: 1023 for 10-bit ADC).
- * @return Battery voltage in millivolts (mV), or 0 if an error occurs.
- */
-int32_t read_battery_voltage(uint32_t pin, battery_adc_config_t cfg) {
-    if (cfg.ratio <= 0.0f || cfg.adc_ref_mv == 0u || cfg.adc_max == 0u)
-        {
-            return 0;
-    }
-
-    const uint32_t raw    = (uint32_t)analogRead(pin);
-    const float adc_mv_f  = ((float)raw * (float)cfg.adc_ref_mv) / (float)cfg.adc_max;
-    const float vbat_mv_f = adc_mv_f * cfg.ratio;
-
-    return (int32_t)roundf(vbat_mv_f);
-}
-
-/**
- * @brief Check if the battery voltage is within plausible bounds.
- *
- * @param vbat_mv Battery voltage in millivolts (mV).
- * @param plausible_min_mv Minimum plausible voltage (mV).
- * @param plausible_max_mv Maximum plausible voltage (mV).
- * @return true if the voltage is plausible, false otherwise.
- */
-bool check_battery_voltage_plausibility(int32_t vbat_mv, uint16_t plausible_min_mv, uint16_t plausible_max_mv) {
-    if (plausible_min_mv == 0u || plausible_max_mv == 0u)
-        {
-            return true;  // Check disabled
-    }
-
-    if (plausible_min_mv >= plausible_max_mv)
-        {
-            return false;  // Invalid configuration
-    }
-
-    if (vbat_mv < (int32_t)plausible_min_mv || vbat_mv > (int32_t)plausible_max_mv)
-        {
-            return false;  // Out of range
-    }
-
-    return true;  // OK
-}
-
 /** @} */  // end of Battery group

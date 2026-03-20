@@ -19,7 +19,7 @@
  * ## Unit convention
  * All voltages handled by this module are expressed in **millivolts (mV)**:
  * - readings returned by @ref battery_service_read_vbat_mv()
- * - thresholds exposed by @ref BatteryThresholds
+ * - thresholds exposed by @ref battery_thresholds_t
  *
  * @note The service stores a board-level measurement configuration and converts it
  *       to the driver configuration types (see @ref battery_measure_config_t and
@@ -35,8 +35,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <stdint.h>
-
 #include "battery.h"  // battery_* types + battery_read_mv()
 
 // /**
@@ -61,28 +59,6 @@
 // };
 
 /**
- * @struct BatteryThresholds
- * @brief Voltage thresholds exposed by the battery service (mV).
- *
- * The driver owns the default thresholds per battery technology.
- * This struct allows:
- * - reading back the active thresholds (telemetry / GUI)
- * - overriding thresholds (tests or explicit configuration)
- *
- * - `warn_mv`: below this value => WARNING
- * - `critical_mv`: below this value => CRITICAL (low battery)
- * - `high_crit_mv`: above this value => CRITICAL (unexpected high voltage)
- *
- * @ingroup BatteryService
- */
-struct BatteryThresholds
-{
-    uint16_t warn_mv      = 0;  ///< Warning threshold (mV).
-    uint16_t critical_mv  = 0;  ///< Critical low threshold (mV).
-    uint16_t high_crit_mv = 0;  ///< Critical high threshold (mV).
-};
-
-/**
  * @brief Initialize the battery service with board-level measurement parameters.
  *
  * Call once at boot after HAL/hardware is known.
@@ -97,6 +73,11 @@ struct BatteryThresholds
 bool battery_service_init(const battery_measure_config_t& cfg = {});
 
 /**
+ * @brief Override thresholds.
+ */
+void battery_service_set_thresholds(const battery_thresholds_t& t);
+
+/**
  * @brief Apply battery defaults based on a battery type string.
  *
  * Delegates parsing and default thresholds selection to the driver layer.
@@ -108,27 +89,7 @@ bool battery_service_init(const battery_measure_config_t& cfg = {});
  * @see battery_type_from_string()
  * @see battery_thresholds_default()
  */
-void battery_service_apply_type_string(const String& battery_type);
-
-/**
- * @brief Override the active thresholds (service-level override).
- *
- * Useful for tests or for a configuration path that provides explicit thresholds.
- *
- * @param t Threshold values in mV.
- *
- * @ingroup BatteryService
- */
-void battery_service_set_thresholds(const BatteryThresholds& t);
-
-/**
- * @brief Return the currently active thresholds.
- *
- * @return Active @ref BatteryThresholds.
- *
- * @ingroup BatteryService
- */
-BatteryThresholds battery_service_get_thresholds();
+battery_thresholds_t battery_service_apply_type_string(const String& battery_type);
 
 /**
  * @brief One-shot VBAT measurement (mV) using configured measurement parameters.
@@ -159,5 +120,10 @@ int32_t battery_service_read_vbat_mv();
  * @ingroup BatteryService
  */
 bool battery_service_periodic_check(int32_t vbat_mv, uint8_t& counter, uint8_t period);
+
+/**
+ * @brief Get battery state.
+ */
+battery_state_t battery_service_get_state();
 
 /** @} */  // end of BatteryService group

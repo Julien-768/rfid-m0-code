@@ -45,15 +45,14 @@
  *       the driver configuration type @ref battery_measure_config_t (including
  *       its nested @ref battery_adc_config_t) and stored here.
  */
-static battery_measure_config_t g_measure_cfg{};
+static battery_measure_config_t batt_cfg_driver{};
 
 /**
  * @brief Active driver thresholds (technology model).
  *
  * Populated by @ref battery_service_apply_type_string() and may be overridden by
- * @ref battery_service_set_thresholds().
  */
-static battery_thresholds_t g_thr{};
+static battery_thresholds_t batt_thr{};
 
 // -----------------------------------------------------------------------------
 // Internal helpers
@@ -75,25 +74,25 @@ static battery_thresholds_t g_thr{};
  *
  * @see battery_classify_mv()
  */
-static bool evaluate_and_act(const char* context, int32_t vbat_mv) {
-    const battery_level_t level = battery_classify_mv(vbat_mv, g_thr);
+bool evaluate_and_act(const char* context, int32_t vbat_mv) {
+    const battery_state_t level = battery_classify_mv(vbat_mv, batt_thr);
 
     switch (level)
         {
-            case battery_level_t::battery_invalid:
+            case battery_invalid:
                 LOG_WARN("%s: VBAT invalid reading (%ld)", context, (long)vbat_mv);
                 return true;
 
-            case battery_level_t::battery_normal:
+            case battery_normal:
                 LOG_DEBUG("%s: VBAT=%ld mV (NORMAL)", context, (long)vbat_mv);
                 return true;
 
-            case battery_level_t::battery_warning_low:
+            case battery_warning_low:
                 LOG_WARN("%s: low battery (%ld mV) (WARNING)", context, (long)vbat_mv);
                 return true;
 
-            case battery_level_t::battery_critical_high:
-            case battery_level_t::battery_critical_low:
+            case battery_critical_high:
+            case battery_critical_low:
                 LOG_ERROR("%s: CRITICAL battery (%ld mV)", context, (long)vbat_mv);
                 error_signal(ERR_BATTERY_CRITICAL, false);
                 return false;
@@ -123,13 +122,13 @@ static bool evaluate_and_act(const char* context, int32_t vbat_mv) {
  * @see battery_service_read_vbat_mv()
  */
 bool battery_service_init(const battery_measure_config_t& cfg) {
+    batt_cfg_driver = cfg;
+    return battery_init(cfg);
 
-    // Safe defaults until the configured type is applied.
-    g_thr = battery_thresholds_default(battery_type_t::battery_lipo_1s);
+    batt_thr = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
     LOG_INFO("Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV", (unsigned long)cfg.pin, cfg.adc_cfg.ratio,
              cfg.adc_cfg.adc_ref_mv, cfg.adc_cfg.adc_max, cfg.plausible_min_mv, cfg.plausible_max_mv);
-    return battery_init();
 }
 
 /**
@@ -145,44 +144,20 @@ bool battery_service_init(const battery_measure_config_t& cfg) {
  * @see battery_type_from_string()
  * @see battery_thresholds_default()
  */
-void battery_service_apply_type_string(const String& battery_type) {
-    const char* req           = battery_type.length() ? battery_type.c_str() : "lipo_1s";
+// TODO batt_thr is unclear as a variable name
+battery_thresholds_t battery_service_apply_type_string(const String& battery_type) {
+    const char* req = battery_type.length() ? battery_type.c_str() : "lipo_1s";
+
     const battery_type_t type = battery_type_from_string(battery_type.c_str());
-    g_thr                     = battery_thresholds_default(type);
+    batt_thr                  = battery_thresholds_default(type);
 
-    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req, g_thr.low_warn_mv, g_thr.low_crit_mv,
-             g_thr.high_crit_mv);
+    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req, batt_thr.low_warn_mv, batt_thr.low_crit_mv,
+             batt_thr.high_crit_mv);
+    return batt_thr;
 }
 
-/**
- * @brief Override the active thresholds.
- *
- * Useful for tests or for a configuration path that provides explicit thresholds.
- *
- * @param t Thresholds in millivolts (mV).
- */
-void battery_service_set_thresholds(const BatteryThresholds& t) {
-    g_thr.low_warn_mv  = t.warn_mv;
-    g_thr.low_crit_mv  = t.critical_mv;
-    g_thr.high_crit_mv = t.high_crit_mv;
+battery_adc_config_t cfg = batt_cfg_driver.adc_cfg;
 
-    LOG_INFO("Battery thresholds overridden: warn_low=%umV crit_low=%umV crit_high=%umV", g_thr.low_warn_mv, g_thr.low_crit_mv, g_thr.high_crit_mv);
-}
-
-/**
- * @brief Return currently active thresholds.
- *
- * @return Thresholds in millivolts (mV).
- */
-BatteryThresholds battery_service_get_thresholds() {
-    BatteryThresholds out{};
-    out.warn_mv      = g_thr.low_warn_mv;
-    out.critical_mv  = g_thr.low_crit_mv;
-    out.high_crit_mv = g_thr.high_crit_mv;
-    return out;
-}
-
-battery_adc_config_t cfg = g_measure_cfg.adc_cfg;
 /**
  * @brief Read VBAT once using the configured measurement parameters.
  *
@@ -193,7 +168,18 @@ battery_adc_config_t cfg = g_measure_cfg.adc_cfg;
  * @see read_battery_voltage()
  */
 int32_t battery_service_read_vbat_mv() {
-    return read_battery_voltage(g_measure_cfg.pin, cfg);
+    // ✔ suppression de la copie globale figée
+    int32_t v = read_battery_voltage(batt_cfg_driver.pin, batt_cfg_driver.adc_cfg);
+
+    if (v < 0) return v;
+
+    // ✔ utilisation réelle de la plausibilité (déjà prévue dans ton design)
+    if (!check_battery_voltage_plausibility(v, batt_cfg_driver.plausible_min_mv, batt_cfg_driver.plausible_max_mv))
+        {
+            return -2;
+    }
+
+    return v;
 }
 
 /**

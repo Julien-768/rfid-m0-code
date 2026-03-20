@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @file battery.h
@@ -56,21 +57,6 @@ enum class battery_type_t : uint8_t
 };
 
 /**
- * @brief Classification of a VBAT sample according to predefined thresholds.
- *
- * The driver only classifies the battery level. It does not log events nor take automatic actions.
- * Use this enum to determine the state of the battery based on voltage or capacity measurements.
- */
-enum class battery_level_t : uint8_t
-{
-    battery_invalid,        ///< Invalid measurement (e.g. negative voltage).
-    battery_critical_high,  ///< Battery voltage is too high.
-    battery_critical_low,   ///< Battery voltage is too low.
-    battery_warning_low,    ///< Battery voltage is low (warning level).
-    battery_normal          ///< Battery voltage is normal.
-};
-
-/**
  * @brief Battery thresholds in millivolts (mV).
  *
  * Typical policy:
@@ -80,39 +66,50 @@ enum class battery_level_t : uint8_t
  *
  * @note `high_crit_mv` is intentionally explicit (not computed) because it depends on chemistry.
  */
-struct battery_thresholds_t
+typedef struct
 {
     uint16_t low_warn_mv  = 0;  ///< Warning threshold for low voltage (mV).
     uint16_t low_crit_mv  = 0;  ///< Critical threshold for low voltage (mV).
     uint16_t high_crit_mv = 0;  ///< Critical threshold for high voltage (mV).
-};
+} battery_thresholds_t;
 
+/**
+ * @brief ADC configuration for battery measurement.
+ */
 typedef struct
 {
+    float ratio         = 2.0f;  ///< Scaling factor after ADC conversion (default: 1.0f).
     uint16_t adc_ref_mv = 3300;  ///< ADC reference in mV (default: 3300).;
-    uint16_t adc_max    = 1023;  ///< Maximum ADC code (default: 1023 for 10-bit).
-    float ratio         = 1.0f;  ///< Scaling factor after ADC conversion (default: 1.0f).
+    uint16_t adc_max    = 4095;  ///< Maximum ADC code (default: 4095 for 12-bit on feather m0).
 } battery_adc_config_t;
 
 /**
- * @brief ADC + scaling configuration for a VBAT measurement.
- *
- * This is board/integration information, provided by the application/HAL.
+ * @brief Full measurement configuration.
  */
 struct battery_measure_config_t
 {
     uint32_t pin = 0;              ///< ADC pin to read (Arduino pin id).
     battery_adc_config_t adc_cfg;  ///< ADC conversion parameters (reference, max code, scaling ratio).
-
-    /**
-     * @brief Plausibility bounds after scaling (mV).
-     *
-     * If both bounds are non-zero, the computed voltage must fall within this range.
-     * To disable plausibility checking, set both bounds to 0.
-     */
+    // TODO: define automatically from battery type defaults + margin, and allow override from config.
     uint16_t plausible_min_mv = 2500;  ///< Min plausible VBAT (mV) or 0 to disable.
     uint16_t plausible_max_mv = 4500;  ///< Max plausible VBAT (mV) or 0 to disable.
 };
+
+/**
+ * @brief Classification of a VBAT sample according to predefined thresholds.
+ *
+ * The driver only classifies the battery level. It does not log events nor take automatic actions.
+ * Use this enum to determine the state of the battery based on voltage or capacity measurements.
+ */
+typedef enum : uint8_t
+{
+    battery_invalid = 0,  ///< Invalid measurement (e.g. negative voltage).
+    battery_ok,
+    battery_critical_high,  ///< Battery voltage is too high.
+    battery_critical_low,   ///< Battery voltage is too low.
+    battery_warning_low,    ///< Battery voltage is low (warning level).
+    battery_normal          ///< Battery voltage is normal.
+} battery_state_t;
 
 /**
  * @brief Convert a configuration string to a battery type.
@@ -142,44 +139,24 @@ battery_type_t battery_type_from_string(const char* s);
 battery_thresholds_t battery_thresholds_default(battery_type_t type);
 
 /**
- * @brief Classify a VBAT sample according to thresholds.
- *
- * - If @p vbat_mv is negative => INVALID
- * - If @p vbat_mv < low_crit_mv => CRITICAL
- * - Else if @p vbat_mv < low_warn_mv => WARNING
- * - Else if @p vbat_mv > high_crit_mv => CRITICAL
- * - Else => NORMAL
- *
- * @param vbat_mv Battery voltage sample (mV). May be negative (driver error code).
- * @param thr Thresholds in mV.
- * @return Battery level classification.
+ * @brief Initialize battery driver.
  */
-battery_level_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t& thr);
-
-bool battery_init();
+bool battery_init(const battery_measure_config_t& cfg);
 
 /**
- * @brief Read the battery voltage from an ADC pin.
- *
- * The function reads the raw ADC code from the specified pin, converts it to millivolts using the provided ADC reference and maximum code, and
- * applies a scaling factor (e.g. for resistor dividers).
- *
- * @param pin ADC pin to read (Arduino pin number).
- * @param cfg ADC conversion configuration (reference voltage, max code, scaling ratio).
- * @return Battery voltage in millivolts (mV), or 0 if an error occurs (e.g. invalid config).
+ * @brief Read battery voltage in mV.
+ * @return Voltage in mV, negative value on error.
  */
-int32_t read_battery_voltage(uint32_t pin, battery_adc_config_t cfg = {});
+int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg);
 
 /**
- * @brief Check if the battery voltage is within plausible bounds.
- *
- * @param vbat_mv Battery voltage in millivolts (mV).
- * @param plausible_min_mv Minimum plausible voltage (mV).
- * @param plausible_max_mv Maximum plausible voltage (mV).
- * @return true if the voltage is plausible, false otherwise.
+ * @brief Check plausibility of voltage.
  */
-bool check_battery_voltage_plausibility(int32_t vbat_mv, uint16_t plausible_min_mv, uint16_t plausible_max_mv);
+bool check_battery_voltage_plausibility(int32_t mv, uint16_t min_mv, uint16_t max_mv);
 
-/** @} */  // end of Battery group
+/**
+ * @brief Classify voltage.
+ */
+battery_state_t battery_classify_mv(int32_t mv, const battery_thresholds_t& thr);
 
 #endif  // BATTERY_H
