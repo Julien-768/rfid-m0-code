@@ -1,8 +1,6 @@
 #ifndef BATTERY_H
 #define BATTERY_H
 
-#pragma once
-
 #include <Arduino.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -24,7 +22,7 @@
  * - Read an ADC pin via `analogRead()`
  * - Convert ADC code to millivolts using a provided ADC reference
  * - Apply an optional scaling factor (e.g. resistor divider compensation)
- * - Optionally validate the result against a plausibility range
+ * - Provide helper for plausibility checking (stateless utility)
  * - Provide default thresholds by battery technology
  * - Classify a measured voltage according to thresholds
  *
@@ -86,13 +84,11 @@ typedef struct
 /**
  * @brief Full measurement configuration.
  */
-struct battery_measure_config_t
+
+struct battery_hw_config_t
 {
-    uint32_t pin = 0;              ///< ADC pin to read (Arduino pin id).
-    battery_adc_config_t adc_cfg;  ///< ADC conversion parameters (reference, max code, scaling ratio).
-    // TODO: define automatically from battery type defaults + margin, and allow override from config.
-    uint16_t plausible_min_mv = 2500;  ///< Min plausible VBAT (mV) or 0 to disable.
-    uint16_t plausible_max_mv = 4500;  ///< Max plausible VBAT (mV) or 0 to disable.
+    uint32_t pin = 0;              ///< ADC pin to read.
+    battery_adc_config_t adc_cfg;  ///< ADC conversion parameters.
 };
 
 /**
@@ -140,7 +136,7 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type);
 /**
  * @brief Initialize battery driver.
  */
-bool battery_init(const battery_measure_config_t& cfg);
+bool battery_init(const battery_hw_config_t& cfg);
 
 /**
  * @brief Read battery voltage in mV.

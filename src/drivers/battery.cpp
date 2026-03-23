@@ -64,7 +64,7 @@ uint8_t adc_resolution_bits_from_max(uint16_t adc_max) {
  * @return Battery type enum (safe fallback on unknown input).
  */
 battery_type_t battery_type_from_string(const char* s) {
-    if (s == nullptr || s[0] == '\0') return battery_type_t::battery_lipo_1s;
+    if (s == nullptr || s[0] == '\0') return battery_type_t::battery_unknown;
 
     if (strcmp(s, "lipo_1s") == 0) return battery_type_t::battery_lipo_1s;
     if (strcmp(s, "liion_1s") == 0) return battery_type_t::battery_liion_1s;
@@ -116,6 +116,7 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type) {
                 t.high_crit_mv = 15000u;
                 return t;
 
+            case battery_type_t::battery_unknown:
             default:
                 // Safe fallback
                 t.low_warn_mv  = 3600u;
@@ -125,15 +126,15 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type) {
         }
 }
 
-bool battery_init(const battery_measure_config_t& cfg) {
-    const uint8_t resolution_bits = adc_resolution_bits_from_max(cfg.adc_cfg.adc_max);
+bool battery_init(const battery_hw_config_t& hw_cfg) {
+    const uint8_t resolution_bits = adc_resolution_bits_from_max(hw_cfg.adc_cfg.adc_max);
 
     if (resolution_bits != 0u)
         {
             analogReadResolution(resolution_bits);
     }
 
-    pinMode(cfg.pin, INPUT);
+    pinMode(hw_cfg.pin, INPUT);
 
     // ⚠️ volontairement conservé minimal (pas de changement de ref ADC)
     return true;
@@ -171,10 +172,28 @@ int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg) {
  * @param vbat_mv Battery voltage in millivolts (mV).
  * @param plausible_min_mv Minimum plausible voltage (mV).
  * @param plausible_max_mv Maximum plausible voltage (mV).
- * @return true if the voltage is plausible, false otherwise.
+ * @return true if the voltage is plausible, false otherwise
  */
 bool check_battery_voltage_plausibility(int32_t mv, uint16_t min_mv, uint16_t max_mv) {
-    return (mv >= static_cast<int32_t>(min_mv) && mv <= static_cast<int32_t>(max_mv));
+    if (mv < 0)
+        {
+            return false;
+    }
+
+    const bool min_enabled = (min_mv != 0u);
+    const bool max_enabled = (max_mv != 0u);
+
+    if (min_enabled && mv < static_cast<int32_t>(min_mv))
+        {
+            return false;
+    }
+
+    if (max_enabled && mv > static_cast<int32_t>(max_mv))
+        {
+            return false;
+    }
+
+    return true;
 }
 
 /**
