@@ -1,5 +1,5 @@
 /**
- * @file hw_assembly.h
+ * @file assembly.h
  * @brief Declarations for managing system hardware/software identification (hw_assembly.cfg).
  *
  * This header defines the @ref Assembly structure and related functions used
@@ -48,19 +48,19 @@
  */
 struct Assembly
 {
-    String uid_mainboard;      ///< Unique ID of the main board (e.g., Feather M0 microcontroller).
-    String uid_light_sensor1;  ///< Unique ID of the AS7341 spectral sensor.
-    String uid_light_sensor2;  ///< Unique ID of the TSL2591 light sensor.
-    String uid_software;       ///< Software version or build identifier.
-    String uid_experiment;     ///< Experiment or deployment context identifier.
-    String sn_logger;          ///< Human-readable logger serial number (e.g., "MRK-0007").
+    String uid_mainboard     = "$uid_mainboard$";      ///< Unique ID of the main board (e.g., Feather M0 microcontroller).
+    String uid_light_sensor1 = "$uid_light_sensor1$";  ///< Unique ID of the AS7341 spectral sensor.
+    String uid_light_sensor2 = "$uid_light_sensor2$";  ///< Unique ID of the TSL2591 light sensor.
+    String uid_software      = "$uid_software$";       ///< Software version or build identifier.
+    String uid_experiment    = "$uid_experiment$";     ///< Experiment or deployment context identifier.
+    String sn_logger         = "$sn_logger$";          ///< Human-readable logger serial number (e.g., "MRK-0007").
     /**
      * @name Battery configuration (from hw_assembly.cfg)
      * @brief Battery configuration used to select default thresholds.
      * @{
      */
 
-    String battery_type = "";  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
+    String battery_type = "$battery_type$";  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
 
     /** @} */
 };
