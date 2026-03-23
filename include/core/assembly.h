@@ -54,6 +54,15 @@ struct Assembly
     String uid_software;       ///< Software version or build identifier.
     String uid_experiment;     ///< Experiment or deployment context identifier.
     String sn_logger;          ///< Human-readable logger serial number (e.g., "MRK-0007").
+    /**
+     * @name Battery configuration (from assembly.cfg)
+     * @brief Battery configuration used to select default thresholds.
+     * @{
+     */
+
+    String battery_type;  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
+
+    /** @} */
 };
 
 /**
