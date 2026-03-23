@@ -1,13 +1,14 @@
 #include <Arduino.h>
 
-#include "core/mcu_uid.h"
-#include "core/assembly.h"
-#include "core/log.h"
+#include "mcu_uid.h"
+#include "assembly.h"
+#include "log.h"
 
+// TODO should return uid instead of modifying global variable
 void readFeatherUID() {
-    if (assembly.uid_mainboard.length() > 0)
+    if (hw_assembly.uid_mainboard.length() > 0)
         {
-            LOG_INFO("Feather UID already present in assembly.cfg: %s", assembly.uid_mainboard.c_str());
+            LOG_INFO("Feather UID already present in hw_assembly.cfg: %s", hw_assembly.uid_mainboard.c_str());
             return;
     }
 
@@ -16,7 +17,7 @@ void readFeatherUID() {
     char uid_str[64];
     snprintf(uid_str, sizeof(uid_str), "FeatherM0_0x%08lX_0x%08lX_0x%08lX_0x%08lX", uid[0], uid[1], uid[2], uid[3]);
 
-    assembly.uid_mainboard = uid_str;
+    hw_assembly.uid_mainboard = uid_str;
 
     LOG_INFO("Feather UID loaded into memory.");
     LOG_INFO("Feather M0 UID read: %08lX-%08lX-%08lX-%08lX", uid[0], uid[1], uid[2], uid[3]);

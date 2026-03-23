@@ -5,5 +5,6 @@
 
 #pragma once
 
-/// Read Feather M0 unique ID and update `assembly.uid_mainboard` if needed.
+/// Read Feather M0 unique ID and update `hw_assembly.uid_mainboard` if needed.
+// TODO should return uid instead of modifying global variable
 void readFeatherUID();

@@ -19,7 +19,7 @@
  *   - Returns firmware version and build metadata.
  * - **GET_ID**
  *   - Returns logger identification data:
- *     - MCU UID (from @ref assembly.cfg / @ref Assembly::uid_mainboard)
+ *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
  * - **GET_VBAT**
  *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
@@ -39,7 +39,7 @@
  *
  * @see JsonProtocol
  * @see logger_identity.h
- * @see assembly.h
+ * @see hw_assembly.h
  * @see rtc.h
  * @{
  */
@@ -52,7 +52,7 @@
 #include "sensors.h"
 #include "sensors_internal.h"
 #include "rtc.h"
-#include "assembly.h"
+#include "hw_assembly.h"
 #include "logger_identity.h"
 #include "sd_manager.h"
 #include "utils.h"
@@ -121,7 +121,7 @@ void runConnectedMode(SystemState& state) {
                     const auto& id = loggerIdentity_get();
 
                     SetIdentityPayload payload{};
-                    strncpy(payload.UID, assembly.uid_mainboard.c_str(), sizeof(payload.UID));
+                    strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID));
                     strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer));
                     strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab));
                     strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type));
@@ -135,7 +135,7 @@ void runConnectedMode(SystemState& state) {
 
                 case CommandType::GET_VBAT: {
                     // One-shot battery measurement for GUI request (not used in DEPLOY loop)
-                    uint16_t vbat_mv = read_battery_voltage(PIN_VBAT);  // volts in mV (e.g. 3700)
+                    uint16_t vbat_mv = read_battery_voltage(batt_cfg.pin);  // volts in mV (e.g. 3700)
                     const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
                     Serial1.println(json);
                     break;

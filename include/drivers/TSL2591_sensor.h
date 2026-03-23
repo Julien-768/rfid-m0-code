@@ -42,19 +42,20 @@ struct TSL2591Reading
  *
  * This function sets the gain and integration time and automatically
  * logs the hardware Device ID to the system log and updates the
- * @ref assembly.cfg configuration file.
+ * @ref hw_assembly.cfg configuration file.
  *
  * @return true if the sensor was initialized successfully, false otherwise.
  */
 bool initTSL2591();
 
 /**
- * @brief Reads the TSL2591 hardware Device ID and updates assembly configuration.
+ * @brief Reads the TSL2591 hardware Device ID and updates hw_assembly configuration.
  *
  * Queries the I²C register 0x12 to identify the connected TSL2591 sensor.
  * The identifier is logged and stored in the configuration as
  * `"uid_light_sensor2": "TSL2591_0xXX"`.
  */
+// TODO should return uid instead of modifying global variable
 void readTSL2591DeviceID();
 
 /**

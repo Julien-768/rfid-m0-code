@@ -1,6 +1,6 @@
 /**
- * @file assembly.h
- * @brief Declarations for managing system hardware/software identification (assembly.cfg).
+ * @file hw_assembly.h
+ * @brief Declarations for managing system hardware/software identification (hw_assembly.cfg).
  *
  * This header defines the @ref Assembly structure and related functions used
  * to manage persistent metadata describing the Moonraker logger system.
@@ -12,11 +12,11 @@
  * - Software and experiment identifiers
  * - Logger serial number (SN)
  *
- * These fields are serialized into and read from the `assembly.cfg` file
+ * These fields are serialized into and read from the `hw_assembly.cfg` file
  * stored on the SD card. This ensures reproducibility, traceability, and
  * version control for deployed systems.
  *
- * @see assembly.cpp
+ * @see hw_assembly.cpp
  * @see logger_identity.h
  */
 
@@ -55,12 +55,12 @@ struct Assembly
     String uid_experiment;     ///< Experiment or deployment context identifier.
     String sn_logger;          ///< Human-readable logger serial number (e.g., "MRK-0007").
     /**
-     * @name Battery configuration (from assembly.cfg)
+     * @name Battery configuration (from hw_assembly.cfg)
      * @brief Battery configuration used to select default thresholds.
      * @{
      */
 
-    String battery_type;  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
+    String battery_type = "";  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
 
     /** @} */
 };
@@ -70,52 +70,52 @@ struct Assembly
  *
  * Accessible throughout the project for reading or updating hardware/software metadata.
  */
-extern Assembly assembly;
+extern Assembly hw_assembly;
 
 /**
- * @brief Loads the assembly configuration from the SD card.
+ * @brief Loads the hw_assembly configuration from the SD card.
  *
- * Opens and parses the JSON file `assembly.cfg` located on the SD card,
+ * Opens and parses the JSON file `hw_assembly.cfg` located on the SD card,
  * and updates all fields of the provided @ref Assembly structure.
  * If the file is missing or corrupted, default values are retained
  * and a new configuration can be created later.
  *
- * @param assembly Reference to the Assembly structure to populate.
+ * @param hw_assembly Reference to the Assembly structure to populate.
  * @see saveAssembly()
  */
-void loadAssembly(Assembly& assembly);
+void loadAssembly(Assembly& hw_assembly);
 
 /**
  * @brief Saves the current Assembly configuration to the SD card.
  *
  * Serializes the provided @ref Assembly structure into JSON format
- * and writes it to the file `assembly.cfg` on the SD card.
+ * and writes it to the file `hw_assembly.cfg` on the SD card.
  * Existing files are overwritten to ensure data consistency.
  *
- * @param assembly The Assembly instance to serialize and write.
+ * @param hw_assembly The Assembly instance to serialize and write.
  * @return true if the file was written successfully, false otherwise.
  * @see loadAssembly()
  */
-bool saveAssembly(const Assembly& assembly);
+bool saveAssembly(const Assembly& hw_assembly);
 
 /**
- * @brief Synchronize assembly.cfg with factory identity stored in MCU flash.
+ * @brief Synchronize hw_assembly.cfg with factory identity stored in MCU flash.
  *
  * This helper reads the factory identity programmed in MCU non-volatile memory
  * (via @ref loggerIdentity_get()) and updates selected fields of the global
  * @ref Assembly instance (notably @ref Assembly::sn_logger).
  *
- * If at least one field is modified, the function rewrites `assembly.cfg`
+ * If at least one field is modified, the function rewrites `hw_assembly.cfg`
  * using @ref saveAssembly().
  *
  * Typical usage:
  * @code{.cpp}
- * loadAssembly(assembly);
+ * loadAssembly(hw_assembly);
  * loggerIdentity_init();
  * syncAssemblyWithFactoryIdentity();
  * @endcode
  *
- * @return true if assembly.cfg was modified and saved, false otherwise.
+ * @return true if hw_assembly.cfg was modified and saved, false otherwise.
  *
  * @see logger_identity.h
  */
