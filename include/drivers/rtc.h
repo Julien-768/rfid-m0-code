@@ -41,9 +41,11 @@ typedef struct
  */
 struct RTC_STATE
 {
-    bool time_unverified      = false;  ///< True if RTC time is considered invalid at boot (waiting for GUI time).
-    uint32_t wait_deadline_ms = 0;      ///< Deadline (millis) after which we fallback to build time if still unverified.
-    uint8_t last_log_day      = 0;      ///< Day-of-month of the last created daily log file.
+    bool time_checked = true;             ///< True if RTC time is considered invalid at boot
+                                          ///< (waiting for GUI time).
+    uint32_t time_in_connected_mode = 0;  ///< Deadline (millis) after which we fallback
+                                          ///< to build time if still unverified.
+    uint8_t last_log_day = 0;             ///< Day-of-month of the last created daily log file.
 };
 
 /**
@@ -86,7 +88,7 @@ void rtc_init_interrupt_pin(uint8_t interruptPin);
  * @brief Initialize the DS3231 RTC and clear alarms.
  * @return true if the RTC responded and was configured, false otherwise.
  */
-bool init_rtc();
+bool rtc_initialization();
 
 /**
  * @brief Quick I2C probe to check if DS3231 (0x68) is present.
@@ -104,12 +106,6 @@ bool alarm_triggered();
  * @brief Clear the internal alarm flag and clear RTC Alarm1 state.
  */
 void clear_alarm_flag();
-
-/**
- * @brief Get a human-readable timestamp string from RTC `now()`.
- * @return Timestamp formatted as "YYYY-MM-DD HH:MM:SS".
- */
-String get_timestamp();
 
 // -----------------------------------------------------------------------------
 // Wake-up scheduling
@@ -142,10 +138,9 @@ void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s);
  *   - If connected: mark unverified and wait for GUI time.
  *   - If not connected: fallback to build time.
  *
- * @param connected True if GUI/external tool is connected.
  * @return true if RTC policy executed (does not mean "RTC time was valid").
  */
-bool rtc_boot_recover(bool connected);
+bool rtc_boot_recover();
 
 /**
  * @brief Apply time received from the GUI/tool and mark RTC time as verified.

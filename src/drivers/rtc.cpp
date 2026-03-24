@@ -17,8 +17,8 @@
  * - Sleep/wake is implemented via ArduinoLowPower + an interrupt pin.
  *
  * ## Time trust model
- * At boot, the RTC time is validated against basic sanity rules and firmware build time.
- * If time is invalid:
+ * At boot, the RTC time is validated against basic sanity rules and firmware build
+ * time. If time is invalid:
  * - If the logger is connected to an external GUI: it enters a "waiting for time"
  *   window (see @ref rtc_boot_recover()).
  * - Otherwise: it falls back to firmware build time.
@@ -32,12 +32,12 @@
  * @{
  */
 
-#include <RTClib.h>
-#include <ArduinoLowPower.h>
-#include <string.h>
 #include "rtc.h"
-#include "log.h"
+#include <ArduinoLowPower.h>
+#include <RTClib.h>
+#include <string.h>
 #include "error_handler.h"
+#include "log.h"
 
 /**
  * @brief Global DS3231 instance (RTClib).
@@ -141,7 +141,7 @@ void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin = s_rtcInterruptPin) {
  * @warning `Wire.begin()` must have been called before this function.
  * @see rtc_boot_recover()
  */
-bool init_rtc() {
+bool rtc_initialization() {
     // Wire.begin() should already be done before calling this
     // Check if the I2C bus is ready (without initializing it)
     Wire.beginTransmission(0x00);  // Dummy address to test bus availability
@@ -197,21 +197,7 @@ void clear_alarm_flag() {
 }
 
 /**
- * @brief Get the current RTC time as a formatted timestamp string.
- *
- * Format: `YYYY-MM-DD HH:MM:SS`
- *
- * @return Timestamp string (Arduino `String`).
- *
- * @note This is a convenience helper; prefer passing `DateTime` where possible
- *       to avoid heap fragmentation from `String`.
- */
-String get_timestamp() {
-    DateTime now = rtc.now();
-    char buffer[25];
-    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
-    return String(buffer);
-}
+
 
 /**
  * @brief Probe the I2C bus to check if a DS3231 responds at address 0x68.
@@ -266,7 +252,7 @@ void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s) {
 /**
  * @brief Basic RTC sanity check.
  *
- * Rules:
+ * Checks that:
  * - Year must be within [2020, 2099]
  * - RTC time must not be earlier than firmware build time
  *
@@ -289,56 +275,65 @@ static bool rtc_sanity_ok(const DateTime& now, const DateTime& build) {
 /**
  * @brief Boot-time RTC recovery strategy (trust / wait for GUI / fallback).
  *
- * This function evaluates whether RTC time is trusted at boot:
- * - If time is sane and RTC did not lose power → mark time as verified.
- * - If time is invalid and @p connected is true → mark time as unverified and start
- *   a waiting window for GUI-provided time (`SET_CONFIG`).
- * - If time is invalid and @p connected is false → fall back to firmware build time.
+ * This function implements the following logic:
+ * - If RTC time is sane at boot: accept it and (if connected) optionally wait for GUI
+ * time.
+ * - If RTC time is not sane at boot: accept it but optionally wait for GUI time.
+ *   - If connected: mark time as unverified and set a waiting deadline (e.g., 20s).
+ *  - If not connected: immediately fallback to firmware build time.
+ * - If GUI time is received within the waiting deadline
+ *  (via `rtc_apply_external_time()`): accept it and mark time as verified.
+ * - If the waiting deadline expires without receiving GUI time: fallback to firmware
+ * build time.
+ * - If time is accepted from either RTC or GUI, it is applied to the DS3231 and marked
+ * as verified.
+ * - Logs all relevant events and decisions for debugging.
+ * @param connected True if an external GUI/serial link is present at boot, false
+ * otherwise.
  *
- * @param connected Whether an external GUI/serial link is present at boot.
- * @return true always (unless extended in future); kept as bool for API symmetry.
+ * @return true if the RTC policy was executed (regardless of whether time is valid),
+ * false on critical failure.
  *
  * @note The waiting deadline is currently set to 20 seconds.
  * @see rtc_apply_external_time()
  */
-bool rtc_boot_recover(bool connected) {
+bool rtc_boot_recover() {
+    // Get current RTC time and firmware build time
     const DateTime build(F(__DATE__), F(__TIME__));
     const DateTime now = rtc.now();
 
+    // Log rtc time, build time and lost power status at boot for debugging
     LOG_DEBUG(
         "RTC boot check: rtc=%04d-%02d-%02d %02d:%02d:%02d, "
         "build=%04d-%02d-%02d %02d:%02d:%02d, lostPower=%s",
         now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second(), build.year(), build.month(), build.day(), build.hour(),
         build.minute(), build.second(), rtc.lostPower() ? "YES" : "NO");
 
-    const bool sane = rtc_sanity_ok(now, build);
-    const bool lost = rtc.lostPower() || !sane;
+    // check if rtc time is within 2020-2099 and not before build time
+    const bool time_in_range        = rtc_sanity_ok(now, build);
+    rtc_state_instance.time_checked = !rtc.lostPower() && time_in_range;
 
-    if (!lost)
+    // initialize the waiting deadline to 0 (not waiting) or now+20s (waiting for GUI
+    // time)
+    rtc_state_instance.time_in_connected_mode = 0;
+
+    // If time is already verified at boot, we are done. If connected, we can wait for
+    // GUI time if needed.
+    if (rtc_state_instance.time_checked)
         {
-            rtc_state_instance.time_unverified  = false;
-            rtc_state_instance.wait_deadline_ms = 0;
             LOG_INFO("RTC time accepted as valid at boot: %04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(),
                      now.minute(), now.second());
-            return true;
-    }
-
-    if (connected)
+    } else
         {
-            rtc_state_instance.time_unverified  = true;
-            rtc_state_instance.wait_deadline_ms = millis() + 20000UL;
-            LOG_WARN("RTC invalid at boot; waiting for GUI time (CONNECTED mode)");
-            return true;
-    }
+            // Else we fall back to firmware build time
+            rtc.adjust(build);
+            rtc_state_instance.time_checked = true;
 
-    // Not connected: fall back to firmware build time
-    rtc.adjust(build);
-    rtc_state_instance.time_unverified  = false;
-    rtc_state_instance.wait_deadline_ms = 0;
-
-    LOG_WARN("RTC invalid at boot; using build time fallback: %04d-%02d-%02d %02d:%02d:%02d", build.year(), build.month(), build.day(), build.hour(),
-             build.minute(), build.second());
-    return true;
+            LOG_WARN(
+                "RTC invalid at boot; using build time fallback: %04d-%02d-%02d "
+                "%02d:%02d:%02d",
+                build.year(), build.month(), build.day(), build.hour(), build.minute(), build.second());
+        }
 }
 
 /**
@@ -357,8 +352,8 @@ bool rtc_boot_recover(bool connected) {
  */
 void rtc_apply_external_time(const DateTime& t) {
     rtc.adjust(t);
-    rtc_state_instance.time_unverified  = false;
-    rtc_state_instance.wait_deadline_ms = 0;
+    rtc_state_instance.time_checked           = true;
+    rtc_state_instance.time_in_connected_mode = 0;
 
     LOG_INFO("RTC updated from GUI (SET_CONFIG)");
 }
