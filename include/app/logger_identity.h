@@ -6,15 +6,15 @@
  *
  * Fields are ASCII, null-terminated.
  */
-struct LoggerIdentityFlash
-{
+struct LoggerIdentityFlash {
     char manufacturer[16];
     char logger_type[16];
     char date_fab[16];
     char serial_number[16];
 };
 
-static_assert(sizeof(LoggerIdentityFlash) == 64, "LoggerIdentityFlash size changed: update flash record format if needed.");
+static_assert(sizeof(LoggerIdentityFlash) == 64,
+              "LoggerIdentityFlash size changed: update flash record format if needed.");
 
 /**
  * @brief Initialize identity cache from flash.
@@ -39,4 +39,5 @@ bool loggerIdentity_program(const LoggerIdentityFlash& id);
  */
 bool loggerIdentity_resetDefaults();
 
-void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger_type, const char* date_fab, const char* serial_number);
+void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger_type,
+                                    const char* date_fab, const char* serial_number);

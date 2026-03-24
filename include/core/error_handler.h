@@ -31,8 +31,7 @@
  *
  * @ingroup SystemModules
  */
-enum ErrorCode : uint8_t
-{
+enum ErrorCode : uint8_t {
     ERR_NONE             = 0,  ///< No error
     ERR_SD_NOT_FOUND     = 2,  ///< SD card not detected
     ERR_SD_WRITE_FAIL    = 3,  ///< Failed to write on SD card (possible corruption)

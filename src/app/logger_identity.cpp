@@ -46,8 +46,7 @@ static constexpr uint16_t ID_VERSION = 0x0001;
  *
  * The CRC is computed only over the `id` payload (not including header fields).
  */
-struct IdentityRecord
-{
+struct IdentityRecord {
     uint32_t magic;         /**< Magic marker (must be ID_MAGIC). */
     uint16_t version;       /**< Record version (must be ID_VERSION). */
     uint16_t crc16;         /**< CRC16-CCITT computed over @ref id payload. */
@@ -60,7 +59,8 @@ struct IdentityRecord
  * On SAMD21, FlashStorage typically stores objects in flash pages/rows; this check
  * enforces the record remains compact.
  */
-static_assert(sizeof(IdentityRecord) <= 256, "IdentityRecord too large for a single flash row/page; keep it small.");
+static_assert(sizeof(IdentityRecord) <= 256,
+              "IdentityRecord too large for a single flash row/page; keep it small.");
 
 /**
  * @brief FlashStorage instance used to persist the identity record.
@@ -92,11 +92,10 @@ static bool g_identity_valid = false;
  */
 static uint16_t crc16_ccitt(const uint8_t* data, size_t len) {
     uint16_t crc = 0xFFFF;
-    for (size_t i = 0; i < len; i++)
-        {
-            crc ^= (uint16_t)data[i] << 8;
-            for (uint8_t b = 0; b < 8; b++) crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : (crc << 1);
-        }
+    for (size_t i = 0; i < len; i++) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (uint8_t b = 0; b < 8; b++) crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : (crc << 1);
+    }
     return crc;
 }
 
@@ -190,13 +189,12 @@ static void sanitize(LoggerIdentityFlash& id) {
 bool loggerIdentity_init() {
     const IdentityRecord r = moonraker_identity_store.read();
 
-    if (recordValid(r))
-        {
-            g_identity = r.id;
-            sanitize(g_identity);
-            g_identity_valid = true;
-            LOG_INFO("Factory identity loaded from FLASH: SN=%s", g_identity.serial_number);
-            return true;
+    if (recordValid(r)) {
+        g_identity = r.id;
+        sanitize(g_identity);
+        g_identity_valid = true;
+        LOG_INFO("Factory identity loaded from FLASH: SN=%s", g_identity.serial_number);
+        return true;
     }
 
     LOG_WARN("Factory identity not found/invalid in FLASH — writing defaults.");
@@ -207,11 +205,10 @@ bool loggerIdentity_init() {
 
     // readback check
     const IdentityRecord rb = moonraker_identity_store.read();
-    if (!recordValid(rb))
-        {
-            LOG_ERROR("FLASH identity write failed (readback invalid).");
-            g_identity_valid = false;
-            return false;
+    if (!recordValid(rb)) {
+        LOG_ERROR("FLASH identity write failed (readback invalid).");
+        g_identity_valid = false;
+        return false;
     }
 
     g_identity_valid = true;
@@ -228,11 +225,10 @@ bool loggerIdentity_init() {
  *          will populate RAM defaults and mark the cache valid (without writing flash).
  */
 const LoggerIdentityFlash& loggerIdentity_get() {
-    if (!g_identity_valid)
-        {
-            LOG_WARN("loggerIdentity_get() called before successful init — using RAM defaults");
-            fillDefaults(g_identity);
-            g_identity_valid = true;
+    if (!g_identity_valid) {
+        LOG_WARN("loggerIdentity_get() called before successful init — using RAM defaults");
+        fillDefaults(g_identity);
+        g_identity_valid = true;
     }
     return g_identity;
 }
@@ -256,10 +252,9 @@ bool loggerIdentity_program(const LoggerIdentityFlash& id) {
     moonraker_identity_store.write(wr);
 
     const IdentityRecord rb = moonraker_identity_store.read();
-    if (!recordValid(rb))
-        {
-            LOG_ERROR("Factory identity programming failed (readback invalid).");
-            return false;
+    if (!recordValid(rb)) {
+        LOG_ERROR("Factory identity programming failed (readback invalid).");
+        return false;
     }
 
     g_identity = rb.id;
@@ -288,7 +283,8 @@ static void copyField_(char* dst, size_t dstSize, const char* src) {
     dst[dstSize - 1] = '\0';
 }
 
-void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger_type, const char* date_fab, const char* serial_number) {
+void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger_type,
+                                    const char* date_fab, const char* serial_number) {
     // Start from existing identity, then override fields
     LoggerIdentityFlash id = loggerIdentity_get();  // copy
 

@@ -23,8 +23,7 @@
 #include <stddef.h>
 
 /** Supported RFID tag types. Extend as needed. */
-typedef enum : uint8_t
-{
+typedef enum : uint8_t {
     TAG_TYPE_HDX = 0,
     TAG_TYPE_FDX,
     TAG_TYPE_EM4102,
@@ -32,8 +31,7 @@ typedef enum : uint8_t
 } tag_type_t;
 
 /** A parsed/decoded tag plus a timestamp (millis). */
-typedef struct
-{
+typedef struct {
     char tag[32];
     uint32_t time_ms;
 } tag_info_t;
@@ -46,8 +44,7 @@ typedef struct
  *  - Terminating lines on '\r'
  *  - Overflow detection with discard-until-CR behavior
  */
-typedef struct
-{
+typedef struct {
     char buf[64];
     size_t len;
     bool discarding;
@@ -67,8 +64,7 @@ typedef struct rfid_driver rfid_driver_t;
  *  - Line reader
  *  - FIFO queue for decoded tags
  */
-struct rfid_driver
-{
+struct rfid_driver {
     Stream* port;
     tag_type_t type;
 
@@ -77,10 +73,7 @@ struct rfid_driver
 
     line_reader_t lr;
 
-    enum : uint8_t
-    {
-        QSIZE = 4
-    };
+    enum : uint8_t { QSIZE = 4 };
     tag_info_t q[QSIZE];
     uint8_t head;
     uint8_t tail;
@@ -131,6 +124,7 @@ bool rfid_driver_get_tag(rfid_driver_t* drv, tag_info_t* out);
  * @param delay_ms Minimum delay between identical tags
  * @return true if should be recorded, false if should be ignored
  */
-bool rfid_should_record_tag(const tag_info_t* previous, const tag_info_t* current, uint32_t delay_ms);
+bool rfid_should_record_tag(const tag_info_t* previous, const tag_info_t* current,
+                            uint32_t delay_ms);
 
 #endif  // RFID_DRIVER_H

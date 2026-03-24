@@ -30,8 +30,7 @@
  * Serial.println(r.lux);
  * @endcode
  */
-struct TSL2591Reading
-{
+struct TSL2591Reading {
     float lux;      ///< Calculated ambient light level in lux.
     uint16_t full;  ///< Raw full-spectrum ADC channel count.
     uint16_t ir;    ///< Raw infrared ADC channel count.

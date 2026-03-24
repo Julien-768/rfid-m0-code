@@ -180,8 +180,7 @@ SensorFrame readAllSensors(SensorSpec* table, size_t count) {
 void logSensorFrame(const DateTime& now, const SensorFrame& f) {
 
     // --- VBAT ---
-    if (f.valid_vbat)
-        {
-            logMeasurement(now, "VBAT", (float)f.vbat_mv, "V", config.use_buffer);
+    if (f.valid_vbat) {
+        logMeasurement(now, "VBAT", (float)f.vbat_mv, "V", config.use_buffer);
     }
 }

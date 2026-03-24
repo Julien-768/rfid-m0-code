@@ -15,16 +15,16 @@
 #include <string.h>
 #include <stdlib.h>
 
-uint32_t synchro_offset_ms, previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
-uint32_t synchro_slope = 0;                              // Slope that represents the drift of the offet over the time
+uint32_t synchro_offset_ms,
+    previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
+uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet over the time
 
 void check_and_create_new_daily_file(const DateTime& now) {
-    if (now.day() != rtc_state.last_log_day)
-        {
-            char file_name[16];
-            strcpy(file_name, get_filename());
-            daily_data_file(file_name, now);
-            rtc_state.last_log_day = now.day();
+    if (now.day() != rtc_state.last_log_day) {
+        char file_name[16];
+        strcpy(file_name, get_filename());
+        daily_data_file(file_name, now);
+        rtc_state.last_log_day = now.day();
     }
 }
 
@@ -39,15 +39,14 @@ void check_and_create_new_daily_file(const DateTime& now) {
  */
 String isoformat(const DateTime& t, int ms, const String& separator, bool include_ms) {
     char buffer[48];  // plus grand pour inclure option ms
-    if (include_ms)
-        {
-            snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d.%03d%s", t.year(), t.month(), t.day(), separator.c_str(), t.hour(),
-                     t.minute(), t.second(), ms, separator.c_str());
-    } else
-        {
-            snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d%s", t.year(), t.month(), t.day(), separator.c_str(), t.hour(),
-                     t.minute(), t.second(), separator.c_str());
-        }
+    if (include_ms) {
+        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d.%03d%s", t.year(),
+                 t.month(), t.day(), separator.c_str(), t.hour(), t.minute(), t.second(), ms,
+                 separator.c_str());
+    } else {
+        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d%s", t.year(), t.month(),
+                 t.day(), separator.c_str(), t.hour(), t.minute(), t.second(), separator.c_str());
+    }
     return String(buffer);
 }
 
@@ -65,8 +64,7 @@ String isoformat_date(const DateTime& t) {
     return String(buffer);
 }
 
-struct SynchroParams
-{
+struct SynchroParams {
     u_long synchro_offset_ms;
     u_long synchro_slope;
 };
@@ -148,7 +146,8 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
  * @param len Length of @p out (recommend at least 20 bytes).
  */
 void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
-    snprintf(out, len, "20%02x-%02x-%02xT%02x:%02x:%02x", in->year, in->month, in->day, in->hour, in->minute, in->second);
+    snprintf(out, len, "20%02x-%02x-%02xT%02x:%02x:%02x", in->year, in->month, in->day, in->hour,
+             in->minute, in->second);
 }
 
 /**

@@ -49,10 +49,10 @@
  * - EMA (Exponential Moving Average) smooths remaining noise.
  * - Delta threshold avoids micro-variations triggering updates.
  */
-struct battery_filter_config_t
-{
-    float ema_alpha             = 0.25f;  ///< EMA smoothing factor (0..1). Lower = smoother, higher = more reactive.
-    uint16_t delta_threshold_mv = 30;     ///< Minimum change (mV) to consider output as updated.
+struct battery_filter_config_t {
+    float ema_alpha =
+        0.25f;  ///< EMA smoothing factor (0..1). Lower = smoother, higher = more reactive.
+    uint16_t delta_threshold_mv = 30;  ///< Minimum change (mV) to consider output as updated.
 };
 
 /**
@@ -64,17 +64,15 @@ struct battery_filter_config_t
  * It is fully managed by the battery service and should not be accessed
  * directly by user code.
  */
-struct battery_filter_state_t
-{
+struct battery_filter_state_t {
     int32_t raw_samples[3] = {0, 0, 0};  ///< Last 3 raw plausible samples (mV).
     int32_t median_mv      = 0;          ///< Last median output (mV).
     int32_t ema_mv         = 0;          ///< Current EMA filtered value (mV).
-    int32_t published_mv   = 0;          ///< Last value considered "significant" (deadband applied).
-    bool initialized       = false;      ///< Initialization flag (first sample handling).
+    int32_t published_mv   = 0;      ///< Last value considered "significant" (deadband applied).
+    bool initialized       = false;  ///< Initialization flag (first sample handling).
 };
 
-struct battery_policy_config_t
-{
+struct battery_policy_config_t {
     uint16_t plausible_min_mv = 0;  ///< 0 = disable lower bound.
     uint16_t plausible_max_mv = 0;  ///< 0 = disable upper bound.
 };
@@ -87,8 +85,7 @@ struct battery_policy_config_t
  * - plausibility policy
  * - filtering configuration
  */
-struct battery_service_config_t
-{
+struct battery_service_config_t {
     battery_hw_config_t hw;          ///< Hardware/ADC configuration.
     battery_policy_config_t policy;  ///< Plausibility bounds configuration.
     battery_filter_config_t filter;  ///< Filtering configuration.

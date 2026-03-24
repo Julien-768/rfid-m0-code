@@ -118,28 +118,25 @@ void logPrintf(uint8_t level, const char* fmt, ...);
  * LOG_ERROR("Failed to read sensor: %d", errorCode);
  * @endcode
  */
-#define LOG_ERROR(...)                                                                 \
-    do                                                                                 \
-        {                                                                              \
-            if (LOG_LEVEL >= LOG_LEVEL_ERROR) logPrintf(LOG_LEVEL_ERROR, __VA_ARGS__); \
+#define LOG_ERROR(...)                                                             \
+    do {                                                                           \
+        if (LOG_LEVEL >= LOG_LEVEL_ERROR) logPrintf(LOG_LEVEL_ERROR, __VA_ARGS__); \
     } while (0)
 
 /**
  * @brief Log a warning-level message.
  */
-#define LOG_WARN(...)                                                                \
-    do                                                                               \
-        {                                                                            \
-            if (LOG_LEVEL >= LOG_LEVEL_WARN) logPrintf(LOG_LEVEL_WARN, __VA_ARGS__); \
+#define LOG_WARN(...)                                                            \
+    do {                                                                         \
+        if (LOG_LEVEL >= LOG_LEVEL_WARN) logPrintf(LOG_LEVEL_WARN, __VA_ARGS__); \
     } while (0)
 
 /**
  * @brief Log an informational message.
  */
-#define LOG_INFO(...)                                                                \
-    do                                                                               \
-        {                                                                            \
-            if (LOG_LEVEL >= LOG_LEVEL_INFO) logPrintf(LOG_LEVEL_INFO, __VA_ARGS__); \
+#define LOG_INFO(...)                                                            \
+    do {                                                                         \
+        if (LOG_LEVEL >= LOG_LEVEL_INFO) logPrintf(LOG_LEVEL_INFO, __VA_ARGS__); \
     } while (0)
 
 /**
@@ -148,8 +145,7 @@ void logPrintf(uint8_t level, const char* fmt, ...);
  * Debug logs are stripped automatically at compile time
  * when LOG_LEVEL is below LOG_LEVEL_DEBUG.
  */
-#define LOG_DEBUG(...)                                                                 \
-    do                                                                                 \
-        {                                                                              \
-            if (LOG_LEVEL >= LOG_LEVEL_DEBUG) logPrintf(LOG_LEVEL_DEBUG, __VA_ARGS__); \
+#define LOG_DEBUG(...)                                                             \
+    do {                                                                           \
+        if (LOG_LEVEL >= LOG_LEVEL_DEBUG) logPrintf(LOG_LEVEL_DEBUG, __VA_ARGS__); \
     } while (0)

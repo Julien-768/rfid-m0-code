@@ -96,96 +96,93 @@ void runConnectedMode(SystemState& state) {
     char errorJson[96] = {0};
 
     // Parse JSON into a high-level command structure
-    if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson)))
-        {
-            if (errorJson[0] != '\0')
-                {
-                    // Return a small JSON error message to the GUI
-                    Serial1.println(errorJson);
-            }
-            return;
+    if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson))) {
+        if (errorJson[0] != '\0') {
+            // Return a small JSON error message to the GUI
+            Serial1.println(errorJson);
+        }
+        return;
     }
 
     // Dispatch command
-    switch (parsed.type)
-        {
-                case CommandType::GET_INFO: {
-                    // Firmware version / compile date
-                    const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::GET_ID: {
-                    // Factory identity stored in SAMD21 flash
-                    const auto& id = loggerIdentity_get();
-
-                    SetIdentityPayload payload{};
-                    strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID));
-                    strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer));
-                    strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab));
-                    strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type));
-                    strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn));
-
-                    const char* json = JsonProtocol::buildIdJSON(payload);
-
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::GET_VBAT: {
-                    // One-shot battery measurement for GUI request (not used in DEPLOY loop)
-                    uint16_t vbat_mv = read_battery_voltage(batt_cfg.pin);  // volts in mV (e.g. 3700)
-                    const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::GET_CONFIG: {
-                    const char* json = JsonProtocol::buildConfigJSON();
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::SET_CONFIG: {
-                    LOG_INFO("Configuration received from GUI");
-
-                    DateTime dt = applyGuiConfigAndBuildDateTime(parsed.cfg);
-
-                    rtc_apply_external_time(dt);
-                    // If no daily file exists yet, create it now
-                    if (strlen(get_filename()) == 0)
-                        {
-                            check_and_create_new_daily_file(rtc.now());
-                            LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
-                    }
-                    LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
-
-                    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-                    LOG_INFO("RTC alarm scheduled from GUI config");
-
-                    Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
-                    LOG_INFO("Sensors initialized from GUI configuration");
-
-                    Serial1.println("{\"config\":\"ACK\"}");
-
-                    LOG_INFO("Deploy mode started from GUI");
-                    state = STATE_DEPLOY;
-                    break;
-                }
-
-                case CommandType::SET_IDENTITY: {
-                    LOG_INFO("Factory SET_IDENTITY command received");
-
-                    loggerIdentity_applyFromFields(parsed.identity.manufacturer, parsed.identity.logger_type, parsed.identity.date_fab,
-                                                   parsed.identity.logger_sn);
-
-                    Serial1.println("{\"identity\":\"ACK\"}");
-                    break;
-                }
-
-            default:
-                // CommandType::NONE or commands not handled here
-                break;
+    switch (parsed.type) {
+        case CommandType::GET_INFO: {
+            // Firmware version / compile date
+            const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
+            Serial1.println(json);
+            break;
         }
+
+        case CommandType::GET_ID: {
+            // Factory identity stored in SAMD21 flash
+            const auto& id = loggerIdentity_get();
+
+            SetIdentityPayload payload{};
+            strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID));
+            strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer));
+            strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab));
+            strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type));
+            strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn));
+
+            const char* json = JsonProtocol::buildIdJSON(payload);
+
+            Serial1.println(json);
+            break;
+        }
+
+        case CommandType::GET_VBAT: {
+            // One-shot battery measurement for GUI request (not used in DEPLOY loop)
+            uint16_t vbat_mv = read_battery_voltage(batt_cfg.pin);  // volts in mV (e.g. 3700)
+            const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
+            Serial1.println(json);
+            break;
+        }
+
+        case CommandType::GET_CONFIG: {
+            const char* json = JsonProtocol::buildConfigJSON();
+            Serial1.println(json);
+            break;
+        }
+
+        case CommandType::SET_CONFIG: {
+            LOG_INFO("Configuration received from GUI");
+
+            DateTime dt = applyGuiConfigAndBuildDateTime(parsed.cfg);
+
+            rtc_apply_external_time(dt);
+            // If no daily file exists yet, create it now
+            if (strlen(get_filename()) == 0) {
+                check_and_create_new_daily_file(rtc.now());
+                LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
+            }
+            LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
+
+            rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+            LOG_INFO("RTC alarm scheduled from GUI config");
+
+            Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
+            LOG_INFO("Sensors initialized from GUI configuration");
+
+            Serial1.println("{\"config\":\"ACK\"}");
+
+            LOG_INFO("Deploy mode started from GUI");
+            state = STATE_DEPLOY;
+            break;
+        }
+
+        case CommandType::SET_IDENTITY: {
+            LOG_INFO("Factory SET_IDENTITY command received");
+
+            loggerIdentity_applyFromFields(parsed.identity.manufacturer,
+                                           parsed.identity.logger_type, parsed.identity.date_fab,
+                                           parsed.identity.logger_sn);
+
+            Serial1.println("{\"identity\":\"ACK\"}");
+            break;
+        }
+
+        default:
+            // CommandType::NONE or commands not handled here
+            break;
+    }
 }

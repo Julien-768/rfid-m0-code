@@ -53,8 +53,7 @@
 // Internal helpers
 // -----------------------------------------------------------------------------
 
-namespace
-{
+namespace {
 /**
  * @brief Helper to format a small JSON error string.
  *
@@ -106,120 +105,117 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
  * @return @c true if parsing succeeded and @p out.type != CommandType::NONE,
  *         @c false otherwise.
  */
-bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, size_t errorBufLen) {
+bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf,
+                                size_t errorBufLen) {
     out.type = CommandType::NONE;
 
-    if (!json_string)
-        {
-            writeErrorJson(errorBuf, errorBufLen, "Null JSON");
-            return false;
+    if (!json_string) {
+        writeErrorJson(errorBuf, errorBufLen, "Null JSON");
+        return false;
     }
 
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, json_string);
-    if (error)
-        {
-            writeErrorJson(errorBuf, errorBufLen, "Invalid JSON");
-            return false;
+    if (error) {
+        writeErrorJson(errorBuf, errorBufLen, "Invalid JSON");
+        return false;
     }
 
     // Root key "command" is required
     JsonVariant command = doc["command"];
-    if (command.isNull())
-        {
-            writeErrorJson(errorBuf, errorBufLen, "'command' is missing");
-            return false;
+    if (command.isNull()) {
+        writeErrorJson(errorBuf, errorBufLen, "'command' is missing");
+        return false;
     }
 
     // --- CASE 1 : "command" = "GET_XXX" ---
-    if (command.is<const char*>())
-        {
-            const char* cmd = command.as<const char*>();
+    if (command.is<const char*>()) {
+        const char* cmd = command.as<const char*>();
 
-            if (strcmp(cmd, "GET_INFO") == 0)
-                out.type = CommandType::GET_INFO;
-            else if (strcmp(cmd, "GET_ID") == 0)
-                out.type = CommandType::GET_ID;
-            else if (strcmp(cmd, "GET_VBAT") == 0)
-                out.type = CommandType::GET_VBAT;
-            else if (strcmp(cmd, "GET_CONFIG") == 0)
-                out.type = CommandType::GET_CONFIG;
-            else
-                {
-                    writeErrorJson(errorBuf, errorBufLen, "Unknown command");
-                    return false;
-                }
+        if (strcmp(cmd, "GET_INFO") == 0)
+            out.type = CommandType::GET_INFO;
+        else if (strcmp(cmd, "GET_ID") == 0)
+            out.type = CommandType::GET_ID;
+        else if (strcmp(cmd, "GET_VBAT") == 0)
+            out.type = CommandType::GET_VBAT;
+        else if (strcmp(cmd, "GET_CONFIG") == 0)
+            out.type = CommandType::GET_CONFIG;
+        else {
+            writeErrorJson(errorBuf, errorBufLen, "Unknown command");
+            return false;
+        }
 
-            if (errorBuf && errorBufLen) errorBuf[0] = '\0';
-            return true;
+        if (errorBuf && errorBufLen) errorBuf[0] = '\0';
+        return true;
     }
 
     // --- CASE 2 : "command" is an object → SET_CONFIG or SET_IDENTITY ---
-    if (command.is<JsonObject>())
-        {
-            JsonObject cmdObj = command.as<JsonObject>();
+    if (command.is<JsonObject>()) {
+        JsonObject cmdObj = command.as<JsonObject>();
 
-            // a) SET_CONFIG
-            if (cmdObj.containsKey("config"))
-                {
-                    JsonObject jsonConfig = cmdObj["config"];
+        // a) SET_CONFIG
+        if (cmdObj.containsKey("config")) {
+            JsonObject jsonConfig = cmdObj["config"];
 
-                    if (!jsonConfig)
-                        {
-                            writeErrorJson(errorBuf, errorBufLen, "'config' is missing");
-                            return false;
-                    }
-
-                    const char* date_current = jsonConfig["date_current"];
-                    if (!date_current)
-                        {
-                            writeErrorJson(errorBuf, errorBufLen, "Missing 'date_current'");
-                            return false;
-                    }
-
-                    // Reset payload and copy fields
-                    memset(&out.cfg, 0, sizeof(out.cfg));
-
-                    strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
-                    out.cfg.dateCurrentIso[sizeof(out.cfg.dateCurrentIso) - 1] = '\0';
-
-                    out.cfg.acquisition_interval_s = jsonConfig["acquisition_interval_s"] | 0;
-
-                    out.cfg.enable_light1 = jsonConfig.containsKey("enable_light1") ? jsonConfig["enable_light1"].as<bool>() : false;
-
-                    out.cfg.enable_light2 = jsonConfig.containsKey("enable_light2") ? jsonConfig["enable_light2"].as<bool>() : false;
-
-                    out.cfg.enable_vbat = jsonConfig.containsKey("enable_vbat") ? jsonConfig["enable_vbat"].as<bool>() : false;
-
-                    out.type = CommandType::SET_CONFIG;
-                    if (errorBuf && errorBufLen) errorBuf[0] = '\0';
-                    return true;
+            if (!jsonConfig) {
+                writeErrorJson(errorBuf, errorBufLen, "'config' is missing");
+                return false;
             }
 
-            // b) SET_IDENTITY (factory)
-            if (cmdObj.containsKey("identity"))
-                {
-                    JsonObject ident = cmdObj["identity"];
-
-                    const char* manufacturer = ident["manufacturer"] | "UNKNOWN";
-                    const char* logger_type  = ident["logger_type"] | "Moonraker";
-                    const char* date_fab     = ident["date_fab"] | "2025-01-01";
-                    const char* logger_sn    = ident["logger_sn"] | "UNKNOWN";
-
-                    memset(&out.identity, 0, sizeof(out.identity));
-
-                    strncpy(out.identity.manufacturer, manufacturer, sizeof(out.identity.manufacturer) - 1);
-                    strncpy(out.identity.logger_type, logger_type, sizeof(out.identity.logger_type) - 1);
-                    strncpy(out.identity.date_fab, date_fab, sizeof(out.identity.date_fab) - 1);
-                    strncpy(out.identity.logger_sn, logger_sn, sizeof(out.identity.logger_sn) - 1);
-
-                    out.type = CommandType::SET_IDENTITY;
-                    if (errorBuf && errorBufLen) errorBuf[0] = '\0';
-                    return true;
+            const char* date_current = jsonConfig["date_current"];
+            if (!date_current) {
+                writeErrorJson(errorBuf, errorBufLen, "Missing 'date_current'");
+                return false;
             }
 
-            writeErrorJson(errorBuf, errorBufLen, "Unsupported 'command' object");
-            return false;
+            // Reset payload and copy fields
+            memset(&out.cfg, 0, sizeof(out.cfg));
+
+            strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
+            out.cfg.dateCurrentIso[sizeof(out.cfg.dateCurrentIso) - 1] = '\0';
+
+            out.cfg.acquisition_interval_s = jsonConfig["acquisition_interval_s"] | 0;
+
+            out.cfg.enable_light1 = jsonConfig.containsKey("enable_light1")
+                                        ? jsonConfig["enable_light1"].as<bool>()
+                                        : false;
+
+            out.cfg.enable_light2 = jsonConfig.containsKey("enable_light2")
+                                        ? jsonConfig["enable_light2"].as<bool>()
+                                        : false;
+
+            out.cfg.enable_vbat = jsonConfig.containsKey("enable_vbat")
+                                      ? jsonConfig["enable_vbat"].as<bool>()
+                                      : false;
+
+            out.type = CommandType::SET_CONFIG;
+            if (errorBuf && errorBufLen) errorBuf[0] = '\0';
+            return true;
+        }
+
+        // b) SET_IDENTITY (factory)
+        if (cmdObj.containsKey("identity")) {
+            JsonObject ident = cmdObj["identity"];
+
+            const char* manufacturer = ident["manufacturer"] | "UNKNOWN";
+            const char* logger_type  = ident["logger_type"] | "Moonraker";
+            const char* date_fab     = ident["date_fab"] | "2025-01-01";
+            const char* logger_sn    = ident["logger_sn"] | "UNKNOWN";
+
+            memset(&out.identity, 0, sizeof(out.identity));
+
+            strncpy(out.identity.manufacturer, manufacturer, sizeof(out.identity.manufacturer) - 1);
+            strncpy(out.identity.logger_type, logger_type, sizeof(out.identity.logger_type) - 1);
+            strncpy(out.identity.date_fab, date_fab, sizeof(out.identity.date_fab) - 1);
+            strncpy(out.identity.logger_sn, logger_sn, sizeof(out.identity.logger_sn) - 1);
+
+            out.type = CommandType::SET_IDENTITY;
+            if (errorBuf && errorBufLen) errorBuf[0] = '\0';
+            return true;
+        }
+
+        writeErrorJson(errorBuf, errorBufLen, "Unsupported 'command' object");
+        return false;
     }
 
     writeErrorJson(errorBuf, errorBufLen, "Unsupported 'command' format");

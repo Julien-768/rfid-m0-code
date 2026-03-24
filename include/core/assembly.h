@@ -46,16 +46,15 @@
  * }
  * @endcode
  */
-struct Assembly
-{
+struct Assembly {
     String uid_mainboard     = "$uid_mainboard$";      ///< Unique ID of the main board
     String uid_light_sensor1 = "$uid_light_sensor1$";  ///< Unique ID of the AS7341 spectral sensor.
     String uid_light_sensor2 = "$uid_light_sensor2$";  ///< Unique ID of the TSL2591 light sensor.
     String uid_software      = "$uid_software$";       ///< Software version or build identifier.
-    String uid_experiment    = "$uid_experiment$";     ///< Experiment or deployment context identifier.
-    String sn_logger         = "$sn_logger$";          ///< Human-readable logger serial number (e.g., "MRK-0007").
-    String battery_type      = "$battery_type$";       ///< Battery type string (e.g., "lipo_1s", "liion_1s").
-    String rtc_type          = "$rtc_type$";           ///< RTC type string (e.g., "ds3231", "none").
+    String uid_experiment = "$uid_experiment$";  ///< Experiment or deployment context identifier.
+    String sn_logger = "$sn_logger$";  ///< Human-readable logger serial number (e.g., "MRK-0007").
+    String battery_type = "$battery_type$";  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
+    String rtc_type     = "$rtc_type$";      ///< RTC type string (e.g., "ds3231", "none").
 
     /** @} */
 };

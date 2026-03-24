@@ -51,7 +51,8 @@ static battery_filter_state_t batt_filter_state{};
  *
  * Populated by @ref battery_service_apply_type_string() and may be overridden by
  */
-static battery_thresholds_t batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
+static battery_thresholds_t batt_thresholds_active =
+    battery_thresholds_default(battery_type_t::battery_lipo_1s);
 // -----------------------------------------------------------------------------
 // Internal helpers
 // -----------------------------------------------------------------------------
@@ -68,23 +69,20 @@ static battery_thresholds_t batt_thresholds_active = battery_thresholds_default(
  * @return Median value (mV)
  */
 static int32_t median3(int32_t a, int32_t b, int32_t c) {
-    if (a > b)
-        {
-            int32_t t = a;
-            a         = b;
-            b         = t;
+    if (a > b) {
+        int32_t t = a;
+        a         = b;
+        b         = t;
     }
-    if (b > c)
-        {
-            int32_t t = b;
-            b         = c;
-            c         = t;
+    if (b > c) {
+        int32_t t = b;
+        b         = c;
+        c         = t;
     }
-    if (a > b)
-        {
-            int32_t t = a;
-            a         = b;
-            b         = t;
+    if (a > b) {
+        int32_t t = a;
+        a         = b;
+        b         = t;
     }
     return b;
 }
@@ -123,20 +121,20 @@ static float clamp01(float x) {
  * @param cfg Filter configuration
  * @return true if filtered value changed significantly, false otherwise
  */
-static bool battery_filter_update(battery_filter_state_t& s, int32_t new_sample_mv, const battery_filter_config_t& cfg) {
+static bool battery_filter_update(battery_filter_state_t& s, int32_t new_sample_mv,
+                                  const battery_filter_config_t& cfg) {
     const float alpha = clamp01(cfg.ema_alpha);
 
-    if (!s.initialized)
-        {
-            s.raw_samples[0] = new_sample_mv;
-            s.raw_samples[1] = new_sample_mv;
-            s.raw_samples[2] = new_sample_mv;
+    if (!s.initialized) {
+        s.raw_samples[0] = new_sample_mv;
+        s.raw_samples[1] = new_sample_mv;
+        s.raw_samples[2] = new_sample_mv;
 
-            s.median_mv    = new_sample_mv;
-            s.ema_mv       = new_sample_mv;
-            s.published_mv = new_sample_mv;
-            s.initialized  = true;
-            return true;
+        s.median_mv    = new_sample_mv;
+        s.ema_mv       = new_sample_mv;
+        s.published_mv = new_sample_mv;
+        s.initialized  = true;
+        return true;
     }
 
     // Shift samples
@@ -148,15 +146,15 @@ static bool battery_filter_update(battery_filter_state_t& s, int32_t new_sample_
     s.median_mv = median3(s.raw_samples[0], s.raw_samples[1], s.raw_samples[2]);
 
     // EMA smoothing
-    const float ema = static_cast<float>(s.ema_mv) + alpha * static_cast<float>(s.median_mv - s.ema_mv);
+    const float ema =
+        static_cast<float>(s.ema_mv) + alpha * static_cast<float>(s.median_mv - s.ema_mv);
 
     s.ema_mv = static_cast<int32_t>(ema + (ema >= 0.0f ? 0.5f : -0.5f));
 
     // Deadband (change detection)
-    if (abs(s.ema_mv - s.published_mv) >= static_cast<int32_t>(cfg.delta_threshold_mv))
-        {
-            s.published_mv = s.ema_mv;
-            return true;
+    if (abs(s.ema_mv - s.published_mv) >= static_cast<int32_t>(cfg.delta_threshold_mv)) {
+        s.published_mv = s.ema_mv;
+        return true;
     }
 
     return false;
@@ -181,26 +179,25 @@ static bool battery_filter_update(battery_filter_state_t& s, int32_t new_sample_
 bool battery_service_decision(const char* context, int32_t vbat_mv) {
     const battery_state_t level = battery_classify_mv(vbat_mv, batt_thresholds_active);
 
-    switch (level)
-        {
-            case battery_invalid:
-                LOG_WARN("%s: VBAT invalid reading (%ld)", context, vbat_mv);
-                return true;
+    switch (level) {
+        case battery_invalid:
+            LOG_WARN("%s: VBAT invalid reading (%ld)", context, vbat_mv);
+            return true;
 
-            case battery_normal:
-                LOG_DEBUG("%s: VBAT=%ld mV (NORMAL)", context, vbat_mv);
-                return true;
+        case battery_normal:
+            LOG_DEBUG("%s: VBAT=%ld mV (NORMAL)", context, vbat_mv);
+            return true;
 
-            case battery_warning_low:
-                LOG_WARN("%s: low battery (%ld mV) (WARNING)", context, vbat_mv);
-                return true;
+        case battery_warning_low:
+            LOG_WARN("%s: low battery (%ld mV) (WARNING)", context, vbat_mv);
+            return true;
 
-            case battery_critical_high:
-            case battery_critical_low:
-                LOG_ERROR("%s: CRITICAL battery (%ld mV)", context, vbat_mv);
-                error_signal(ERR_BATTERY_CRITICAL, false);
-                return false;
-        }
+        case battery_critical_high:
+        case battery_critical_low:
+            LOG_ERROR("%s: CRITICAL battery (%ld mV)", context, vbat_mv);
+            error_signal(ERR_BATTERY_CRITICAL, false);
+            return false;
+    }
 
     // Safe fallback (should not happen)
     return true;
@@ -225,15 +222,19 @@ bool battery_service_decision(const char* context, int32_t vbat_mv) {
  */
 bool battery_service_init(const battery_service_config_t& cfg) {
 
-    batt_hw_cfg       = cfg.hw;      // copy for service-level storage (e.g. for periodic checks)
-    batt_policy_cfg   = cfg.policy;  // copy for service-level storage (e.g. for periodic checks)
-    batt_filter_cfg   = cfg.filter;  // copy for service-level storage (filter parameters could be made dynamic if needed)
-    batt_filter_state = {};          // reset filter state at init
+    batt_hw_cfg     = cfg.hw;      // copy for service-level storage (e.g. for periodic checks)
+    batt_policy_cfg = cfg.policy;  // copy for service-level storage (e.g. for periodic checks)
+    batt_filter_cfg =
+        cfg.filter;  // copy for service-level storage (filter parameters could be made dynamic if needed)
+    batt_filter_state = {};  // reset filter state at init
 
     batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
-    LOG_INFO("Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV", batt_hw_cfg.pin, batt_hw_cfg.adc_cfg.ratio,
-             batt_hw_cfg.adc_cfg.adc_ref_mv, batt_hw_cfg.adc_cfg.adc_max, batt_policy_cfg.plausible_min_mv, batt_policy_cfg.plausible_max_mv);
+    LOG_INFO(
+        "Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV",
+        batt_hw_cfg.pin, batt_hw_cfg.adc_cfg.ratio, batt_hw_cfg.adc_cfg.adc_ref_mv,
+        batt_hw_cfg.adc_cfg.adc_max, batt_policy_cfg.plausible_min_mv,
+        batt_policy_cfg.plausible_max_mv);
 
     return battery_init(batt_hw_cfg);
 }
@@ -257,8 +258,9 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
     const battery_type_t type = battery_type_from_string(req);
     batt_thresholds_active    = battery_thresholds_default(type);
 
-    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req, batt_thresholds_active.low_warn_mv,
-             batt_thresholds_active.low_crit_mv, batt_thresholds_active.high_crit_mv);
+    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req,
+             batt_thresholds_active.low_warn_mv, batt_thresholds_active.low_crit_mv,
+             batt_thresholds_active.high_crit_mv);
     return batt_thresholds_active;
 }
 
@@ -277,25 +279,25 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
 bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
     int32_t v = read_battery_voltage(batt_hw_cfg.pin, batt_hw_cfg.adc_cfg);
 
-    if (v < 0)
-        {
-            vbat_mv = v;
-            changed = false;
-            return false;
+    if (v < 0) {
+        vbat_mv = v;
+        changed = false;
+        return false;
     }
 
-    if (!check_battery_voltage_plausibility(v, batt_policy_cfg.plausible_min_mv, batt_policy_cfg.plausible_max_mv))
-        {
-            vbat_mv = -2;
-            changed = false;
-            return false;
+    if (!check_battery_voltage_plausibility(v, batt_policy_cfg.plausible_min_mv,
+                                            batt_policy_cfg.plausible_max_mv)) {
+        vbat_mv = -2;
+        changed = false;
+        return false;
     }
 
     changed = battery_filter_update(batt_filter_state, v, batt_filter_cfg);
 
     vbat_mv = batt_filter_state.ema_mv;
 
-    LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d", (long)v, (long)batt_filter_state.median_mv, (long)batt_filter_state.ema_mv, (int)changed);
+    LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d", (long)v,
+              (long)batt_filter_state.median_mv, (long)batt_filter_state.ema_mv, (int)changed);
 
     return true;
 }

@@ -48,8 +48,7 @@
  * The application defines the "context" structure (typically @c SensorFrame).
  * SensorSpec remains intentionally minimal so it can be reused in any project.
  */
-struct SensorSpec
-{
+struct SensorSpec {
     const char* name;               ///< Display name used in logs.
     bool* enabled;                  ///< Pointer to activation flag (may be nullptr).
     bool (*initFn)();               ///< Initialization callback. Returns true on success.

@@ -31,8 +31,7 @@
 /**
  * @brief Global runtime states of the Moonraker logger.
  */
-enum SystemState : uint8_t
-{
+enum SystemState : uint8_t {
     STATE_INIT,       ///< Runtime initialization and mode selection
     STATE_CONNECTED,  ///< Host / GUI communication mode
     STATE_DEPLOY,     ///< Autonomous data acquisition mode

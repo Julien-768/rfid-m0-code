@@ -22,8 +22,7 @@
  * @brief Supported communication commands for the JSON protocol.
  */
 
-enum class CommandType : uint8_t
-{
+enum class CommandType : uint8_t {
     NONE,           ///< No command / parsing failed.
     GET_INFO,       ///< Request firmware version and compilation date.
     GET_ID,         ///< Request logger identification data.
@@ -41,8 +40,7 @@ enum class CommandType : uint8_t
  * All fields are parsed from JSON and stored as simple types.
  * The date is kept as an ISO8601 string, conversion to RTC types is done elsewhere.
  */
-struct SetConfigPayload
-{
+struct SetConfigPayload {
     char dateCurrentIso[32];          ///< ISO8601 date/time string, e.g. "2025-08-04T10:30:00".
     uint16_t acquisition_interval_s;  ///< Logging period in seconds.
     bool enable_light1;               ///< Enable or disable light sensor 1.
@@ -57,8 +55,7 @@ struct SetConfigPayload
  * JsonProtocol does not know how the identity is stored in MCU flash.
  * The mapping to @c LoggerIdentityFlash is done in higher-level code.
  */
-struct SetIdentityPayload
-{
+struct SetIdentityPayload {
     char UID[32];           ///< MCU unique ID string (e.g. "ABCDEF1234567890").
     char manufacturer[16];  ///< Manufacturer name, e.g. "CNRS".
     char logger_type[16];   ///< Logger type, e.g. "Moonraker".
@@ -73,15 +70,13 @@ struct SetIdentityPayload
  * - For SET_CONFIG, @ref cfg contains the new configuration payload.
  * - For SET_IDENTITY, @ref identity contains the factory identity payload.
  */
-struct ParsedCommand
-{
+struct ParsedCommand {
     CommandType type{CommandType::NONE};  ///< Parsed command type.
     SetConfigPayload cfg{};               ///< Payload for SET_CONFIG.
     SetIdentityPayload identity{};        ///< Payload for SET_IDENTITY.
 };
 
-namespace JsonProtocol
-{
+namespace JsonProtocol {
 /**
  * @brief Parse an incoming JSON command string.
  *

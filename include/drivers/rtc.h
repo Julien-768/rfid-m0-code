@@ -26,8 +26,7 @@
  * - year: 00..99 (for 2000..2099)
  * - month/day/hour/minute/second: standard ranges
  */
-typedef struct
-{
+typedef struct {
     uint8_t year;    ///< 00..99 (BCD, years since 2000)
     uint8_t month;   ///< 01..12 (BCD)
     uint8_t day;     ///< 01..31 (BCD)
@@ -39,8 +38,7 @@ typedef struct
 /**
  * @brief Runtime RTC state used by the application.
  */
-struct RTC_STATE
-{
+struct RTC_STATE {
     bool time_checked = true;             ///< True if RTC time is considered invalid at boot
                                           ///< (waiting for GUI time).
     uint32_t time_in_connected_mode = 0;  ///< Deadline (millis) after which we fallback

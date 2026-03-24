@@ -93,27 +93,26 @@ Cfg_t Cfg_rb = {};
 bool loadConfiguration(Config& config_var) {
 
     File file = SD.open("/config.cfg");
-    if (!file)
-        {
-            LOG_WARN("config.cfg not found on SD card. Using defaults.");
-            return false;
+    if (!file) {
+        LOG_WARN("config.cfg not found on SD card. Using defaults.");
+        return false;
     }
 
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, file);
-    if (error)
-        {
-            LOG_ERROR("Failed to parse config.cfg: %s", error.c_str());
-            file.close();
-            return false;
+    if (error) {
+        LOG_ERROR("Failed to parse config.cfg: %s", error.c_str());
+        file.close();
+        return false;
     }
 
     // Update configuration fields with JSON values or keep existing defaults
-    config_var.use_buffer             = doc["use_buffer"] | config_var.use_buffer;
-    config_var.enable_light1          = doc["enable_light1"] | config_var.enable_light1;
-    config_var.enable_light2          = doc["enable_light2"] | config_var.enable_light2;
-    config_var.enable_vbat            = doc["enable_vbat"] | config_var.enable_vbat;
-    config_var.acquisition_interval_s = doc["acquisition_interval_s"] | config_var.acquisition_interval_s;
+    config_var.use_buffer    = doc["use_buffer"] | config_var.use_buffer;
+    config_var.enable_light1 = doc["enable_light1"] | config_var.enable_light1;
+    config_var.enable_light2 = doc["enable_light2"] | config_var.enable_light2;
+    config_var.enable_vbat   = doc["enable_vbat"] | config_var.enable_vbat;
+    config_var.acquisition_interval_s =
+        doc["acquisition_interval_s"] | config_var.acquisition_interval_s;
 
     file.close();
 
@@ -162,8 +161,9 @@ DateTime applyGuiConfigAndBuildDateTime(const SetConfigPayload& src) {
     LOG_INFO("Date/time set to: %s", dateCurrentStr);
 
     // --- Build DateTime for RTC update ---
-    DateTime dt(2000 + bcdToDec(Cfg_p.dateCurrent.year), bcdToDec(Cfg_p.dateCurrent.month), bcdToDec(Cfg_p.dateCurrent.day),
-                bcdToDec(Cfg_p.dateCurrent.hour), bcdToDec(Cfg_p.dateCurrent.minute), bcdToDec(Cfg_p.dateCurrent.second));
+    DateTime dt(2000 + bcdToDec(Cfg_p.dateCurrent.year), bcdToDec(Cfg_p.dateCurrent.month),
+                bcdToDec(Cfg_p.dateCurrent.day), bcdToDec(Cfg_p.dateCurrent.hour),
+                bcdToDec(Cfg_p.dateCurrent.minute), bcdToDec(Cfg_p.dateCurrent.second));
 
     // --- Update runtime configuration (Config) ---
     config.acquisition_interval_s = Cfg_p.acquisition_interval_s;

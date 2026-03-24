@@ -31,19 +31,18 @@
  * @return A constant string such as "ERROR" or "DEBUG".
  */
 static const char* logLevelTag(uint8_t level) {
-    switch (level)
-        {
-            case LOG_LEVEL_ERROR:
-                return "ERROR";
-            case LOG_LEVEL_WARN:
-                return "WARN";
-            case LOG_LEVEL_INFO:
-                return "INFO";
-            case LOG_LEVEL_DEBUG:
-                return "DEBUG";
-            default:
-                return "LOG";
-        }
+    switch (level) {
+        case LOG_LEVEL_ERROR:
+            return "ERROR";
+        case LOG_LEVEL_WARN:
+            return "WARN";
+        case LOG_LEVEL_INFO:
+            return "INFO";
+        case LOG_LEVEL_DEBUG:
+            return "DEBUG";
+        default:
+            return "LOG";
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,11 +78,10 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
     const char* tag = logLevelTag(level);
     int offset      = snprintf(buffer, sizeof(buffer), "[%s] ", tag);
 
-    if (offset < 0 || offset >= (int)sizeof(buffer))
-        {
-            // Highly unlikely, fallback to a safe prefix
-            strcpy(buffer, "[LOG] ");
-            offset = (int)strlen(buffer);
+    if (offset < 0 || offset >= (int)sizeof(buffer)) {
+        // Highly unlikely, fallback to a safe prefix
+        strcpy(buffer, "[LOG] ");
+        offset = (int)strlen(buffer);
     }
 
     // Format user message after prefix
@@ -97,9 +95,8 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
 
     // Optional debug mirroring on Serial1
 #if LOG_ENABLE_SERIAL1
-    if (level <= LOG_LEVEL && level >= LOG_SERIAL1_MIN_LEVEL)
-        {
-            Serial1.println(buffer);
+    if (level <= LOG_LEVEL && level >= LOG_SERIAL1_MIN_LEVEL) {
+        Serial1.println(buffer);
     }
 #endif
 }
@@ -129,37 +126,34 @@ void logSystemEvent(const char* message) {
 
     // If log file name is not yet available, store message temporarily
     // TODO filename
-    if (get_filename()[0] == '\0')
-        {
-            snprintf(pending, sizeof(pending), "%s", message);
-            hasPending = true;
-            return;
+    if (get_filename()[0] == '\0') {
+        snprintf(pending, sizeof(pending), "%s", message);
+        hasPending = true;
+        return;
     }
 
     File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log)
-        {
-            // Could not write; keep last message for later flush
-            snprintf(pending, sizeof(pending), "%s", message);
-            hasPending = true;
-            return;
+    if (!log) {
+        // Could not write; keep last message for later flush
+        snprintf(pending, sizeof(pending), "%s", message);
+        hasPending = true;
+        return;
     }
 
     // Build timestamp prefix
     DateTime now = rtc.now();
     char timestamp[32];
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(),
-             now.second());
+    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(),
+             now.day(), now.hour(), now.minute(), now.second());
 
     // If a message was pending, flush it first
-    if (hasPending)
-        {
-            char linePending[256];
-            snprintf(linePending, sizeof(linePending), "%s;SYSTEM;%s", timestamp, pending);
-            log.println(linePending);
+    if (hasPending) {
+        char linePending[256];
+        snprintf(linePending, sizeof(linePending), "%s;SYSTEM;%s", timestamp, pending);
+        log.println(linePending);
 
-            hasPending = false;
-            pending[0] = '\0';
+        hasPending = false;
+        pending[0] = '\0';
     }
 
     // Write current message

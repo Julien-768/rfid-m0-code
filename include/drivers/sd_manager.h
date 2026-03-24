@@ -57,8 +57,7 @@ struct SensorFrame;  // Forward declaration
  * When full, the buffer automatically overwrites the oldest data
  * and logs a warning (first occurrence only).
  */
-typedef struct
-{
+typedef struct {
     char buffer[BUFFER_SIZE];  ///< Raw byte storage.
     size_t head;               ///< Next write position.
     size_t tail;               ///< Next read/flush position.
@@ -136,4 +135,5 @@ u_int8_t daily_data_file(char* filename, const DateTime& now);
  * @param value  Floating-point measurement value.
  * @param unit   Unit string (e.g. `"count"`, `"lux"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer = false);
+u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit,
+                        bool use_buffer = false);

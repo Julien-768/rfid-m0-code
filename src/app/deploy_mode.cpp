@@ -74,13 +74,11 @@ void runDeployState(SystemState& state) {
     logSensorFrame(now, frame);
 
     // 7) Periodic battery monitoring (every 10 samples).
-    if (frame.valid_vbat)
-        {
-            // TODO battery
-            if (!battery_service_periodic_check(frame.vbat_mv, vbatCounter, 10))
-                {
-                    state = STATE_ENDOFLIFE;
-                    return;
-            }
+    if (frame.valid_vbat) {
+        // TODO battery
+        if (!battery_service_periodic_check(frame.vbat_mv, vbatCounter, 10)) {
+            state = STATE_ENDOFLIFE;
+            return;
+        }
     }
 }

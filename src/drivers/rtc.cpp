@@ -121,8 +121,7 @@ void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin = s_rtcInterruptPin) {
     // NOTE: depending on core, this direct EIC usage may be fragile.
     // Keep if it works for you; otherwise remove it.
     EIC->WAKEUP.reg |= (1 << interrupt_pin);
-    while (EIC->STATUS.bit.SYNCBUSY)
-        {}
+    while (EIC->STATUS.bit.SYNCBUSY) {}
 }
 
 // -----------------------------------------------------------------------------
@@ -146,22 +145,19 @@ bool rtc_initialization() {
     // Check if the I2C bus is ready (without initializing it)
     Wire.beginTransmission(0x00);  // Dummy address to test bus availability
     uint8_t i2c_status = Wire.endTransmission();
-    if (i2c_status != 0)
-        {
-            LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
-            error_signal(ERR_I2C_NOT_READY, false);
-            return false;
+    if (i2c_status != 0) {
+        LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
+        error_signal(ERR_I2C_NOT_READY, false);
+        return false;
     }
 
-    if (!rtc.begin())
-        {
-            error_signal(ERR_RTC_FAILURE, false);
-            return false;
+    if (!rtc.begin()) {
+        error_signal(ERR_RTC_FAILURE, false);
+        return false;
     }
 
-    if (rtc.lostPower())
-        {
-            LOG_WARN("RTC lost power, needs reconfiguration via SET_CONFIG");
+    if (rtc.lostPower()) {
+        LOG_WARN("RTC lost power, needs reconfiguration via SET_CONFIG");
     }
 
     rtc.writeSqwPinMode(DS3231_OFF);
@@ -261,13 +257,11 @@ void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s) {
  * @return true if RTC time is considered sane, false otherwise.
  */
 static bool rtc_sanity_ok(const DateTime& now, const DateTime& build) {
-    if (now.year() < 2020 || now.year() > 2099)
-        {
-            return false;
+    if (now.year() < 2020 || now.year() > 2099) {
+        return false;
     }
-    if (now < build)
-        {
-            return false;
+    if (now < build) {
+        return false;
     }
     return true;
 }
@@ -306,8 +300,9 @@ bool rtc_boot_recover() {
     LOG_DEBUG(
         "RTC boot check: rtc=%04d-%02d-%02d %02d:%02d:%02d, "
         "build=%04d-%02d-%02d %02d:%02d:%02d, lostPower=%s",
-        now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second(), build.year(), build.month(), build.day(), build.hour(),
-        build.minute(), build.second(), rtc.lostPower() ? "YES" : "NO");
+        now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second(), build.year(),
+        build.month(), build.day(), build.hour(), build.minute(), build.second(),
+        rtc.lostPower() ? "YES" : "NO");
 
     // check if rtc time is within 2020-2099 and not before build time
     const bool time_in_range        = rtc_sanity_ok(now, build);
@@ -319,21 +314,19 @@ bool rtc_boot_recover() {
 
     // If time is already verified at boot, we are done. If connected, we can wait for
     // GUI time if needed.
-    if (rtc_state_instance.time_checked)
-        {
-            LOG_INFO("RTC time accepted as valid at boot: %04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(),
-                     now.minute(), now.second());
-    } else
-        {
-            // Else we fall back to firmware build time
-            rtc.adjust(build);
-            rtc_state_instance.time_checked = true;
+    if (rtc_state_instance.time_checked) {
+        LOG_INFO("RTC time accepted as valid at boot: %04d-%02d-%02d %02d:%02d:%02d", now.year(),
+                 now.month(), now.day(), now.hour(), now.minute(), now.second());
+    } else {
+        // Else we fall back to firmware build time
+        rtc.adjust(build);
+        rtc_state_instance.time_checked = true;
 
-            LOG_WARN(
-                "RTC invalid at boot; using build time fallback: %04d-%02d-%02d "
-                "%02d:%02d:%02d",
-                build.year(), build.month(), build.day(), build.hour(), build.minute(), build.second());
-        }
+        LOG_WARN(
+            "RTC invalid at boot; using build time fallback: %04d-%02d-%02d "
+            "%02d:%02d:%02d",
+            build.year(), build.month(), build.day(), build.hour(), build.minute(), build.second());
+    }
 }
 
 /**

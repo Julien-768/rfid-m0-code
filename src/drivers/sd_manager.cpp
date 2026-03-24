@@ -61,12 +61,11 @@ CircularBuffer& get_sdBuffer() {
  */
 bool sd_initialization(uint8_t pin_cs) {
 
-    if (!SD.begin(pin_cs))
-        {
-            // 🔴 Blink code 2× — non-blocking
-            error_signal(ERR_SD_NOT_FOUND, false);
+    if (!SD.begin(pin_cs)) {
+        // 🔴 Blink code 2× — non-blocking
+        error_signal(ERR_SD_NOT_FOUND, false);
 
-            return false;  // ❌ Initialization failed
+        return false;  // ❌ Initialization failed
     }
     LOG_INFO("SD card initialized successfully");
     return true;  // ✅ OK
@@ -87,21 +86,18 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
     static bool overflowWarned = false;
     size_t len                 = strlen(line);
 
-    for (size_t i = 0; i < len; i++)
-        {
-            cb->buffer[cb->head] = line[i];
-            cb->head             = (cb->head + 1) % BUFFER_SIZE;
+    for (size_t i = 0; i < len; i++) {
+        cb->buffer[cb->head] = line[i];
+        cb->head             = (cb->head + 1) % BUFFER_SIZE;
 
-            if (cb->head == cb->tail)
-                {
-                    if (!overflowWarned)
-                        {
-                            LOG_WARN("Buffer overflow: advancing tail to avoid overwrite");
-                            overflowWarned = true;
-                    }
-                    cb->tail = (cb->tail + 1) % BUFFER_SIZE;
+        if (cb->head == cb->tail) {
+            if (!overflowWarned) {
+                LOG_WARN("Buffer overflow: advancing tail to avoid overwrite");
+                overflowWarned = true;
             }
+            cb->tail = (cb->tail + 1) % BUFFER_SIZE;
         }
+    }
 }
 
 /**
@@ -117,42 +113,38 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
  * @see error_signal(), logSystemEvent(), daily_data_file()
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb) {
-    size_t buffered = (cb->head >= cb->tail) ? (cb->head - cb->tail) : (BUFFER_SIZE - cb->tail + cb->head);
+    size_t buffered =
+        (cb->head >= cb->tail) ? (cb->head - cb->tail) : (BUFFER_SIZE - cb->tail + cb->head);
 
     if (buffered < 512) return 0;  // Nothing to flush yet
 
     File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (!log) {
+        error_signal(ERR_SD_WRITE_FAIL, false);
+        return -1;
     }
 
     bool writeSuccess = true;
 
-    if (cb->head > cb->tail)
-        {
-            size_t bytesWritten = log.write((uint8_t*)&cb->buffer[cb->tail], cb->head - cb->tail);
-            if (bytesWritten != (cb->head - cb->tail)) writeSuccess = false;
-    } else
-        {
-            size_t part1         = BUFFER_SIZE - cb->tail;
-            size_t bytesWritten1 = log.write((uint8_t*)&cb->buffer[cb->tail], part1);
-            size_t bytesWritten2 = log.write((uint8_t*)&cb->buffer[0], cb->head);
-            if (bytesWritten1 != part1 || bytesWritten2 != cb->head) writeSuccess = false;
-        }
+    if (cb->head > cb->tail) {
+        size_t bytesWritten = log.write((uint8_t*)&cb->buffer[cb->tail], cb->head - cb->tail);
+        if (bytesWritten != (cb->head - cb->tail)) writeSuccess = false;
+    } else {
+        size_t part1         = BUFFER_SIZE - cb->tail;
+        size_t bytesWritten1 = log.write((uint8_t*)&cb->buffer[cb->tail], part1);
+        size_t bytesWritten2 = log.write((uint8_t*)&cb->buffer[0], cb->head);
+        if (bytesWritten1 != part1 || bytesWritten2 != cb->head) writeSuccess = false;
+    }
 
     log.close();
 
-    if (!writeSuccess)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
-    } else
-        {
-            cb->tail = cb->head;  // Reset buffer after successful flush
-            LOG_INFO("Circular buffer flushed to SD successfully");
-        }
+    if (!writeSuccess) {
+        error_signal(ERR_SD_WRITE_FAIL, false);
+        return -1;
+    } else {
+        cb->tail = cb->head;  // Reset buffer after successful flush
+        LOG_INFO("Circular buffer flushed to SD successfully");
+    }
     return 0;
 }
 
@@ -172,10 +164,9 @@ u_int8_t daily_data_file(char* filename, const DateTime& now) {
     snprintf(filename, 16, "%04d%02d%02d.TXT", now.year(), now.month(), now.day());
 
     File logfile = SD.open(filename, FILE_WRITE);
-    if (!logfile)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (!logfile) {
+        error_signal(ERR_SD_WRITE_FAIL, false);
+        return -1;
     }
 
     logfile.close();
@@ -204,33 +195,31 @@ u_int8_t daily_data_file(char* filename, const DateTime& now) {
  * @param value  Measured value.
  * @param unit   Measurement unit (e.g. `"lux"`, `"count"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
+u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit,
+                        bool use_buffer) {
     char timestamp[25];
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(),
-             now.second());
+    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(),
+             now.day(), now.hour(), now.minute(), now.second());
 
     String line = String(timestamp) + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
 
-    if (use_buffer)
-        {
-            addToCircularBuffer(&sdBuffer, line.c_str());
-            return 0;
+    if (use_buffer) {
+        addToCircularBuffer(&sdBuffer, line.c_str());
+        return 0;
     }
 
     File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (!log) {
+        error_signal(ERR_SD_WRITE_FAIL, false);
+        return -1;
     }
 
     size_t written = log.println(line);
     log.close();
 
-    if (written == 0)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (written == 0) {
+        error_signal(ERR_SD_WRITE_FAIL, false);
+        return -1;
     }
     return 0;
 }

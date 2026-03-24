@@ -21,8 +21,7 @@
 #include "core/error_handler.h"
 #include "core/log.h"
 
-namespace
-{
+namespace {
 /// LED blink ON duration (ms).
 constexpr uint16_t kBlinkOnMs = 200;
 
@@ -64,22 +63,19 @@ void error_signal(ErrorCode code, bool halt_system, uint8_t blink_pin) {
     const uint8_t n = blink_count(code);
 
     // Blink pattern: one blink per error code value.
-    for (uint8_t i = 0; i < n; i++)
-        {
-            digitalWrite(blink_pin, HIGH);  // LED ON
-            delay(kBlinkOnMs);
-            digitalWrite(blink_pin, LOW);  // LED OFF
-            delay(kBlinkOffMs);
-        }
+    for (uint8_t i = 0; i < n; i++) {
+        digitalWrite(blink_pin, HIGH);  // LED ON
+        delay(kBlinkOnMs);
+        digitalWrite(blink_pin, LOW);  // LED OFF
+        delay(kBlinkOffMs);
+    }
 
     delay(kSequenceGapMs);
 
-    if (halt_system)
-        {
-            LOG_ERROR("Fatal error: halting system.");
-            while (true)
-                {
-                    delay(1000);
-                }
+    if (halt_system) {
+        LOG_ERROR("Fatal error: halting system.");
+        while (true) {
+            delay(1000);
+        }
     }
 }

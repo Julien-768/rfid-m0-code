@@ -22,13 +22,11 @@ void rfid_example_loop() {
     // rfid_driver_tick(&rfid2);
 
     tag_info_t t;
-    if (rfid_driver_get_tag(&rfid1, &t))
-        {
-            if (rfid_should_record_tag(&prev1, &t, 2000))
-                {
-                    Serial.print("RFID1: ");
-                    Serial.println(t.tag);
-                    prev1 = t;
-            }
+    if (rfid_driver_get_tag(&rfid1, &t)) {
+        if (rfid_should_record_tag(&prev1, &t, 2000)) {
+            Serial.print("RFID1: ");
+            Serial.println(t.tag);
+            prev1 = t;
+        }
     }
 }

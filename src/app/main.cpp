@@ -65,8 +65,7 @@
 
 SystemState currentState = STATE_INIT;
 
-enum class BlinkMode
-{
+enum class BlinkMode {
     Slow   = 500,
     Medium = 250,
     Fast   = 100
@@ -74,13 +73,12 @@ enum class BlinkMode
 };
 
 void Led_Blink(uint32_t Pin, BlinkMode speed, uint8_t count) {
-    for (uint8_t i = 0; i < count; i++)
-        {
-            digitalWrite(Pin, HIGH);
-            delay((uint16_t)speed);
-            digitalWrite(Pin, LOW);
-            delay((uint16_t)speed);
-        }
+    for (uint8_t i = 0; i < count; i++) {
+        digitalWrite(Pin, HIGH);
+        delay((uint16_t)speed);
+        digitalWrite(Pin, LOW);
+        delay((uint16_t)speed);
+    }
 }
 
 /**
@@ -134,15 +132,13 @@ SystemState runBootSequence() {
     LOG_INFO(string_widget.c_str());
 
     /* Initialize SD card */
-    if (!sd_initialization(PIN_SD_CS))
-        {
-            return STATE_ENDOFLIFE;
+    if (!sd_initialization(PIN_SD_CS)) {
+        return STATE_ENDOFLIFE;
     }
 
     /* Initialize RTC */
-    if (!rtc_initialization())
-        {
-            return STATE_ENDOFLIFE;
+    if (!rtc_initialization()) {
+        return STATE_ENDOFLIFE;
     }
 
     /* Check any fault on RTC*/
@@ -167,13 +163,13 @@ SystemState runBootSequence() {
     loggerIdentity_init();
     const auto& idFlash = loggerIdentity_get();
 
-    LOG_INFO("Factory identity: %s / %s / %s / %s", idFlash.manufacturer, idFlash.logger_type, idFlash.date_fab, idFlash.serial_number);
+    LOG_INFO("Factory identity: %s / %s / %s / %s", idFlash.manufacturer, idFlash.logger_type,
+             idFlash.date_fab, idFlash.serial_number);
 
     // Read all hardware UIDs (in RAM only) ---
-    if (assembly.uid_mainboard == "$uid_mainboard$")
-        {
-            assembly.uid_mainboard = mcu_uid_read();
-            assembly_save(assembly);
+    if (assembly.uid_mainboard == "$uid_mainboard$") {
+        assembly.uid_mainboard = mcu_uid_read();
+        assembly_save(assembly);
     }
     // if (assembly.uid_light_sensor1 == "$uid_light_sensor1$")
     //     {
@@ -246,80 +242,73 @@ void setup() {
 
 void loop() {
 
-    switch (currentState)
-        {
-            case STATE_INIT:
-                if (DET_EXT_Connected())
-                    {
-                        LOG_INFO("External detector detected: entering CONNECTED mode");
+    switch (currentState) {
+        case STATE_INIT:
+            if (DET_EXT_Connected()) {
+                LOG_INFO("External detector detected: entering CONNECTED mode");
 
-                        // If time is unverified, CONNECTED mode may wait for GUI-provided time.
-                        currentState = STATE_CONNECTED;
-                } else
-                    {
-                        if (loadConfiguration(config))
-                            {
-                                LOG_INFO("Configuration loaded from SD");
-                        } else
-                            {
-                                LOG_WARN("Using default compiled configuration");
-                            }
-
-                        rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-
-                        // Initialize sensors once before entering DEPLOY
-                        Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
-
-                        LOG_INFO("Entering DEPLOY mode");
-                        currentState = STATE_DEPLOY;
-                    }
-                break;
-
-                case STATE_CONNECTED: {
-                    if (rtc_state.time_unverified && millis() > rtc_state.wait_deadline_ms)
-                        {
-                            const DateTime build(F(__DATE__), F(__TIME__));
-                            rtc.adjust(build);
-                            rtc_state.time_unverified = false;
-                            LOG_WARN("GUI time timeout — using build time");
-                            // TODO sd_manager
-                            // check_and_create_new_daily_file(rtc.now());
-                    }
-
-                    runConnectedMode(currentState);
-                    break;
+                // If time is unverified, CONNECTED mode may wait for GUI-provided time.
+                currentState = STATE_CONNECTED;
+            } else {
+                if (loadConfiguration(config)) {
+                    LOG_INFO("Configuration loaded from SD");
+                } else {
+                    LOG_WARN("Using default compiled configuration");
                 }
 
-            case STATE_DEPLOY:
-                runDeployState(currentState);
-                break;
+                rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
 
-            case STATE_STOCK:
-                LOG_DEBUG("Stock mode active. Sleeping...");
-                digitalWrite(LED_BUILTIN, LOW);
-                LowPower.sleep();
-                break;
+                // Initialize sensors once before entering DEPLOY
+                Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
-            case STATE_ENDOFLIFE:
-                // @todo Factorize shutdown steps into a dedicated shutdown function.
-                LOG_DEBUG("Entering END OF LIFE mode: shutting down sensors and SD card.");
+                LOG_INFO("Entering DEPLOY mode");
+                currentState = STATE_DEPLOY;
+            }
+            break;
 
-                SD.end();
-                LOG_INFO("All peripherals powered off");
-                Led_Blink(LED_BUILTIN, BlinkMode::Slow, 1);
-                Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
-                LOG_DEBUG("System halted. LED off. Entering infinite sleep.");
+        case STATE_CONNECTED: {
+            if (rtc_state.time_unverified && millis() > rtc_state.wait_deadline_ms) {
+                const DateTime build(F(__DATE__), F(__TIME__));
+                rtc.adjust(build);
+                rtc_state.time_unverified = false;
+                LOG_WARN("GUI time timeout — using build time");
+                // TODO sd_manager
+                // check_and_create_new_daily_file(rtc.now());
+            }
 
-                while (true)
-                    {
-                        LowPower.deepSleep();
-                    }
-                break;
-
-            default:
-                currentState = STATE_WAIT;
-                break;
+            runConnectedMode(currentState);
+            break;
         }
+
+        case STATE_DEPLOY:
+            runDeployState(currentState);
+            break;
+
+        case STATE_STOCK:
+            LOG_DEBUG("Stock mode active. Sleeping...");
+            digitalWrite(LED_BUILTIN, LOW);
+            LowPower.sleep();
+            break;
+
+        case STATE_ENDOFLIFE:
+            // @todo Factorize shutdown steps into a dedicated shutdown function.
+            LOG_DEBUG("Entering END OF LIFE mode: shutting down sensors and SD card.");
+
+            SD.end();
+            LOG_INFO("All peripherals powered off");
+            Led_Blink(LED_BUILTIN, BlinkMode::Slow, 1);
+            Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
+            LOG_DEBUG("System halted. LED off. Entering infinite sleep.");
+
+            while (true) {
+                LowPower.deepSleep();
+            }
+            break;
+
+        default:
+            currentState = STATE_WAIT;
+            break;
+    }
 }
 
 /** @} */  // end of MainApplication group

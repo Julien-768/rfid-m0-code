@@ -8,8 +8,7 @@
 /**
  * @brief Unified frame holding all sensor readings and validity flags.
  */
-struct SensorFrame
-{
+struct SensorFrame {
     // AS7341Reading as7341;
     // bool valid_as7341 = false;
 

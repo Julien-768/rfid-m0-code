@@ -73,10 +73,9 @@ Assembly hw_assembly;
  */
 void create_assembly_file() {
     File file = SD.open(kAssemblyFilename, FILE_WRITE);
-    if (!file)
-        {
-            LOG_ERROR("Failed to create hw_assembly.cfg");
-            return;
+    if (!file) {
+        LOG_ERROR("Failed to create hw_assembly.cfg");
+        return;
     }
 
     StaticJsonDocument<512> doc;
@@ -89,13 +88,11 @@ void create_assembly_file() {
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
 
-    if (serializeJson(doc, file) == 0)
-        {
-            LOG_ERROR("Failed to write JSON to hw_assembly.cfg");
-    } else
-        {
-            LOG_INFO("hw_assembly.cfg created successfully");
-        }
+    if (serializeJson(doc, file) == 0) {
+        LOG_ERROR("Failed to write JSON to hw_assembly.cfg");
+    } else {
+        LOG_INFO("hw_assembly.cfg created successfully");
+    }
 
     file.close();
 }
@@ -131,31 +128,27 @@ void create_assembly_file() {
  */
 void assembly_load(Assembly& hw_assembly) {
     File file_c = SD.open(kAssemblyFilename);
-    if (file_c)
-        {
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, file_c);
-            if (error)
-                {
-                    LOG_ERROR("Failed to read hw_assembly.cfg — keeping defaults");
-            } else
-                {
-                    hw_assembly.uid_mainboard     = doc["uid_mainboard"].as<String>();
-                    hw_assembly.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
-                    hw_assembly.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
-                    hw_assembly.uid_software      = doc["uid_software"].as<String>();
-                    hw_assembly.uid_experiment    = doc["uid_experiment"].as<String>();
-                    hw_assembly.sn_logger         = doc["sn_logger"] | String("");
-                    hw_assembly.battery_type      = doc["battery_type"] | String("");
-                    hw_assembly.rtc_type          = doc["rtc_type"] | String("");
-                    LOG_INFO("hw_assembly.cfg loaded successfully");
-                }
-            file_c.close();
-    } else
-        {
-            LOG_WARN("hw_assembly.cfg not found — creating default file");
-            create_assembly_file();
+    if (file_c) {
+        StaticJsonDocument<512> doc;
+        DeserializationError error = deserializeJson(doc, file_c);
+        if (error) {
+            LOG_ERROR("Failed to read hw_assembly.cfg — keeping defaults");
+        } else {
+            hw_assembly.uid_mainboard     = doc["uid_mainboard"].as<String>();
+            hw_assembly.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
+            hw_assembly.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
+            hw_assembly.uid_software      = doc["uid_software"].as<String>();
+            hw_assembly.uid_experiment    = doc["uid_experiment"].as<String>();
+            hw_assembly.sn_logger         = doc["sn_logger"] | String("");
+            hw_assembly.battery_type      = doc["battery_type"] | String("");
+            hw_assembly.rtc_type          = doc["rtc_type"] | String("");
+            LOG_INFO("hw_assembly.cfg loaded successfully");
         }
+        file_c.close();
+    } else {
+        LOG_WARN("hw_assembly.cfg not found — creating default file");
+        create_assembly_file();
+    }
 }
 
 /**
@@ -182,16 +175,14 @@ bool assembly_save(const Assembly& hw_assembly) {
     const char* kAssemblyFilename = "/hw_assembly.cfg";  // local shadowing of global
 
     // Delete previous version if it exists
-    if (SD.exists(kAssemblyFilename))
-        {
-            SD.remove(kAssemblyFilename);
+    if (SD.exists(kAssemblyFilename)) {
+        SD.remove(kAssemblyFilename);
     }
 
     File file = SD.open(kAssemblyFilename, FILE_WRITE);
-    if (!file)
-        {
-            LOG_ERROR("Failed to open hw_assembly.cfg for write");
-            return false;
+    if (!file) {
+        LOG_ERROR("Failed to open hw_assembly.cfg for write");
+        return false;
     }
 
     StaticJsonDocument<512> doc;
@@ -204,11 +195,10 @@ bool assembly_save(const Assembly& hw_assembly) {
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
 
-    if (serializeJsonPretty(doc, file) == 0)
-        {
-            LOG_ERROR("Failed to write JSON to hw_assembly.cfg");
-            file.close();
-            return false;
+    if (serializeJsonPretty(doc, file) == 0) {
+        LOG_ERROR("Failed to write JSON to hw_assembly.cfg");
+        file.close();
+        return false;
     }
 
     file.close();
@@ -241,30 +231,25 @@ bool assembly_sync_sn() {
     bool modified                       = false;
 
     // --- Serial number sync ---
-    if (strcmp(id_flash.serial_number, "UNKNOWN") != 0)
-        {
-            if (hw_assembly.sn_logger != id_flash.serial_number)
-                {
-                    LOG_INFO("Updating SN from flash: %s -> %s", hw_assembly.sn_logger.c_str(), id_flash.serial_number);
-                    hw_assembly.sn_logger = id_flash.serial_number;
-                    modified              = true;
-            }
-    } else
-        {
-            LOG_WARN("Factory SN is UNKNOWN — hw_assembly SN unchanged");
+    if (strcmp(id_flash.serial_number, "UNKNOWN") != 0) {
+        if (hw_assembly.sn_logger != id_flash.serial_number) {
+            LOG_INFO("Updating SN from flash: %s -> %s", hw_assembly.sn_logger.c_str(),
+                     id_flash.serial_number);
+            hw_assembly.sn_logger = id_flash.serial_number;
+            modified              = true;
         }
+    } else {
+        LOG_WARN("Factory SN is UNKNOWN — hw_assembly SN unchanged");
+    }
 
     // --- Save if anything changed ---
-    if (modified)
-        {
-            if (assembly_save(hw_assembly))
-                {
-                    LOG_INFO("hw_assembly.cfg synced with factory identity.");
-                    return true;
-            } else
-                {
-                    LOG_ERROR("Failed to save hw_assembly.cfg during identity sync.");
-                }
+    if (modified) {
+        if (assembly_save(hw_assembly)) {
+            LOG_INFO("hw_assembly.cfg synced with factory identity.");
+            return true;
+        } else {
+            LOG_ERROR("Failed to save hw_assembly.cfg during identity sync.");
+        }
     }
 
     LOG_DEBUG("Assembly already up-to-date with factory identity.");

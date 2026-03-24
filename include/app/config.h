@@ -45,8 +45,7 @@
  * }
  * @endcode
  */
-struct Config
-{
+struct Config {
     bool use_buffer                  = false;  ///< Use circular-buffered SD logging
     bool enable_light1               = true;   ///< Enable AS7341 spectral sensor
     bool enable_light2               = false;  ///< Enable TSL2591 ambient light sensor
@@ -79,8 +78,7 @@ extern Config config;
  *
  * @ingroup ConfigLayer
  */
-typedef struct
-{
+typedef struct {
     LoggerTime_t dateCurrent;         ///< Host-provided current date/time
     uint16_t acquisition_interval_s;  ///< Acquisition interval in seconds
     bool enable_light1;               ///< Enable AS7341 sensor

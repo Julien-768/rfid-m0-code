@@ -45,8 +45,7 @@
  *
  * This represents intrinsic battery families, used to select default thresholds.
  */
-enum class battery_type_t : uint8_t
-{
+enum class battery_type_t : uint8_t {
     battery_lipo_1s    = 0,   ///< LiPo single-cell.
     battery_liion_1s   = 1,   ///< Li-ion single-cell.
     battery_lifepo4_1s = 2,   ///< LiFePO4 single-cell.
@@ -64,8 +63,7 @@ enum class battery_type_t : uint8_t
  *
  * @note `high_crit_mv` is intentionally explicit (not computed) because it depends on chemistry.
  */
-typedef struct
-{
+typedef struct {
     uint16_t low_warn_mv  = 0;  ///< Warning threshold for low voltage (mV).
     uint16_t low_crit_mv  = 0;  ///< Critical threshold for low voltage (mV).
     uint16_t high_crit_mv = 0;  ///< Critical threshold for high voltage (mV).
@@ -74,8 +72,7 @@ typedef struct
 /**
  * @brief ADC configuration for battery measurement.
  */
-typedef struct
-{
+typedef struct {
     float ratio         = 2.0f;  ///< Scaling factor after ADC conversion (default: 2.0f).
     uint16_t adc_ref_mv = 3300;  ///< ADC reference in mV (default: 3300).;
     uint16_t adc_max    = 4095;  ///< Maximum ADC code (default: 4095 for 12-bit on feather m0).
@@ -85,8 +82,7 @@ typedef struct
  * @brief Full measurement configuration.
  */
 
-struct battery_hw_config_t
-{
+struct battery_hw_config_t {
     uint32_t pin = 0;              ///< ADC pin to read.
     battery_adc_config_t adc_cfg;  ///< ADC conversion parameters.
 };
@@ -97,8 +93,7 @@ struct battery_hw_config_t
  * The driver only classifies the battery level. It does not log events nor take automatic actions.
  * Use this enum to determine the state of the battery based on voltage or capacity measurements.
  */
-typedef enum : uint8_t
-{
+typedef enum : uint8_t {
     battery_invalid = 0,    ///< Invalid measurement (e.g. negative voltage).
     battery_normal,         ///< Battery voltage is normal.
     battery_critical_high,  ///< Battery voltage is too high.
