@@ -2,25 +2,22 @@
 Checks: >
   -*,
 
-  # ===== Static analysis / real bug detection ===== clang-analyzer-*, bugprone-*, performance-*,
+  # Bugs réels / analyse statique clang-analyzer-*, bugprone-*, performance-*,
 
-  # ===== Includes cleanup ===== misc-include-cleaner,
+  # Hygiène légère misc-include-cleaner, misc-unused-parameters, misc-unused-using-decls, misc-unused-alias-decls,
 
-  # ===== A few low-noise hygiene checks ===== misc-unused-parameters, misc-unused-using-decls, misc-unused-alias-decls,
+  # Style de nommage simple et cohérent readability-identifier-naming
 
-  # ===== Naming convention ===== readability-identifier-naming
-
-# Only report diagnostics for your own code
+# Ne remonte que le code du projet
 HeaderFilterRegex: '^(src|include)/'
-
-# Uncomment when available in your clang-tidy version
-# AnalyzeTemporaryDtors: true
 
 WarningsAsErrors: >
   clang-analyzer-*, bugprone-*, performance-*
 
 CheckOptions:
-# ===== Naming convention =====
+# ===== Naming "python-like" =====
+# fonctions, variables, paramètres, méthodes, membres, namespaces
+# en snake_case
 - key: readability-identifier-naming.VariableCase
   value: lower_case
 - key: readability-identifier-naming.ParameterCase
@@ -34,6 +31,7 @@ CheckOptions:
 - key: readability-identifier-naming.NamespaceCase
   value: lower_case
 
+# types en CamelCase
 - key: readability-identifier-naming.ClassCase
   value: CamelCase
 - key: readability-identifier-naming.StructCase
@@ -47,17 +45,22 @@ CheckOptions:
 - key: readability-identifier-naming.UsingAliasCase
   value: CamelCase
 
+# constantes symboliques en UPPER_CASE
 - key: readability-identifier-naming.EnumConstantCase
   value: UPPER_CASE
 - key: readability-identifier-naming.MacroDefinitionCase
   value: UPPER_CASE
 
-# ===== Bug-prone configuration =====
+# ===== Réduction du bruit =====
+# évite de casser les pieds pour les paramètres inutilisés si nommés _foo
+- key: misc-unused-parameters.StrictMode
+  value: 'false'
+
+# ===== Bug-prone =====
 - key: bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion
   value: 'true'
 - key: bugprone-narrowing-conversions.WarnOnFloatingPointNarrowingConversion
   value: 'true'
-
-# ===== Include-cleaner noise control (Arduino-friendly) =====
-# - key: misc-include-cleaner.IgnoreHeaders
-#   value: '.*Arduino\.h'
+  # Arduino-friendly
+- key: misc-include-cleaner.IgnoreHeaders
+  value: '.*Arduino\.h'
