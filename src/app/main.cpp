@@ -62,6 +62,7 @@
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery.h"
+#include "battery_service.h"
 
 //TODO record in SD log messages if needed
 
@@ -153,14 +154,42 @@ SystemState runBootSequence() {
     DateTime now = rtc.now();
     check_and_create_new_daily_file(now);
 
-    // TODO ?
-    /* Battery diagnostic */
-    // uint32_t vbat_mv = read_battery_voltage(PIN_VBAT);
-    // if (!battery_boot_diagnostic(vbat_mv))
-    //     {
-    //         currentState = STATE_ENDOFLIFE;
-    //         return;
-    // }
+    /*
+     Battery initialization
+     */
+    battery_service_config_t cfg{};
+
+    // 1) Remplir cfg.hw
+    cfg.hw.pin                = ...;
+    cfg.hw.adc_cfg.ratio      = ...;
+    cfg.hw.adc_cfg.adc_ref_mv = ...;
+    cfg.hw.adc_cfg.adc_max    = ...;
+
+    // 2) Remplir cfg.policy
+    cfg.policy.plausible_min_mv = ...;
+    cfg.policy.plausible_max_mv = ...;
+
+    // 3) Remplir cfg.filter
+    cfg.filter.ema_alpha          = ...;
+    cfg.filter.delta_threshold_mv = ...;
+
+    // 4) Init service
+    if (!battery_service_init(cfg)) {
+        // gestion erreur init hardware batterie
+    }
+
+    // 5) Appliquer le type batterie réel
+    battery_service_apply_type_string(app_config.battery_type);
+
+    // 6) Vérification initiale boot
+    int32_t vbat_mv = 0;
+    bool changed    = false;
+    if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+        if (!battery_service_decision("Boot", vbat_mv)) {
+            // Handle decision failure
+            return STATE_ENDOFLIFE;
+        }
+    }
 
     // --- Load existing assembly.cfg ---
     assembly_load(hw_assembly);
