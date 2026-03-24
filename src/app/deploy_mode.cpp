@@ -29,6 +29,7 @@
 #include "log.h"
 #include <ArduinoLowPower.h>
 #include "utils.h"
+#include "assembly.h"
 
 /// Counter used to decimate battery checks during deployment.
 static uint8_t vbatCounter = 0;

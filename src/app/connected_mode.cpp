@@ -39,7 +39,7 @@
  *
  * @see JsonProtocol
  * @see logger_identity.h
- * @see hw_assembly.h
+ * @see assembly.h
  * @see rtc.h
  * @{
  */
@@ -52,7 +52,7 @@
 #include "sensors.h"
 #include "sensors_internal.h"
 #include "rtc.h"
-#include "hw_assembly.h"
+#include "assembly.h"
 #include "logger_identity.h"
 #include "sd_manager.h"
 #include "utils.h"
