@@ -90,7 +90,7 @@ void Led_Blink(uint32_t Pin, BlinkMode speed, uint8_t count) {
  * hardware checks and prepares the logging environment.
  *
  * ### Responsibilities
- * - Initialize SD card storage via @ref initSD().
+ * - Initialize SD card storage via @ref sd_initialization().
  * - Initialize RTC (DS3231), validate time, and perform recovery via
  *   @ref rtc_bootRecover().
  * - Initialize RTC (DS3231), validate time, and perform recovery via
@@ -115,14 +115,14 @@ void Led_Blink(uint32_t Pin, BlinkMode speed, uint8_t count) {
  * @warning If RTC time remains unverified and no GUI time is provided, the system
  *          may fall back to firmware build time (see @ref STATE_CONNECTED handling).
  *
- * @see initSD()
+ * @see sd_initialization()
  * @see initRTC()
  * @see rtc_bootRecover()
  * @see check_and_create_new_daily_file()
  * @see batteryBootDiagnostic()
  * @see loggerIdentity_init()
  */
-void runBootSequence() {
+SystemState runBootSequence() {
     LOG_INFO("------------------------------------------------------------");
     LOG_INFO("Great tit Logger — Boot sequence started");
     LOG_INFO("Firmware: vx.x.x");
@@ -130,14 +130,13 @@ void runBootSequence() {
     LOG_INFO("------------------------------------------------------------");
 
     /* Initialize SD card */
-    if (!initSD(PIN_SD_CS))
+    if (!sd_initialization(PIN_SD_CS))
         {
-            currentState = STATE_ENDOFLIFE;
-            return;
+            return STATE_ENDOFLIFE;
     }
 
     /* Initialize RTC */
-    if (!init_rtc())
+    if (!rtc_initialization())
         {
             currentState = STATE_ENDOFLIFE;
             return;

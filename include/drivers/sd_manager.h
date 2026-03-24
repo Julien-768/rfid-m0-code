@@ -18,7 +18,7 @@
  *
  * Example (DEPLOY mode):
  * @code
- * if (!initSD()) { return; }
+ * if (!sd_initialization()) { return; }
  *
  * DateTime now = rtc.now();
  * daily_data_file(get_filename(), now);
@@ -88,7 +88,7 @@ extern const char* get_filename();
  *
  * @return `true` if the SD card was successfully initialized.
  */
-bool initSD(uint8_t pin_cs);
+bool sd_initialization(uint8_t pin_cs);
 
 /**
  * @brief Append a null-terminated text line to the circular buffer.

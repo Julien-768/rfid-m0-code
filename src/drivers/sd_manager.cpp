@@ -59,7 +59,7 @@ CircularBuffer& get_sdBuffer() {
  * @note This function must be called once during @ref STATE_BOOT.
  * @see error_signal(), logSystemEvent(), ERR_SD_NOT_FOUND
  */
-bool initSD(uint8_t pin_cs) {
+bool sd_initialization(uint8_t pin_cs) {
 
     if (!SD.begin(pin_cs))
         {
