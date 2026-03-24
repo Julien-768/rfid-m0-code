@@ -255,17 +255,18 @@ void loop() {
                 currentState = STATE_CONNECTED;
             } else {
 
-                LOG_INFO("Entering DEPLOY mode");
                 currentState = STATE_DEPLOY;
             }
             break;
 
         case STATE_CONNECTED: {
+            LOG_INFO("Connected mode active. Waiting for GUI interaction...");
             runConnectedMode(currentState);
             break;
         }
 
         case STATE_DEPLOY:
+            LOG_INFO("Entering DEPLOY mode");
             if (loadConfiguration(config)) {
                 LOG_INFO("Configuration loaded from SD");
             } else {
