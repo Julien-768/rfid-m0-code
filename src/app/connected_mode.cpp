@@ -148,17 +148,18 @@ void runConnectedMode(SystemState& state) {
             LOG_INFO("Configuration received from GUI");
 
             DateTime dt = applyGuiConfigAndBuildDateTime(parsed.cfg);
+            if (hw_assembly.rtc_type == "ds3231") {
+                rtc_apply_external_time(dt);
+                LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
 
-            rtc_apply_external_time(dt);
+                rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+                LOG_INFO("RTC alarm scheduled from GUI config");
+            }
             // If no daily file exists yet, create it now
             if (strlen(get_filename()) == 0) {
                 check_and_create_new_daily_file(rtc.now());
                 LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
             }
-            LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
-
-            rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-            LOG_INFO("RTC alarm scheduled from GUI config");
 
             Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
             LOG_INFO("Sensors initialized from GUI configuration");

@@ -138,13 +138,17 @@ SystemState runBootSequence() {
         return STATE_ENDOFLIFE;
     }
 
-    /* Initialize RTC */
-    if (!rtc_initialization()) {
-        return STATE_ENDOFLIFE;
+    if (hw_assembly.rtc_type == "ds3231") {
+        LOG_INFO("RTC type: DS3231");
+        /* Initialize RTC */
+        if (!rtc_initialization()) {
+            return STATE_ENDOFLIFE;
+        }
+        /* Check any fault on RTC*/
+        rtc_boot_recover();
+    } else {
+        LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
     }
-
-    /* Check any fault on RTC*/
-    rtc_boot_recover();
 
     DateTime now = rtc.now();
     check_and_create_new_daily_file(now);
@@ -249,34 +253,35 @@ void loop() {
     switch (currentState) {
         case STATE_INIT:
             if (DET_EXT_Connected()) {
-                LOG_INFO("External detector detected: entering CONNECTED mode");
-
-                // If time is unverified, CONNECTED mode may wait for GUI-provided time.
+                LOG_INFO("Entering CONNECTED mode");
                 currentState = STATE_CONNECTED;
             } else {
+                LOG_INFO("Initializing sensors for DEPLOY mode");
+                if (loadConfiguration(config)) {
+                    LOG_INFO("Configuration loaded from SD");
+                } else {
+                    LOG_WARN("Using default compiled configuration");
+                }
+                if (hw_assembly.rtc_type == "ds3231") {
+                    LOG_INFO("Scheduling first wake-up via RTC alarm");
+                    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+                }
 
+                // Initialize sensors once before entering DEPLOY
+                Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
+
+                LOG_DEBUG("Entering DEPLOY mode");
                 currentState = STATE_DEPLOY;
             }
             break;
 
         case STATE_CONNECTED: {
-            LOG_INFO("Connected mode active. Waiting for GUI interaction...");
             runConnectedMode(currentState);
             break;
         }
 
         case STATE_DEPLOY:
-            LOG_INFO("Entering DEPLOY mode");
-            if (loadConfiguration(config)) {
-                LOG_INFO("Configuration loaded from SD");
-            } else {
-                LOG_WARN("Using default compiled configuration");
-            }
 
-            rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-
-            // Initialize sensors once before entering DEPLOY
-            Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
             runDeployState(currentState);
             break;
 

@@ -53,16 +53,17 @@ static uint8_t vbatCounter = 0;
  */
 void runDeployState(SystemState& state) {
 
-    // 1) Enter low-power sleep; RTC alarm will wake the MCU.
-    LowPower.sleep();
+    if (hw_assembly.rtc_type == "ds3231") {
+        // 1) Enter low-power sleep; RTC alarm will wake the MCU.
+        LowPower.sleep();
 
-    // 2) If wake-up was not caused by the RTC alarm, exit early.
-    if (!alarm_triggered()) return;
+        // 2) If wake-up was not caused by the RTC alarm, exit early.
+        if (!alarm_triggered()) return;
 
-    // 3) Clear alarm and program next wake-up.
-    clear_alarm_flag();
-    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-
+        // 3) Clear alarm and program next wake-up.
+        clear_alarm_flag();
+        rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+    }
     // 4) Ensure today’s data file exists.
     DateTime now = rtc.now();
     check_and_create_new_daily_file(now);
