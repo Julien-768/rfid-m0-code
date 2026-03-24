@@ -123,11 +123,15 @@ void Led_Blink(uint32_t Pin, BlinkMode speed, uint8_t count) {
  * @see loggerIdentity_init()
  */
 SystemState runBootSequence() {
-    LOG_INFO("------------------------------------------------------------");
-    LOG_INFO("Great tit Logger — Boot sequence started");
-    LOG_INFO("Firmware: vx.x.x");
-    LOG_INFO("Board: Feather M0 Adalogger");
-    LOG_INFO("------------------------------------------------------------");
+    String buildDateTime = "Build" + String(F(__DATE__)) + " " + String(F(__TIME__));
+    String board         = "Board:" + String(__PIO_BOARD_NAME__);
+    String string_widget = "------------------------------------------------------------";
+
+    LOG_INFO(string_widget.c_str());
+    LOG_INFO("Boot sequence started");
+    LOG_INFO(buildDateTime.c_str());
+    LOG_INFO(board.c_str());
+    LOG_INFO(string_widget.c_str());
 
     /* Initialize SD card */
     if (!sd_initialization(PIN_SD_CS))
@@ -138,27 +142,14 @@ SystemState runBootSequence() {
     /* Initialize RTC */
     if (!rtc_initialization())
         {
-            currentState = STATE_ENDOFLIFE;
-            return;
+            return STATE_ENDOFLIFE;
     }
 
-    /* Check if external detector is connected */
-    const bool connectedNow = DET_EXT_Connected();
-
     /* Check any fault on RTC*/
-    rtc_boot_recover(connectedNow);
+    rtc_boot_recover();
 
-    /* If everything is ok */
-    if (!connectedNow || !rtc_state.time_unverified)
-        {
-            DateTime now = rtc.now();
-            // TODO sd_manager
-            check_and_create_new_daily_file(now);
-            LOG_INFO("Daily data file created at boot");
-    } else
-        {
-            LOG_INFO("RTC time unverified and logger connected — waiting for GUI time before creating daily data file");
-        }
+    DateTime now = rtc.now();
+    check_and_create_new_daily_file(now);
 
     // TODO ?
     /* Battery diagnostic */
@@ -170,7 +161,7 @@ SystemState runBootSequence() {
     // }
 
     // --- Load existing assembly.cfg ---
-    loadAssembly(assembly);
+    assembly_load(assembly);
     LOG_INFO("Assembly information loaded from assembly.cfg");
 
     loggerIdentity_init();
@@ -178,39 +169,29 @@ SystemState runBootSequence() {
 
     LOG_INFO("Factory identity: %s / %s / %s / %s", idFlash.manufacturer, idFlash.logger_type, idFlash.date_fab, idFlash.serial_number);
 
-    // --- Read all hardware UIDs (in RAM only) ---
-    readFeatherUID();
-    // readAS7341DeviceID();
-    // readTSL2591DeviceID();
-
-    // --- Complete missing “meta” fields ---
-    if (assembly.uid_software.length() == 0) assembly.uid_software = "DefaultSoftware_v1.0.0";
-    if (assembly.uid_experiment.length() == 0) assembly.uid_experiment = "DefaultExperiment";
+    // Read all hardware UIDs (in RAM only) ---
+    if (assembly.uid_mainboard == "$uid_mainboard$")
+        {
+            assembly.uid_mainboard = mcu_uid_read();
+            assembly_save(assembly);
+    }
+    // if (assembly.uid_light_sensor1 == "$uid_light_sensor1$")
+    //     {
+    //         assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
+    //         assembly_save(assembly);
+    // }
+    // if (assembly.uid_light_sensor2 == "$uid_light_sensor2$")
+    //     {
+    //         assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
+    //         assembly_save(assembly);
+    // }
 
     // --- Sync SD assembly with factory identity (SN, etc.) ---
-    syncAssemblyWithFactoryIdentity();
-
-    // --- Persist assembly metadata once everything is coherent ---
-    // @todo Consider persisting assembly.cfg at boot once the write policy is finalized.
-    // if (saveAssembly(assembly))
-    // {
-    //     LOG_INFO("assembly.cfg updated at boot");
-    // }
-    // else
-    // {
-    //     LOG_WARN("Failed to save assembly.cfg at boot");
-    // }
-
-    // --- Log runtime configuration summary (independent from assembly) ---
-    LOG_DEBUG("Config summary at boot:");
-    LOG_DEBUG(config.use_buffer ? "  use_buffer: true" : "  use_buffer: false");
-    LOG_DEBUG(config.enable_light1 ? "  light1: true" : "  light1: false");
-    LOG_DEBUG(config.enable_light2 ? "  light2: true" : "  light2: false");
-    LOG_DEBUG(config.enable_vbat ? "  vbat: true" : "  vbat: false");
+    assembly_sync_sn();
 
     Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
-    LOG_INFO("Boot sequence completed — entering INIT state");
-    currentState = STATE_INIT;
+    LOG_INFO("Boot sequence completed");
+    return STATE_INIT;
 }
 
 /**
