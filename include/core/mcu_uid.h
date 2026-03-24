@@ -4,7 +4,7 @@
  */
 
 #pragma once
+#include <Arduino.h>
 
-/// Read Feather M0 unique ID and update `hw_assembly.uid_mainboard` if needed.
-// TODO should return uid instead of modifying global variable
-void readFeatherUID();
+/// Read Feather M0 unique ID
+String mcu_uid_read();
