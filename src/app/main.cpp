@@ -63,6 +63,8 @@
 #include "utils.h"
 #include "battery.h"
 
+//TODO record in SD log messages if needed
+
 SystemState currentState = STATE_INIT;
 
 enum class BlinkMode {
@@ -157,7 +159,7 @@ SystemState runBootSequence() {
     // }
 
     // --- Load existing assembly.cfg ---
-    assembly_load(assembly);
+    assembly_load(hw_assembly);
     LOG_INFO("Assembly information loaded from assembly.cfg");
 
     loggerIdentity_init();
@@ -167,19 +169,19 @@ SystemState runBootSequence() {
              idFlash.date_fab, idFlash.serial_number);
 
     // Read all hardware UIDs (in RAM only) ---
-    if (assembly.uid_mainboard == "$uid_mainboard$") {
-        assembly.uid_mainboard = mcu_uid_read();
-        assembly_save(assembly);
+    if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
+        hw_assembly.uid_mainboard = mcu_uid_read();
+        assembly_save(hw_assembly);
     }
-    // if (assembly.uid_light_sensor1 == "$uid_light_sensor1$")
+    // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
     //     {
-    //         assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
-    //         assembly_save(assembly);
+    //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
+    //         assembly_save(hw_assembly);
     // }
-    // if (assembly.uid_light_sensor2 == "$uid_light_sensor2$")
+    // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
     //     {
-    //         assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
-    //         assembly_save(assembly);
+    //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
+    //         assembly_save(hw_assembly);
     // }
 
     // --- Sync SD assembly with factory identity (SN, etc.) ---
@@ -213,7 +215,9 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW);
 
+    // Initialize I²C for RTC and sensors
     Wire.begin();
+
     DET_EXT_Init();
     runBootSequence();
 }
@@ -250,16 +254,6 @@ void loop() {
                 // If time is unverified, CONNECTED mode may wait for GUI-provided time.
                 currentState = STATE_CONNECTED;
             } else {
-                if (loadConfiguration(config)) {
-                    LOG_INFO("Configuration loaded from SD");
-                } else {
-                    LOG_WARN("Using default compiled configuration");
-                }
-
-                rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-
-                // Initialize sensors once before entering DEPLOY
-                Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
                 LOG_INFO("Entering DEPLOY mode");
                 currentState = STATE_DEPLOY;
@@ -267,20 +261,21 @@ void loop() {
             break;
 
         case STATE_CONNECTED: {
-            if (rtc_state.time_unverified && millis() > rtc_state.wait_deadline_ms) {
-                const DateTime build(F(__DATE__), F(__TIME__));
-                rtc.adjust(build);
-                rtc_state.time_unverified = false;
-                LOG_WARN("GUI time timeout — using build time");
-                // TODO sd_manager
-                // check_and_create_new_daily_file(rtc.now());
-            }
-
             runConnectedMode(currentState);
             break;
         }
 
         case STATE_DEPLOY:
+            if (loadConfiguration(config)) {
+                LOG_INFO("Configuration loaded from SD");
+            } else {
+                LOG_WARN("Using default compiled configuration");
+            }
+
+            rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+
+            // Initialize sensors once before entering DEPLOY
+            Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
             runDeployState(currentState);
             break;
 
