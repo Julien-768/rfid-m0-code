@@ -31,7 +31,7 @@
  * @endcode
  *
  * @note JSON I/O is handled via ArduinoJson.
- * @warning SD card must be initialized (e.g., via initSD()) before using any function
+ * @warning SD card must be initialized (e.g., via sd_initialization()) before using any function
  *          in this module.
  *
  * @see assembly.h
@@ -39,9 +39,9 @@
  * @{
  */
 
-#include <SD.h>
-#include <ArduinoJson.h>
 #include "assembly.h"
+#include <ArduinoJson.h>
+#include <SD.h>
 #include "log.h"
 #include "logger_identity.h"
 
@@ -53,7 +53,7 @@ constexpr const char* kAssemblyFilename = "/hw_assembly.cfg";
 /**
  * @brief Global instance of the hw_assembly metadata.
  *
- * This object is populated by @ref loadAssembly() and may be updated at runtime.
+ * This object is populated by @ref assembly_load() and may be updated at runtime.
  */
 Assembly hw_assembly;
 
@@ -68,8 +68,8 @@ Assembly hw_assembly;
  * @note This function writes the current content of the global @ref hw_assembly. Ensure
  *       fields are set to meaningful defaults before calling.
  *
- * @see saveAssembly()
- * @see loadAssembly()
+ * @see assembly_save()
+ * @see assembly_load()
  */
 void create_assembly_file() {
     File file = SD.open(kAssemblyFilename, FILE_WRITE);
@@ -87,6 +87,7 @@ void create_assembly_file() {
     doc["uid_experiment"]    = hw_assembly.uid_experiment;
     doc["sn_logger"]         = hw_assembly.sn_logger;
     doc["battery_type"]      = hw_assembly.battery_type;
+    doc["rtc_type"]          = hw_assembly.rtc_type;
 
     if (serializeJson(doc, file) == 0)
         {
@@ -126,9 +127,9 @@ void create_assembly_file() {
  *          @ref hw_assembly, not from the @p hw_assembly argument.
  *
  * @see create_assembly_file()
- * @see saveAssembly()
+ * @see assembly_save()
  */
-void loadAssembly(Assembly& hw_assembly) {
+void assembly_load(Assembly& hw_assembly) {
     File file_c = SD.open(kAssemblyFilename);
     if (file_c)
         {
@@ -146,6 +147,7 @@ void loadAssembly(Assembly& hw_assembly) {
                     hw_assembly.uid_experiment    = doc["uid_experiment"].as<String>();
                     hw_assembly.sn_logger         = doc["sn_logger"] | String("");
                     hw_assembly.battery_type      = doc["battery_type"] | String("");
+                    hw_assembly.rtc_type          = doc["rtc_type"] | String("");
                     LOG_INFO("hw_assembly.cfg loaded successfully");
                 }
             file_c.close();
@@ -173,10 +175,10 @@ void loadAssembly(Assembly& hw_assembly) {
  * @todo Consider writing to a temporary file then renaming for better atomicity
  *       (if filesystem constraints allow).
  *
- * @see loadAssembly()
+ * @see assembly_load()
  * @see create_assembly_file()
  */
-bool saveAssembly(const Assembly& hw_assembly) {
+bool assembly_save(const Assembly& hw_assembly) {
     const char* kAssemblyFilename = "/hw_assembly.cfg";  // local shadowing of global
 
     // Delete previous version if it exists
@@ -200,6 +202,7 @@ bool saveAssembly(const Assembly& hw_assembly) {
     doc["uid_experiment"]    = hw_assembly.uid_experiment;
     doc["sn_logger"]         = hw_assembly.sn_logger;
     doc["battery_type"]      = hw_assembly.battery_type;
+    doc["rtc_type"]          = hw_assembly.rtc_type;
 
     if (serializeJsonPretty(doc, file) == 0)
         {
@@ -217,12 +220,10 @@ bool saveAssembly(const Assembly& hw_assembly) {
  * @brief Synchronize SD hw_assembly metadata with factory identity stored in MCU flash.
  *
  * Ensures that the SD card `hw_assembly.cfg` reflects the identity programmed in
- * SAMD21 flash (via @ref loggerIdentity_get()).
+ * SAMD21 flash (via @ref device_id_get()).
  *
  * Fields synchronized:
  * - `sn_logger` (only if the factory SN is not "UNKNOWN")
- * - `uid_software` (set to a default if empty)
- * - `uid_experiment` (set to a default if empty)
  *
  * The function rewrites `hw_assembly.cfg` only if at least one field changes.
  *
@@ -231,20 +232,21 @@ bool saveAssembly(const Assembly& hw_assembly) {
  * @note This function updates the global @ref hw_assembly instance.
  * @warning This function performs SD writes and should not be called frequently.
  *
- * @see loggerIdentity_get()
- * @see saveAssembly()
+ * @see device_id_get()
+ * @see assembly_save()
  */
-bool syncAssemblyWithFactoryIdentity() {
-    const LoggerIdentityFlash& idFlash = loggerIdentity_get();
-    bool modified                      = false;
+// TODO avoid using global variable
+bool assembly_sync_sn() {
+    const LoggerIdentityFlash& id_flash = device_id_get();
+    bool modified                       = false;
 
     // --- Serial number sync ---
-    if (strcmp(idFlash.serial_number, "UNKNOWN") != 0)
+    if (strcmp(id_flash.serial_number, "UNKNOWN") != 0)
         {
-            if (hw_assembly.sn_logger != idFlash.serial_number)
+            if (hw_assembly.sn_logger != id_flash.serial_number)
                 {
-                    LOG_INFO("Updating SN from flash: %s -> %s", hw_assembly.sn_logger.c_str(), idFlash.serial_number);
-                    hw_assembly.sn_logger = idFlash.serial_number;
+                    LOG_INFO("Updating SN from flash: %s -> %s", hw_assembly.sn_logger.c_str(), id_flash.serial_number);
+                    hw_assembly.sn_logger = id_flash.serial_number;
                     modified              = true;
             }
     } else
@@ -252,23 +254,10 @@ bool syncAssemblyWithFactoryIdentity() {
             LOG_WARN("Factory SN is UNKNOWN — hw_assembly SN unchanged");
         }
 
-    // --- Optional: defaults for experiment and software ---
-    if (hw_assembly.uid_software.length() == 0)
-        {
-            hw_assembly.uid_software = "Moonraker_v1.0.0";
-            modified                 = true;
-    }
-
-    if (hw_assembly.uid_experiment.length() == 0)
-        {
-            hw_assembly.uid_experiment = "Moonraker";
-            modified                   = true;
-    }
-
     // --- Save if anything changed ---
     if (modified)
         {
-            if (saveAssembly(hw_assembly))
+            if (assembly_save(hw_assembly))
                 {
                     LOG_INFO("hw_assembly.cfg synced with factory identity.");
                     return true;

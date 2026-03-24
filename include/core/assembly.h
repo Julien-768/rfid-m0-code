@@ -48,19 +48,14 @@
  */
 struct Assembly
 {
-    String uid_mainboard     = "$uid_mainboard$";      ///< Unique ID of the main board (e.g., Feather M0 microcontroller).
+    String uid_mainboard     = "$uid_mainboard$";      ///< Unique ID of the main board
     String uid_light_sensor1 = "$uid_light_sensor1$";  ///< Unique ID of the AS7341 spectral sensor.
     String uid_light_sensor2 = "$uid_light_sensor2$";  ///< Unique ID of the TSL2591 light sensor.
     String uid_software      = "$uid_software$";       ///< Software version or build identifier.
     String uid_experiment    = "$uid_experiment$";     ///< Experiment or deployment context identifier.
     String sn_logger         = "$sn_logger$";          ///< Human-readable logger serial number (e.g., "MRK-0007").
-    /**
-     * @name Battery configuration (from hw_assembly.cfg)
-     * @brief Battery configuration used to select default thresholds.
-     * @{
-     */
-
-    String battery_type = "$battery_type$";  ///< Battery type string (e.g., "lipo_1s", "liion_1s").
+    String battery_type      = "$battery_type$";       ///< Battery type string (e.g., "lipo_1s", "liion_1s").
+    String rtc_type          = "$rtc_type$";           ///< RTC type string (e.g., "ds3231", "none").
 
     /** @} */
 };
@@ -81,9 +76,9 @@ extern Assembly hw_assembly;
  * and a new configuration can be created later.
  *
  * @param hw_assembly Reference to the Assembly structure to populate.
- * @see saveAssembly()
+ * @see assembly_save()
  */
-void loadAssembly(Assembly& hw_assembly);
+void assembly_load(Assembly& hw_assembly);
 
 /**
  * @brief Saves the current Assembly configuration to the SD card.
@@ -94,29 +89,29 @@ void loadAssembly(Assembly& hw_assembly);
  *
  * @param hw_assembly The Assembly instance to serialize and write.
  * @return true if the file was written successfully, false otherwise.
- * @see loadAssembly()
+ * @see assembly_load()
  */
-bool saveAssembly(const Assembly& hw_assembly);
+bool assembly_save(const Assembly& hw_assembly);
 
 /**
  * @brief Synchronize hw_assembly.cfg with factory identity stored in MCU flash.
  *
  * This helper reads the factory identity programmed in MCU non-volatile memory
- * (via @ref loggerIdentity_get()) and updates selected fields of the global
+ * (via @ref device_id_get()) and updates selected fields of the global
  * @ref Assembly instance (notably @ref Assembly::sn_logger).
  *
  * If at least one field is modified, the function rewrites `hw_assembly.cfg`
- * using @ref saveAssembly().
+ * using @ref assembly_save().
  *
  * Typical usage:
  * @code{.cpp}
- * loadAssembly(hw_assembly);
- * loggerIdentity_init();
- * syncAssemblyWithFactoryIdentity();
+ * assembly_load(hw_assembly);
+ * device_id_initialization();
+ * assembly_sync_sn();
  * @endcode
  *
  * @return true if hw_assembly.cfg was modified and saved, false otherwise.
  *
  * @see logger_identity.h
  */
-bool syncAssemblyWithFactoryIdentity();
+bool assembly_sync_sn();
