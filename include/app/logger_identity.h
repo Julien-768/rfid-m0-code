@@ -26,7 +26,7 @@ bool loggerIdentity_init();
  * @brief Get cached identity (RAM).
  * If init failed, returns safe defaults in RAM.
  */
-const LoggerIdentityFlash& loggerIdentity_get();
+const LoggerIdentityFlash& device_id_get();
 
 /**
  * @brief Program a new identity into flash (factory).

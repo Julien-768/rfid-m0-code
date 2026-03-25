@@ -184,7 +184,7 @@ static void sanitize(LoggerIdentityFlash& id) {
  * @return true if a valid identity is available after initialization, false otherwise.
  *
  * @note On success, the identity is cached in RAM and can be accessed via
- *       @ref loggerIdentity_get.
+ *       @ref device_id_get.
  */
 bool loggerIdentity_init() {
     const IdentityRecord r = moonraker_identity_store.read();
@@ -224,9 +224,9 @@ bool loggerIdentity_init() {
  * @warning If called before a successful @ref loggerIdentity_init, this function
  *          will populate RAM defaults and mark the cache valid (without writing flash).
  */
-const LoggerIdentityFlash& loggerIdentity_get() {
+const LoggerIdentityFlash& device_id_get() {
     if (!g_identity_valid) {
-        LOG_WARN("loggerIdentity_get() called before successful init — using RAM defaults");
+        LOG_WARN("device_id_get() called before successful init — using RAM defaults");
         fillDefaults(g_identity);
         g_identity_valid = true;
     }
@@ -286,7 +286,7 @@ static void copyField_(char* dst, size_t dstSize, const char* src) {
 void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger_type,
                                     const char* date_fab, const char* serial_number) {
     // Start from existing identity, then override fields
-    LoggerIdentityFlash id = loggerIdentity_get();  // copy
+    LoggerIdentityFlash id = device_id_get();  // copy
 
     copyField_(id.manufacturer, sizeof(id.manufacturer), manufacturer);
     copyField_(id.logger_type, sizeof(id.logger_type), logger_type);

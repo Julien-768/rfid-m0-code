@@ -196,7 +196,7 @@ SystemState runBootSequence() {
     LOG_INFO("Assembly information loaded from assembly.cfg");
 
     loggerIdentity_init();
-    const auto& idFlash = loggerIdentity_get();
+    const auto& idFlash = device_id_get();
 
     LOG_INFO("Factory identity: %s / %s / %s / %s", idFlash.manufacturer, idFlash.logger_type,
              idFlash.date_fab, idFlash.serial_number);

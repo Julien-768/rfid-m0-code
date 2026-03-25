@@ -80,7 +80,7 @@
  * @param[in,out] state Current system state reference. May be updated to
  *                      @ref STATE_DEPLOY when SET_CONFIG is accepted.
  *
- * @see loggerIdentity_get
+ * @see device_id_get
  * @see loggerIdentity_program
  * @see rtc_applyExternalTime
  * @see rtc_scheduleNextWake
@@ -115,7 +115,7 @@ void runConnectedMode(SystemState& state) {
 
         case CommandType::GET_ID: {
             // Factory identity stored in SAMD21 flash
-            const auto& id = loggerIdentity_get();
+            const auto& id = device_id_get();
 
             SetIdentityPayload payload{};
             strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID));
