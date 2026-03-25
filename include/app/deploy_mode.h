@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "core/system_state.h"
+#include "system_state.h"
 
 /**
  * @brief Execute one iteration of the DEPLOY state.

@@ -13,7 +13,7 @@
 #pragma once
 
 #include "Arduino.h"
-#include "core/system_state.h"
+#include "system_state.h"
 
 /**
  * @brief Executes the connected mode command handler.
