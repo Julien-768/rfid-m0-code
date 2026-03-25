@@ -41,7 +41,8 @@
  * @{
  */
 
-#include "stdint.h"
+#include <ArduinoLowPower.h>
+#include <SD.h>
 #include "hardware.h"
 #include "rtc.h"
 #include "config.h"
@@ -50,8 +51,6 @@
 
 #include "system_state.h"
 #include "log.h"
-#include <ArduinoLowPower.h>
-#include <SD.h>
 #include "connected_mode.h"
 #include "det_ext.h"
 #include "deploy_mode.h"
@@ -59,7 +58,6 @@
 #include "sensors_internal.h"
 #include "logger_identity.h"
 #include "mcu_uid.h"
-#include "sd_manager.h"
 #include "utils.h"
 #include "battery.h"
 #include "battery_service.h"
@@ -139,6 +137,10 @@ SystemState runBootSequence() {
         return STATE_ENDOFLIFE;
     }
 
+    // --- Load existing assembly.cfg ---
+    assembly_load(hw_assembly);
+    LOG_INFO("Assembly information loaded from assembly.cfg");
+
     if (hw_assembly.rtc_type == "ds3231") {
         LOG_INFO("RTC type: DS3231");
         /* Initialize RTC */
@@ -190,10 +192,6 @@ SystemState runBootSequence() {
             return STATE_ENDOFLIFE;
         }
     }
-
-    // --- Load existing assembly.cfg ---
-    assembly_load(hw_assembly);
-    LOG_INFO("Assembly information loaded from assembly.cfg");
 
     loggerIdentity_init();
     const auto& idFlash = device_id_get();
@@ -293,7 +291,10 @@ void loop() {
                 }
                 if (hw_assembly.rtc_type == "ds3231") {
                     LOG_INFO("Scheduling first wake-up via RTC alarm");
-                    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+                    rtc_init_interrupt_pin(interrupt_pin);  // Initialize the interrupt pin
+                    rtc_enable_wakeup_interrupt(interrupt_pin);
+                    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s,
+                                           RTC_INTERRUPT_PIN);
                 }
 
                 // Initialize sensors once before entering DEPLOY

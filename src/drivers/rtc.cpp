@@ -68,13 +68,6 @@ RTC_STATE& get_rtc_state() {
  */
 static volatile bool s_alarm_flag = false;
 
-/**
- * @brief RTC interrupt pin number (DS3231 INT/SQW).
- *
- * Default pin can be overridden by defining `RTC_INTERRUPT_PIN` in `rtc.h`.
- */
-static uint8_t s_rtcInterruptPin = 0xFF;  // Invalid by default
-
 // -----------------------------------------------------------------------------
 // Interrupt + wake-up
 // -----------------------------------------------------------------------------
@@ -114,9 +107,9 @@ static void rtc_alarm_isr() {
  * @see rtc_alarm_triggered()
  * @see rtc_clear_alarm_flag()
  */
-void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin = s_rtcInterruptPin) {
+void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin, void (*isr)()) {
     pinMode(interrupt_pin, INPUT_PULLUP);
-    LowPower.attachInterruptWakeup(digitalPinToInterrupt(interrupt_pin), rtc_alarm_isr, FALLING);
+    LowPower.attachInterruptWakeup(digitalPinToInterrupt(interrupt_pin), isr, FALLING);
 
     // NOTE: depending on core, this direct EIC usage may be fragile.
     // Keep if it works for you; otherwise remove it.
@@ -140,7 +133,7 @@ void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin = s_rtcInterruptPin) {
  * @warning `Wire.begin()` must have been called before this function.
  * @see rtc_boot_recover()
  */
-bool rtc_initialization() {
+bool rtc_initialization(u_int32_t interrupt_pin) {
     // Wire.begin() should already be done before calling this
     // Check if the I2C bus is ready (without initializing it)
     Wire.beginTransmission(0x00);  // Dummy address to test bus availability
@@ -230,7 +223,8 @@ bool scan_i2c_for_ds3231() {
  *
  * @see rtc_enable_wakeup_interrupt()
  */
-void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s) {
+void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s, u_int32_t interrupt_pin,
+                            void (*isr)()) {
     // Round to minute boundary, then add interval
     DateTime rounded(now.year(), now.month(), now.day(), now.hour(), now.minute(), 0);
     DateTime wakeup = rounded + TimeSpan(interval_s);
@@ -238,7 +232,7 @@ void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s) {
     rtc.clearAlarm(DS3231_ALARM_1);
     rtc.setAlarm1(wakeup, DS3231_A1_Minute);
 
-    rtc_enable_wakeup_interrupt(s_rtcInterruptPin);
+    rtc_enable_wakeup_interrupt(interrupt_pin, void (*isr)());
 }
 
 // -----------------------------------------------------------------------------
