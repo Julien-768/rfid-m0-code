@@ -16,7 +16,6 @@ struct SensorFrame {
     // bool valid_tsl2591 = false;
 
     int32_t vbat_mv = 0.0f;
-    bool valid_vbat = false;
 };
 
 /**

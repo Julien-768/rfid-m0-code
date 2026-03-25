@@ -55,32 +55,31 @@ static uint8_t vbatCounter = 0;
 void runDeployState(SystemState& state) {
 
     if (hw_assembly.rtc_type == "ds3231") {
-        // 1) Enter low-power sleep; RTC alarm will wake the MCU.
+        // Enter low-power sleep; RTC alarm will wake the MCU.
         LowPower.sleep();
 
-        // 2) If wake-up was not caused by the RTC alarm, exit early.
+        // If wake-up was not caused by the RTC alarm, exit early.
         if (!alarm_triggered()) return;
 
-        // 3) Clear alarm and program next wake-up.
-        clear_alarm_flag();
+        // Clear alarm and program next wake-up.
+        rtc_clear_alarm_flag();
         rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
     }
-    // 4) Ensure today’s data file exists.
+
+    // Ensure today’s data file exists.
     DateTime now = rtc.now();
     check_and_create_new_daily_file(now);
 
-    // 5) Read all active sensors.
+    // Read all active sensors.
     SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
 
-    // 6) Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
+    // Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
     logSensorFrame(now, frame);
 
-    // 7) Periodic battery monitoring (every 10 samples).
-    if (frame.valid_vbat) {
-        // TODO battery
-        if (!battery_service_periodic_check(frame.vbat_mv, vbatCounter, 10)) {
-            state = STATE_ENDOFLIFE;
-            return;
-        }
+    // Periodic battery monitoring (every 10 samples).
+
+    if (!battery_service_periodic_check(frame.vbat_mv, vbatCounter, 10)) {
+        state = STATE_ENDOFLIFE;
+        return;
     }
 }

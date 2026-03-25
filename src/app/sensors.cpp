@@ -68,9 +68,8 @@
  * @warning The caller must ensure @p ctx points to a valid @ref SensorFrame.
  */
 static void battery_measurement(void* ctx) {
-    auto* frame       = static_cast<SensorFrame*>(ctx);
-    frame->vbat_mv    = read_battery_voltage(PIN_VBAT);
-    frame->valid_vbat = true;
+    auto* frame    = static_cast<SensorFrame*>(ctx);
+    frame->vbat_mv = read_battery_voltage(PIN_VBAT);
 }
 
 bool battery_initialisation() {
