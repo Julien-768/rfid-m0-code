@@ -32,45 +32,72 @@
 #include "assembly.h"
 #include "hardware.h"
 
-/// Counter used to decimate battery checks during deployment.
-static uint8_t vbatCounter = 0;
-
-volatile bool g_rtcWake     = false;
-volatile bool g_sensorReady = false;
-
-void rtcIsr() {
-    g_rtcWake = true;
-}
-
-void sensorIsr() {
-    g_sensorReady = true;
-}
-
 // Event flags for DEPLOY state
-enum DeployEvent : uint8_t {
+enum deploy_event : uint8_t {
     DEPLOY_EVT_NONE           = 0,
     DEPLOY_EVT_RTC_WAKE       = 1 << 0,
     DEPLOY_EVT_SENSOR_AS7341  = 1 << 1,
-    DEPLOY_EVT_SENSOR_TSL2591 = 1 << 2
+    DEPLOY_EVT_SENSOR_TSL2591 = 1 << 2,
+    DEPLOY_EVT_SENSOR_IR1     = 1 << 3,
+    DEPLOY_EVT_SENSOR_IR2     = 1 << 4,
 };
 
+// Global event flags set by ISRs and checked in the main loop.
 volatile uint8_t g_deploy_events = DEPLOY_EVT_NONE;
-volatile uint32_t g_rtcWakeCount = 0;
+
+// Global counters for rtc
+volatile uint32_t g_rtc_wake_count = 0;
+
+// IR event counters
+volatile uint32_t g_ir1_count = 0;
+volatile uint32_t g_ir2_count = 0;
+
+// Last trigger timestamps (in us)
+volatile uint32_t g_ir1_last_ts = 0;
+volatile uint32_t g_ir2_last_ts = 0;
+
+// Minimum delay between two valid events (us)
+constexpr uint32_t ir_debounce_us = 50000;
 
 // ===== Interrupt Service Routines =====
 
-void rtcWakeISR() {
+void rtc_wake_isr() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
-    g_rtcWakeCount++;
+    g_rtc_wake_count++;
 }
 
-void as7341ISR() {
+void as7341_isr() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_AS7341;
 }
 
-void tsl2591ISR() {
+void tsl2591_isr() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
+
+void isr_sensor_1() {
+    uint32_t now = micros();
+
+    if ((now - g_ir1_last_ts) < ir_debounce_us) return;
+
+    g_ir1_last_ts = now;
+
+    g_ir1_count++;
+    g_deploy_events |= DEPLOY_EVT_SENSOR_IR1;
+}
+
+void isr_sensor_2() {
+    uint32_t now = micros();
+
+    if ((now - g_ir2_last_ts) < ir_debounce_us) return;
+
+    g_ir2_last_ts = now;
+
+    g_ir2_count++;
+    g_deploy_events |= DEPLOY_EVT_SENSOR_IR2;
+}
+
+static bool init             = false;
+static uint32_t vbat_counter = 0;
 
 /**
  * @brief Main DEPLOY state handler.
@@ -80,43 +107,48 @@ void tsl2591ISR() {
  * @param state Reference to the current system state. May be set to
  *              @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  */
-void runDeployState(SystemState& state) {
+void run_deploy_state(SystemState& state) {
+    if (!init) {
+        pinMode(PIN_A0, INPUT);
+        pinMode(PIN_A1, INPUT);
+        attachInterrupt(digitalPinToInterrupt(PIN_A0), isr_sensor_1, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(PIN_A1), isr_sensor_2, CHANGE);
+        init = true;
+    }
 
-    uint8_t events        = DEPLOY_EVT_NONE;
-    uint32_t rtcWakeCount = 0;
+    uint8_t events          = DEPLOY_EVT_NONE;
+    uint32_t rtc_wake_count = 0;
+    uint32_t ir1_count      = 0;
+    uint32_t ir2_count      = 0;
+    int32_t vbat_mv         = 0;
+    bool changed            = false;
 
-    int32_t vbat_mv = 0;
-    bool changed    = false;
+    // Enter low-power sleep; RTC alarm or sensor interrupt will wake the MCU.
+    LowPower.sleep();
 
-    if (hw_assembly.rtc_type == "ds3231") {
-        // Enter low-power sleep; RTC alarm or sensor interrupt will wake the MCU.
-        LowPower.sleep();
+    noInterrupts();
+    events          = g_deploy_events;
+    g_deploy_events = DEPLOY_EVT_NONE;
 
-        noInterrupts();
-        uint8_t events = g_deploy_events;
-        g_deploy_events &= ~events;  // clear only handled events
-        rtcWakeCount   = g_rtcWakeCount;
-        g_rtcWakeCount = 0;
-        interrupts();
+    rtc_wake_count   = g_rtc_wake_count;
+    g_rtc_wake_count = 0;
 
-        // If wake-up was not caused by the RTC alarm or a sensor interrupt, exit early.
-        if (events == DEPLOY_EVT_NONE) return;
+    ir1_count   = g_ir1_count;
+    g_ir1_count = 0;
 
-        if (events & DEPLOY_EVT_RTC_WAKE) {
-            // Clear alarm and program next wake-up.
-            rtc_clear_alarm_flag();
-            rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s, RTC_INTERRUPT_PIN,
-                                   rtcWakeISR);
-        }
+    ir2_count   = g_ir2_count;
+    g_ir2_count = 0;
+    interrupts();
 
-        if (events & DEPLOY_EVT_SENSOR_AS7341) {
-            // AS7341 interrupt detected; handle sensor-specific work outside ISR.
-            // Example: read spectral data ready flag or FIFO.
-        }
+    // If wake-up was not caused by the RTC alarm or a sensor interrupt, exit early.
+    if (events == DEPLOY_EVT_NONE) return;
 
-        if (events & DEPLOY_EVT_SENSOR_TSL2591) {
-            // TSL2591 interrupt detected; handle light threshold or data ready.
-        }
+    if (events & DEPLOY_EVT_RTC_WAKE) {
+        // Clear alarm and program next wake-up.
+        rtc_clear_alarm_flag();
+
+        rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s, RTC_INTERRUPT_PIN,
+                               rtc_wake_isr);
     }
 
     // ===== Periodic full acquisition (RTC driven) =====
@@ -132,9 +164,11 @@ void runDeployState(SystemState& state) {
         // Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
         logSensorFrame(now, frame);
 
-        // Perform periodic battery check every 10 RTC wakes.
-        if (rtcWakeCount >= 10) {
-            rtcWakeCount = 0;
+        vbat_counter += rtc_wake_count;
+
+        // Perform battery check every 10 RTC wakes.
+        if (vbat_counter >= 10) {
+            vbat_counter = 0;
             battery_service_read_vbat_filtered_mv(vbat_mv, changed);
             if (!battery_service_decision("Boot", vbat_mv)) {
                 // Handle decision failure
@@ -143,16 +177,23 @@ void runDeployState(SystemState& state) {
             }
         }
     }
-}
 
-// ===== Event-driven partial acquisition =====
+    // ===== Event-driven partial acquisition =====
 
-if (events & DEPLOY_EVT_SENSOR_AS7341) {
-    // Read only AS7341 data (faster, lower power).
-    // Example: read spectral channels without full acquisition cycle.
-}
+    if (events & DEPLOY_EVT_SENSOR_AS7341) {
+        // Read only AS7341 data (faster, lower power).
+        // Example: read spectral channels without full acquisition cycle.
+    }
 
-if (events & DEPLOY_EVT_SENSOR_TSL2591) {
-    // Read only TSL2591 data or handle threshold event.
-}
+    if (events & DEPLOY_EVT_SENSOR_TSL2591) {
+        // Read only TSL2591 data or handle threshold event.
+    }
+
+    if (events & DEPLOY_EVT_SENSOR_IR1) {
+        // Handle IR1 event(s) using ir1_count
+    }
+
+    if (events & DEPLOY_EVT_SENSOR_IR2) {
+        // Handle IR2 event(s) using ir2_count
+    }
 }
