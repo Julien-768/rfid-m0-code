@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 #include <RTClib.h>
-#include "drivers/battery.h"
-#include "hal/sensors_hal.h"
+#include "battery.h"
+#include "sensors_hal.h"
 
 /**
  * @brief Unified frame holding all sensor readings and validity flags.

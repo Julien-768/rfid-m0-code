@@ -18,7 +18,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "drivers/rtc.h"
+#include "rtc.h"
 #include "JsonProtocol.h"
 
 /**
