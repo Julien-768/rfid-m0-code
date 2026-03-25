@@ -59,7 +59,7 @@ void runDeployState(SystemState& state) {
         LowPower.sleep();
 
         // If wake-up was not caused by the RTC alarm, exit early.
-        if (!alarm_triggered()) return;
+        if (!rtc_alarm_triggered()) return;
 
         // Clear alarm and program next wake-up.
         rtc_clear_alarm_flag();

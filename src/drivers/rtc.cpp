@@ -111,7 +111,7 @@ static void rtc_alarm_isr() {
  *          on the Arduino core version and pin mapping. If wake-up stops working
  *          after a core update, consider removing the direct EIC line.
  *
- * @see alarm_triggered()
+ * @see rtc_alarm_triggered()
  * @see rtc_clear_alarm_flag()
  */
 void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin = s_rtcInterruptPin) {
@@ -176,7 +176,7 @@ bool rtc_initialization() {
  * @note This only reports the software flag (@ref s_alarm_flag). It does not read
  *       DS3231 alarm registers.
  */
-bool alarm_triggered() {
+bool rtc_alarm_triggered() {
     return s_alarm_flag;
 }
 
@@ -185,7 +185,7 @@ bool alarm_triggered() {
  *
  * This must be called after waking up from a DS3231 alarm to prevent repeated wake-ups.
  *
- * @see alarm_triggered()
+ * @see rtc_alarm_triggered()
  */
 void rtc_clear_alarm_flag() {
     s_alarm_flag = false;

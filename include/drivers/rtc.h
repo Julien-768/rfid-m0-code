@@ -98,7 +98,7 @@ bool scan_i2c_for_ds3231();
  * @brief Indicates if the last scheduled alarm triggered since last clear.
  * @return true if alarm flag is set.
  */
-bool alarm_triggered();
+bool rtc_alarm_triggered();
 
 /**
  * @brief Clear the internal alarm flag and clear RTC Alarm1 state.
