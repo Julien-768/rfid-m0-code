@@ -112,7 +112,7 @@ static void rtc_alarm_isr() {
  *          after a core update, consider removing the direct EIC line.
  *
  * @see alarm_triggered()
- * @see clear_alarm_flag()
+ * @see rtc_clear_alarm_flag()
  */
 void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin = s_rtcInterruptPin) {
     pinMode(interrupt_pin, INPUT_PULLUP);
@@ -187,7 +187,7 @@ bool alarm_triggered() {
  *
  * @see alarm_triggered()
  */
-void clear_alarm_flag() {
+void rtc_clear_alarm_flag() {
     s_alarm_flag = false;
     rtc.clearAlarm(DS3231_ALARM_1);
 }

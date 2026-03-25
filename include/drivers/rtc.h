@@ -103,7 +103,7 @@ bool alarm_triggered();
 /**
  * @brief Clear the internal alarm flag and clear RTC Alarm1 state.
  */
-void clear_alarm_flag();
+void rtc_clear_alarm_flag();
 
 // -----------------------------------------------------------------------------
 // Wake-up scheduling
