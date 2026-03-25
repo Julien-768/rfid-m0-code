@@ -19,10 +19,10 @@
  *          at high frequency.
  */
 
-#include "app/logger_identity.h"
+#include "logger_identity.h"
 
 #include <string.h>
-#include "core/log.h"
+#include "log.h"
 #include <FlashStorage.h>  // provided by cmaglie/FlashStorage
 
 // ---- Flash record format ----------------------------------------------------
