@@ -29,4 +29,4 @@
  *
  * @param state Reference to the current system state variable.
  */
-void runDeployState(SystemState& state);
+void run_deploy_state(SystemState& state);
