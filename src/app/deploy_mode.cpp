@@ -33,6 +33,10 @@
 #include "hardware.h"
 #include "ir_pwm.h"
 
+// External references to global objects and configuration
+extern ir_pwm
+    ir_driver;  // not as good as using a reference `run_boot_sequence(ir_pwm& driver);` but will do the job for now
+
 // Event flags for DEPLOY state
 enum deploy_event : uint8_t {
     DEPLOY_EVT_NONE           = 0,
@@ -75,7 +79,7 @@ void tsl2591_isr() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
 
-void isr_sensor_1() {
+void ir1_callback(uint8_t state) {
     uint32_t now = micros();
 
     if ((now - g_ir1_last_ts) < ir_debounce_us) return;
@@ -86,7 +90,7 @@ void isr_sensor_1() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_IR1;
 }
 
-void isr_sensor_2() {
+void ir2_callback(uint8_t state) {
     uint32_t now = micros();
 
     if ((now - g_ir2_last_ts) < ir_debounce_us) return;
@@ -113,8 +117,8 @@ void run_deploy_state(SystemState& state) {
     if (!init) {
         rtc_period = config.acquisition_interval_s;
         // Bypass drivers interrupts
-        ir_driver.set_callback_sensor_1(isr_sensor_1);
-        ir_driver.set_callback_sensor_2(isr_sensor_2);
+        ir_driver.set_callback_sensor_1(ir1_callback);
+        ir_driver.set_callback_sensor_2(ir2_callback);
         LowPower.attachInterruptWakeup(RTC_INTERRUPT_PIN, rtc_wake_isr, FALLING);
         rtc_clear_and_set_alarm(rtc.now(), rtc_period);
         init = true;
