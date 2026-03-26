@@ -27,6 +27,7 @@
 #include "battery_service.h"
 #include "config.h"
 #include "log.h"
+#include "error_handler.h"
 #include <ArduinoLowPower.h>
 #include "utils.h"
 #include "assembly.h"
@@ -71,14 +72,6 @@ void callback_rtc() {
     g_rtc_wake_count++;
 }
 
-void as7341_isr() {
-    g_deploy_events |= DEPLOY_EVT_SENSOR_AS7341;
-}
-
-void tsl2591_isr() {
-    g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
-}
-
 void callback_ir1(uint8_t state) {
     uint32_t now = micros();
 
@@ -101,7 +94,15 @@ void callback_ir2(uint8_t state) {
     g_deploy_events |= DEPLOY_EVT_SENSOR_IR2;
 }
 
-bool init             = false;
+void callback_as7341() {
+    g_deploy_events |= DEPLOY_EVT_SENSOR_AS7341;
+}
+
+void callback_tsl2591() {
+    g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
+}
+
+bool init_step        = false;
 uint32_t vbat_counter = 0;
 uint32_t rtc_period   = 0;
 
@@ -114,14 +115,14 @@ uint32_t rtc_period   = 0;
  *              @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  */
 void run_deploy_state(SystemState& state) {
-    if (!init) {
+    if (!init_step) {
         rtc_period = config.acquisition_interval_s;
         // Bypass drivers interrupts
         ir_driver.set_callback_sensor_1(callback_ir1);
         ir_driver.set_callback_sensor_2(callback_ir2);
         rtc_set_alarm_callback(callback_rtc);
         rtc_clear_and_set_alarm(rtc().now(), rtc_period);
-        init = true;
+        init_step = true;
     }
 
     uint8_t events          = DEPLOY_EVT_NONE;
@@ -177,6 +178,7 @@ void run_deploy_state(SystemState& state) {
             battery_service_read_vbat_filtered_mv(vbat_mv, changed);
             if (!battery_service_decision("Boot", vbat_mv)) {
                 // Handle decision failure
+                error_signal(ERR_BATTERY_CRITICAL, false, PIN_ERROR);
                 state = STATE_ENDOFLIFE;
                 return;
             }
