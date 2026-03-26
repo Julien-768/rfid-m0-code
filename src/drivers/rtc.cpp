@@ -41,6 +41,7 @@
 
 #include "error_handler.h"
 #include "log.h"
+#include "hardware.h"
 
 /**
  * @brief Global DS3231 instance (RTClib).
@@ -171,12 +172,12 @@ bool rtc_initialization(uint32_t interrupt_pin) {
 
     if (i2c_status != 0) {
         LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
-        error_signal(ERR_I2C_NOT_READY, false);
+        error_signal(ERR_I2C_NOT_READY, false, PIN_ERROR);
         return false;
     }
 
     if (!rtc.begin()) {
-        error_signal(ERR_RTC_FAILURE, false);
+        error_signal(ERR_RTC_FAILURE, false, PIN_ERROR);
         return false;
     }
 
@@ -240,7 +241,7 @@ bool scan_i2c_for_ds3231() {
  *       boundaries according to RTClib's DS3231 alarm behavior. If sub-minute
  *       timing is required, use a different alarm mode and strategy.
  */
-void rtc_clear_and_set_alarm(const DateTime& now, uint16_t interval_s) {
+void rtc_clear_and_set_alarm(const DateTime& now, uint32_t interval_s) {
     RTC_DS3231& rtc = get_rtc();
 
     // Round to minute boundary, then add the requested interval.
