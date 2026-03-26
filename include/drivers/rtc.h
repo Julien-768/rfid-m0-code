@@ -114,7 +114,7 @@ void rtc_clear_alarm_flag();
  *
  * This attaches the pin interrupt to wake the MCU from LowPower sleep.
  */
-void rtc_enable_wakeup_interrupt(u_int32_t interrupt_pin, void (*isr)());
+void rtc_configure_interrupt(u_int32_t interrupt_pin, void (*isr)());
 
 /**
  * @brief Schedule the next periodic wake-up using RTC Alarm1.

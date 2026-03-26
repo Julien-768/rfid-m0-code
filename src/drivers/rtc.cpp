@@ -92,29 +92,18 @@ static void rtc_alarm_isr() {
 }
 
 /**
- * @brief Configure the RTC interrupt pin and attach it as a wake-up source.
+ * @brief  Configure a GPIO interrupt as a wake-up source for the RTC alarm.
+ * This should be called after scheduling an alarm with `rtc_schedule_next_wake()`.
+ * It sets up the SAMD21 EIC to wake the MCU when the RTC alarm triggers.
  *
- * - Configures the provided `interrupt_pin` as INPUT_PULLUP.
- * - Attaches an interrupt wake-up callback using ArduinoLowPower.
- * - Optionally enables the pin in the EIC WAKEUP register.
- *
- * @param interrupt_pin The pin number to use for the RTC interrupt.
- *
- * @warning The EIC WAKEUP register usage is low-level and may be fragile depending
- *          on the Arduino core version and pin mapping. If wake-up stops working
- *          after a core update, consider removing the direct EIC line.
- *
- * @see rtc_alarm_triggered()
- * @see rtc_clear_alarm_flag()
+ * @param interrupt_pin The pin number connected to the DS3231 INT/SQW output.
+ * @param isr The interrupt service routine to call when the alarm triggers (e.g., `rtc_alarm_isr`).
+ * @note The pin should be configured as INPUT_PULLUP and the DS3231 INT/SQW should be configured to pull low on alarm.
+ * @warning This function manipulates SAMD21 EIC registers directly, which may be core/platform dependent.
  */
-void rtc_enable_wakeup_interrupt(uint8_t interrupt_pin, void (*isr)()) {
+void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)()) {
     pinMode(interrupt_pin, INPUT_PULLUP);
     LowPower.attachInterruptWakeup(digitalPinToInterrupt(interrupt_pin), isr, FALLING);
-
-    // NOTE: depending on core, this direct EIC usage may be fragile.
-    // Keep if it works for you; otherwise remove it.
-    EIC->WAKEUP.reg |= (1 << interrupt_pin);
-    while (EIC->STATUS.bit.SYNCBUSY) {}
 }
 
 // -----------------------------------------------------------------------------
@@ -221,7 +210,7 @@ bool scan_i2c_for_ds3231() {
  *       resolution. If sub-minute timing is required, a different alarm mode and
  *       rounding strategy should be used.
  *
- * @see rtc_enable_wakeup_interrupt()
+ * @see rtc_configure_interrupt()
  */
 void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s, u_int32_t interrupt_pin,
                             void (*isr)()) {
@@ -232,7 +221,8 @@ void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s, u_int32_t 
     rtc.clearAlarm(DS3231_ALARM_1);
     rtc.setAlarm1(wakeup, DS3231_A1_Minute);
 
-    rtc_enable_wakeup_interrupt(interrupt_pin, void (*isr)());
+    // TODO: Check: Should not be necessary
+    // rtc_configure_interrupt(interrupt_pin, void (*isr)());
 }
 
 // -----------------------------------------------------------------------------
