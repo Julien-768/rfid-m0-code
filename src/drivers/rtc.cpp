@@ -83,7 +83,7 @@ static void rtc_alarm_isr() {
 
 /**
  * @brief  Configure a GPIO interrupt as a wake-up source for the RTC alarm.
- * This should be called after scheduling an alarm with `rtc_schedule_next_wake()`.
+ * This should be called after scheduling an alarm with `rtc_clear_and_set_alarm()`.
  * It sets up the SAMD21 EIC to wake the MCU when the RTC alarm triggers.
  *
  * @param interrupt_pin The pin number connected to the DS3231 INT/SQW output.
@@ -189,7 +189,7 @@ bool scan_i2c_for_ds3231() {
  *
  * @see rtc_configure_interrupt()
  */
-void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s) {
+void rtc_clear_and_set_alarm(const DateTime& now, uint16_t interval_s) {
     // Round to minute boundary, then add interval
     DateTime rounded(now.year(), now.month(), now.day(), now.hour(), now.minute(), 0);
     DateTime wakeup = rounded + TimeSpan(interval_s);
