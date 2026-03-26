@@ -61,10 +61,16 @@
 #include "utils.h"
 #include "battery.h"
 #include "battery_service.h"
+#include "ir_pwm.h"
 
 //TODO record in SD log messages if needed
 
 SystemState currentState = STATE_INIT;
+
+/**
+ * @brief IR PWM driver instance
+ */
+ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
 
 enum class BlinkMode {
     Slow   = 500,
@@ -218,6 +224,12 @@ SystemState runBootSequence() {
     // --- Sync SD assembly with factory identity (SN, etc.) ---
     assembly_sync_sn();
 
+    // --- Initialize IR PWM module ---
+
+    // Enable both sensors and provide the ISR callback
+    ir_driver.begin(true, true, nullptr, nullptr);
+    LOG_INFO("IR PWM driver initialized");
+
     Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
     LOG_INFO("Boot sequence completed");
     return STATE_INIT;
@@ -292,9 +304,6 @@ void loop() {
                 if (hw_assembly.rtc_type == "ds3231") {
                     LOG_INFO("Scheduling first wake-up via RTC alarm");
                     rtc_init_interrupt_pin(interrupt_pin);  // Initialize the interrupt pin
-                    rtc_enable_wakeup_interrupt(interrupt_pin);
-                    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s,
-                                           RTC_INTERRUPT_PIN);
                 }
 
                 // Initialize sensors once before entering DEPLOY
@@ -312,7 +321,7 @@ void loop() {
 
         case STATE_DEPLOY:
 
-            runDeployState(currentState);
+            run_deploy_state(currentState);
             break;
 
         case STATE_STOCK:

@@ -31,6 +31,7 @@
 #include "utils.h"
 #include "assembly.h"
 #include "hardware.h"
+#include "ir_pwm.h"
 
 // Event flags for DEPLOY state
 enum deploy_event : uint8_t {
@@ -96,8 +97,9 @@ void isr_sensor_2() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_IR2;
 }
 
-static bool init             = false;
-static uint32_t vbat_counter = 0;
+bool init             = false;
+uint32_t vbat_counter = 0;
+uint32_t rtc_period   = 0;
 
 /**
  * @brief Main DEPLOY state handler.
@@ -109,10 +111,12 @@ static uint32_t vbat_counter = 0;
  */
 void run_deploy_state(SystemState& state) {
     if (!init) {
-        pinMode(PIN_A0, INPUT);
-        pinMode(PIN_A1, INPUT);
-        attachInterrupt(digitalPinToInterrupt(PIN_A0), isr_sensor_1, CHANGE);
-        attachInterrupt(digitalPinToInterrupt(PIN_A1), isr_sensor_2, CHANGE);
+        rtc_period = config.acquisition_interval_s;
+        // Bypass drivers interrupts
+        ir_driver.set_callback_sensor_1(isr_sensor_1);
+        ir_driver.set_callback_sensor_2(isr_sensor_2);
+        LowPower.attachInterruptWakeup(RTC_INTERRUPT_PIN, rtc_wake_isr, FALLING);
+        rtc_clear_and_set_alarm(rtc.now(), rtc_period);
         init = true;
     }
 
@@ -145,10 +149,7 @@ void run_deploy_state(SystemState& state) {
 
     if (events & DEPLOY_EVT_RTC_WAKE) {
         // Clear alarm and program next wake-up.
-        rtc_clear_alarm_flag();
-
-        rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s, RTC_INTERRUPT_PIN,
-                               rtc_wake_isr);
+        rtc_clear_and_set_alarm(rtc.now(), rtc_period);
     }
 
     // ===== Periodic full acquisition (RTC driven) =====

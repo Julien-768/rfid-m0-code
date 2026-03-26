@@ -152,7 +152,7 @@ void runConnectedMode(SystemState& state) {
                 rtc_apply_external_time(dt);
                 LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
 
-                rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s, RTC_INTERRUPT_PIN);
+                rtc_clear_and_set_alarm(rtc.now(), config.acquisition_interval_s);
                 LOG_INFO("RTC alarm scheduled from GUI config");
             }
             // If no daily file exists yet, create it now
