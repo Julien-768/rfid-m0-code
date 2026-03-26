@@ -141,23 +141,10 @@ bool rtc_initialization(u_int32_t interrupt_pin) {
 }
 
 /**
- * @brief Check whether Alarm1 interrupt has fired since last clear.
- *
- * @return true if the alarm flag is set, false otherwise.
- *
- * @note This only reports the software flag (@ref s_alarm_flag). It does not read
- *       DS3231 alarm registers.
- */
-bool rtc_alarm_triggered() {
-    return s_alarm_flag;
-}
-
-/**
  * @brief Clear the software alarm flag and acknowledge Alarm1 on the DS3231.
  *
  * This must be called after waking up from a DS3231 alarm to prevent repeated wake-ups.
  *
- * @see rtc_alarm_triggered()
  */
 void rtc_clear_alarm_flag() {
     s_alarm_flag = false;
@@ -202,8 +189,7 @@ bool scan_i2c_for_ds3231() {
  *
  * @see rtc_configure_interrupt()
  */
-void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s, u_int32_t interrupt_pin,
-                            void (*isr)()) {
+void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s) {
     // Round to minute boundary, then add interval
     DateTime rounded(now.year(), now.month(), now.day(), now.hour(), now.minute(), 0);
     DateTime wakeup = rounded + TimeSpan(interval_s);

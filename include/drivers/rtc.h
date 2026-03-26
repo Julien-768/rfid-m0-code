@@ -95,12 +95,6 @@ bool rtc_initialization();
 bool scan_i2c_for_ds3231();
 
 /**
- * @brief Indicates if the last scheduled alarm triggered since last clear.
- * @return true if alarm flag is set.
- */
-bool rtc_alarm_triggered();
-
-/**
  * @brief Clear the internal alarm flag and clear RTC Alarm1 state.
  */
 void rtc_clear_alarm_flag();
@@ -122,8 +116,7 @@ void rtc_configure_interrupt(u_int32_t interrupt_pin, void (*isr)());
  * @param now Current time.
  * @param interval_s Wake interval in seconds.
  */
-void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s, u_int32_t interrupt_pin,
-                            void (*isr)());
+void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s);
 
 // -----------------------------------------------------------------------------
 // Boot / GUI time handling
