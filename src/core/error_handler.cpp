@@ -18,8 +18,8 @@
 
 #include <Arduino.h>
 
-#include "core/error_handler.h"
-#include "core/log.h"
+#include "error_handler.h"
+#include "log.h"
 
 namespace {
 /// LED blink ON duration (ms).
