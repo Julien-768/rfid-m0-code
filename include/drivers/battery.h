@@ -2,8 +2,6 @@
 #define BATTERY_H
 
 #include <Arduino.h>
-#include <stdint.h>
-#include <stdbool.h>
 
 /**
  * @file battery.h
