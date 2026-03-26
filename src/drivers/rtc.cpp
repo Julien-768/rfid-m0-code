@@ -10,6 +10,7 @@
  * - Wake-up interrupt wiring to SAMD21 low-power sleep
  * - Daily log file rollover helper
  * - Boot-time time sanity checks and recovery strategy
+ * - Internal RTC ISR with configurable user callback
  *
  * ## Ownership and dependencies
  * - The I2C bus (`Wire`) must be initialized elsewhere (e.g., in `setup()`).
@@ -19,12 +20,11 @@
  * ## Time trust model
  * At boot, the RTC time is validated against basic sanity rules and firmware build
  * time. If time is invalid:
- * - If the logger is connected to an external GUI: it enters a "waiting for time"
- *   window (see @ref rtc_boot_recover()).
  * - Otherwise: it falls back to firmware build time.
  *
- * @warning Any direct manipulation of SAMD21 EIC registers (e.g., `EIC->WAKEUP`)
- *          can be core-dependent and may break across platform/core updates.
+ * @warning Any direct manipulation of SAMD21 EIC registers is intentionally avoided
+ *          here. ArduinoLowPower already resolves the correct EXTINT line and enables
+ *          wake-up on supported SAMD cores.
  *
  * @see rtc.h
  * @see ArduinoLowPower
@@ -33,30 +33,39 @@
  */
 
 #include "rtc.h"
+
 #include <ArduinoLowPower.h>
 #include <RTClib.h>
+#include <Wire.h>
 #include <string.h>
+
 #include "error_handler.h"
 #include "log.h"
 
 /**
  * @brief Global DS3231 instance (RTClib).
  */
-// Define the global RTC object
 RTC_DS3231 rtc_instance;
 
-// Implement the getter function
+/**
+ * @brief Return the global RTC instance.
+ *
+ * @return Reference to the global RTC object.
+ */
 RTC_DS3231& get_rtc() {
     return rtc_instance;
 }
 
 /**
  * @brief Global RTC runtime state.
- *
- * Tracks whether time is currently trusted and when to stop waiting for GUI time.
  */
 RTC_STATE rtc_state_instance;
-// Implement the getter function
+
+/**
+ * @brief Return the global RTC runtime state.
+ *
+ * @return Reference to the global RTC runtime state.
+ */
 RTC_STATE& get_rtc_state() {
     return rtc_state_instance;
 }
@@ -64,36 +73,73 @@ RTC_STATE& get_rtc_state() {
 /**
  * @brief Alarm flag set by the RTC interrupt when Alarm1 triggers.
  *
- * Marked volatile as it is written from an ISR.
+ * Marked volatile because it is written from interrupt context.
  */
 static volatile bool s_alarm_flag = false;
+
+/**
+ * @brief Optional user callback executed from the RTC ISR.
+ *
+ * @note This callback runs in interrupt context and must stay short
+ *       and non-blocking.
+ */
+static rtc_alarm_callback_t s_alarm_callback = nullptr;
 
 // -----------------------------------------------------------------------------
 // Interrupt + wake-up
 // -----------------------------------------------------------------------------
 
 /**
- * @brief RTC alarm ISR: sets the internal alarm flag.
+ * @brief Internal RTC alarm ISR.
  *
- * This ISR is attached to the DS3231 INT/SQW pin configured for alarm interrupts.
+ * This ISR is attached to the DS3231 INT/SQW pin configured for alarm
+ * interrupts. It sets the internal software flag and optionally invokes
+ * a user-provided callback.
  */
 static void rtc_alarm_isr() {
     s_alarm_flag = true;
+
+    if (s_alarm_callback != nullptr) {
+        s_alarm_callback();
+    }
 }
 
 /**
- * @brief  Configure a GPIO interrupt as a wake-up source for the RTC alarm.
- * This should be called after scheduling an alarm with `rtc_clear_and_set_alarm()`.
- * It sets up the SAMD21 EIC to wake the MCU when the RTC alarm triggers.
+ * @brief Register or replace the user callback executed by the RTC ISR.
  *
- * @param interrupt_pin The pin number connected to the DS3231 INT/SQW output.
- * @param isr The interrupt service routine to call when the alarm triggers (e.g., `rtc_alarm_isr`).
- * @note The pin should be configured as INPUT_PULLUP and the DS3231 INT/SQW should be configured to pull low on alarm.
- * @warning This function manipulates SAMD21 EIC registers directly, which may be core/platform dependent.
+ * @param callback Function called from interrupt context when the RTC alarm
+ *                 fires. Pass nullptr to disable the callback.
+ */
+void rtc_set_alarm_callback(rtc_alarm_callback_t callback) {
+    s_alarm_callback = callback;
+}
+
+/**
+ * @brief Return true if the RTC alarm has fired since the last clear.
+ *
+ * @return true if an alarm interrupt occurred, false otherwise.
+ */
+bool rtc_alarm_fired() {
+    return s_alarm_flag;
+}
+
+/**
+ * @brief Configure a GPIO interrupt as a wake-up source for the RTC alarm.
+ *
+ * This should be called after scheduling an alarm with
+ * @ref rtc_clear_and_set_alarm().
+ *
+ * @param interrupt_pin Arduino pin number connected to the DS3231 INT/SQW output.
+ * @param isr ISR to execute when the alarm line triggers.
+ *
+ * @note The DS3231 INT/SQW output is typically active low and should be wired
+ *       with a pull-up.
+ * @note This implementation relies on ArduinoLowPower, which already resolves
+ *       the correct EXTINT line using `g_APinDescription[pin].ulExtInt`.
  */
 void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)()) {
     pinMode(interrupt_pin, INPUT_PULLUP);
-    LowPower.attachInterruptWakeup(digitalPinToInterrupt(interrupt_pin), isr, FALLING);
+    LowPower.attachInterruptWakeup(interrupt_pin, isr, FALLING);
 }
 
 // -----------------------------------------------------------------------------
@@ -101,22 +147,28 @@ void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)()) {
 // -----------------------------------------------------------------------------
 
 /**
- * @brief Initialize the DS3231 RTC and clear alarm configuration.
+ * @brief Initialize the DS3231 RTC and configure the alarm wake-up interrupt.
  *
- * - Calls `rtc.begin()` (RTClib).
- * - Logs lost-power status (does not automatically set time here).
- * - Disables SQW output and clears Alarm1/Alarm2 flags.
+ * - Checks that the I2C bus is ready
+ * - Calls `rtc().begin()` (RTClib)
+ * - Logs lost-power status
+ * - Disables SQW output and clears alarm flags
+ * - Attaches the internal RTC ISR to the RTC interrupt pin
  *
+ * @param interrupt_pin Arduino pin connected to the DS3231 INT/SQW output.
  * @return true on success, false on failure.
  *
  * @warning `Wire.begin()` must have been called before this function.
- * @see rtc_boot_recover()
  */
-bool rtc_initialization(u_int32_t interrupt_pin) {
-    // Wire.begin() should already be done before calling this
-    // Check if the I2C bus is ready (without initializing it)
-    Wire.beginTransmission(0x00);  // Dummy address to test bus availability
+bool rtc_initialization(uint32_t interrupt_pin) {
+    RTC_DS3231& rtc = get_rtc();
+
+    // Wire.begin() should already be done before calling this function.
+    // Probe the I2C bus with a harmless transaction to detect an uninitialized
+    // or blocked bus.
+    Wire.beginTransmission(0x00);
     uint8_t i2c_status = Wire.endTransmission();
+
     if (i2c_status != 0) {
         LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
         error_signal(ERR_I2C_NOT_READY, false);
@@ -136,6 +188,9 @@ bool rtc_initialization(u_int32_t interrupt_pin) {
     rtc.clearAlarm(DS3231_ALARM_1);
     rtc.clearAlarm(DS3231_ALARM_2);
 
+    // Attach the internal ISR used by this module.
+    rtc_configure_interrupt(static_cast<uint8_t>(interrupt_pin), rtc_alarm_isr);
+
     LOG_INFO("RTC initialized successfully");
     return true;
 }
@@ -143,16 +198,15 @@ bool rtc_initialization(u_int32_t interrupt_pin) {
 /**
  * @brief Clear the software alarm flag and acknowledge Alarm1 on the DS3231.
  *
- * This must be called after waking up from a DS3231 alarm to prevent repeated wake-ups.
- *
+ * This must be called after waking up from a DS3231 alarm to prevent repeated
+ * wake-ups while the alarm line remains asserted.
  */
 void rtc_clear_alarm_flag() {
+    RTC_DS3231& rtc = get_rtc();
+
     s_alarm_flag = false;
     rtc.clearAlarm(DS3231_ALARM_1);
 }
-
-/**
-
 
 /**
  * @brief Probe the I2C bus to check if a DS3231 responds at address 0x68.
@@ -174,31 +228,27 @@ bool scan_i2c_for_ds3231() {
 /**
  * @brief Schedule the next RTC wake-up using DS3231 Alarm1.
  *
- * The scheduling strategy:
- * - Round the current time down to the minute boundary (seconds=0),
- * - Add @p interval_s,
- * - Program Alarm1.
+ * The scheduling strategy is:
+ * - round the current time down to the minute boundary (seconds = 0)
+ * - add @p interval_s
+ * - program Alarm1
  *
- * @param now Current time (RTC).
+ * @param now Current RTC time.
  * @param interval_s Wake-up interval in seconds.
  *
- * @note Alarm mode is set to `DS3231_A1_Minute`, which matches on minute boundaries
- *       according to RTClib's DS3231 alarm behavior. Ensure this matches the desired
- *       resolution. If sub-minute timing is required, a different alarm mode and
- *       rounding strategy should be used.
- *
- * @see rtc_configure_interrupt()
+ * @note Alarm mode is set to `DS3231_A1_Minute`, which matches on minute
+ *       boundaries according to RTClib's DS3231 alarm behavior. If sub-minute
+ *       timing is required, use a different alarm mode and strategy.
  */
 void rtc_clear_and_set_alarm(const DateTime& now, uint16_t interval_s) {
-    // Round to minute boundary, then add interval
+    RTC_DS3231& rtc = get_rtc();
+
+    // Round to minute boundary, then add the requested interval.
     DateTime rounded(now.year(), now.month(), now.day(), now.hour(), now.minute(), 0);
     DateTime wakeup = rounded + TimeSpan(interval_s);
 
     rtc.clearAlarm(DS3231_ALARM_1);
     rtc.setAlarm1(wakeup, DS3231_A1_Minute);
-
-    // TODO: Check: Should not be necessary
-    // rtc_configure_interrupt(interrupt_pin, void (*isr)());
 }
 
 // -----------------------------------------------------------------------------
@@ -209,10 +259,10 @@ void rtc_clear_and_set_alarm(const DateTime& now, uint16_t interval_s) {
  * @brief Basic RTC sanity check.
  *
  * Checks that:
- * - Year must be within [2020, 2099]
+ * - year must be within [2020, 2099]
  * - RTC time must not be earlier than firmware build time
  *
- * @param now   Current RTC time.
+ * @param now Current RTC time.
  * @param build Firmware build timestamp.
  * @return true if RTC time is considered sane, false otherwise.
  */
@@ -220,43 +270,30 @@ static bool rtc_sanity_ok(const DateTime& now, const DateTime& build) {
     if (now.year() < 2020 || now.year() > 2099) {
         return false;
     }
+
     if (now < build) {
         return false;
     }
+
     return true;
 }
 
 /**
- * @brief Boot-time RTC recovery strategy (trust / wait for GUI / fallback).
+ * @brief Boot-time RTC recovery strategy (trust / fallback).
  *
  * This function implements the following logic:
- * - If RTC time is sane at boot: accept it and (if connected) optionally wait for GUI
- * time.
- * - If RTC time is not sane at boot: accept it but optionally wait for GUI time.
- *   - If connected: mark time as unverified and set a waiting deadline (e.g., 20s).
- *  - If not connected: immediately fallback to firmware build time.
- * - If GUI time is received within the waiting deadline
- *  (via `rtc_apply_external_time()`): accept it and mark time as verified.
- * - If the waiting deadline expires without receiving GUI time: fallback to firmware
- * build time.
- * - If time is accepted from either RTC or GUI, it is applied to the DS3231 and marked
- * as verified.
- * - Logs all relevant events and decisions for debugging.
- * @param connected True if an external GUI/serial link is present at boot, false
- * otherwise.
+ * - If RTC time is sane at boot: accept it
+ * - Otherwise: fallback to firmware build time
  *
- * @return true if the RTC policy was executed (regardless of whether time is valid),
- * false on critical failure.
- *
- * @note The waiting deadline is currently set to 20 seconds.
- * @see rtc_apply_external_time()
+ * @return true if the RTC policy completed successfully
  */
 bool rtc_boot_recover() {
-    // Get current RTC time and firmware build time
+    RTC_DS3231& rtc      = get_rtc();
+    RTC_STATE& rtc_state = get_rtc_state();
+
     const DateTime build(F(__DATE__), F(__TIME__));
     const DateTime now = rtc.now();
 
-    // Log rtc time, build time and lost power status at boot for debugging
     LOG_DEBUG(
         "RTC boot check: rtc=%04d-%02d-%02d %02d:%02d:%02d, "
         "build=%04d-%02d-%02d %02d:%02d:%02d, lostPower=%s",
@@ -264,49 +301,42 @@ bool rtc_boot_recover() {
         build.month(), build.day(), build.hour(), build.minute(), build.second(),
         rtc.lostPower() ? "YES" : "NO");
 
-    // check if rtc time is within 2020-2099 and not before build time
-    const bool time_in_range        = rtc_sanity_ok(now, build);
-    rtc_state_instance.time_checked = !rtc.lostPower() && time_in_range;
+    const bool time_in_range = rtc_sanity_ok(now, build);
 
-    // initialize the waiting deadline to 0 (not waiting) or now+20s (waiting for GUI
-    // time)
-    rtc_state_instance.time_in_connected_mode = 0;
+    rtc_state.time_checked           = !rtc.lostPower() && time_in_range;
+    rtc_state.time_in_connected_mode = 0;
 
-    // If time is already verified at boot, we are done. If connected, we can wait for
-    // GUI time if needed.
-    if (rtc_state_instance.time_checked) {
+    if (rtc_state.time_checked) {
         LOG_INFO("RTC time accepted as valid at boot: %04d-%02d-%02d %02d:%02d:%02d", now.year(),
                  now.month(), now.day(), now.hour(), now.minute(), now.second());
     } else {
-        // Else we fall back to firmware build time
         rtc.adjust(build);
-        rtc_state_instance.time_checked = true;
+        rtc_state.time_checked = true;
 
-        LOG_WARN(
-            "RTC invalid at boot; using build time fallback: %04d-%02d-%02d "
-            "%02d:%02d:%02d",
-            build.year(), build.month(), build.day(), build.hour(), build.minute(), build.second());
+        LOG_WARN("RTC invalid at boot; using build time fallback: %04d-%02d-%02d %02d:%02d:%02d",
+                 build.year(), build.month(), build.day(), build.hour(), build.minute(),
+                 build.second());
     }
+
+    return true;
 }
 
 /**
  * @brief Apply time provided by an external GUI and finalize time verification.
  *
- * - Updates DS3231 time using `rtc.adjust(t)`.
- * - Marks time as verified and clears the waiting deadline.
- * - If no daily data file exists yet, creates it immediately.
+ * - Updates DS3231 time using `rtc().adjust(t)`
+ * - Marks time as verified
+ * - Clears any waiting deadline
  *
  * @param t External trusted time to apply.
- *
- * @note If logs were buffered while time was unverified, creating the daily file
- *       allows the system to flush buffered logs (depending on logging implementation).
- *
- * @see rtc_boot_recover()
  */
 void rtc_apply_external_time(const DateTime& t) {
+    RTC_DS3231& rtc      = get_rtc();
+    RTC_STATE& rtc_state = get_rtc_state();
+
     rtc.adjust(t);
-    rtc_state_instance.time_checked           = true;
-    rtc_state_instance.time_in_connected_mode = 0;
+    rtc_state.time_checked           = true;
+    rtc_state.time_in_connected_mode = 0;
 
     LOG_INFO("RTC updated from GUI (SET_CONFIG)");
 }

@@ -66,7 +66,7 @@ constexpr uint32_t ir_debounce_us = 50000;
 
 // ===== Interrupt Service Routines =====
 
-void rtc_wake_isr() {
+void callback_rtc() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
     g_rtc_wake_count++;
 }
@@ -79,7 +79,7 @@ void tsl2591_isr() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
 
-void ir1_callback(uint8_t state) {
+void callback_ir1(uint8_t state) {
     uint32_t now = micros();
 
     if ((now - g_ir1_last_ts) < ir_debounce_us) return;
@@ -90,7 +90,7 @@ void ir1_callback(uint8_t state) {
     g_deploy_events |= DEPLOY_EVT_SENSOR_IR1;
 }
 
-void ir2_callback(uint8_t state) {
+void callback_ir2(uint8_t state) {
     uint32_t now = micros();
 
     if ((now - g_ir2_last_ts) < ir_debounce_us) return;
@@ -117,10 +117,10 @@ void run_deploy_state(SystemState& state) {
     if (!init) {
         rtc_period = config.acquisition_interval_s;
         // Bypass drivers interrupts
-        ir_driver.set_callback_sensor_1(ir1_callback);
-        ir_driver.set_callback_sensor_2(ir2_callback);
-        LowPower.attachInterruptWakeup(RTC_INTERRUPT_PIN, rtc_wake_isr, FALLING);
-        rtc_clear_and_set_alarm(rtc.now(), rtc_period);
+        ir_driver.set_callback_sensor_1(callback_ir1);
+        ir_driver.set_callback_sensor_2(callback_ir2);
+        rtc_set_alarm_callback(callback_rtc);
+        rtc_clear_and_set_alarm(rtc().now(), rtc_period);
         init = true;
     }
 
@@ -153,14 +153,14 @@ void run_deploy_state(SystemState& state) {
 
     if (events & DEPLOY_EVT_RTC_WAKE) {
         // Clear alarm and program next wake-up.
-        rtc_clear_and_set_alarm(rtc.now(), rtc_period);
+        rtc_clear_and_set_alarm(rtc().now(), rtc_period);
     }
 
     // ===== Periodic full acquisition (RTC driven) =====
     if (events & DEPLOY_EVT_RTC_WAKE) {
 
         // Ensure today’s data file exists.
-        DateTime now = rtc.now();
+        DateTime now = rtc().now();
         check_and_create_new_daily_file(now);
 
         // Read all active sensors.

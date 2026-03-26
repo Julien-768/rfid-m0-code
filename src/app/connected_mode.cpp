@@ -152,12 +152,12 @@ void runConnectedMode(SystemState& state) {
                 rtc_apply_external_time(dt);
                 LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
 
-                rtc_clear_and_set_alarm(rtc.now(), config.acquisition_interval_s);
+                rtc_clear_and_set_alarm(rtc().now(), config.acquisition_interval_s);
                 LOG_INFO("RTC alarm scheduled from GUI config");
             }
             // If no daily file exists yet, create it now
             if (strlen(get_filename()) == 0) {
-                check_and_create_new_daily_file(rtc.now());
+                check_and_create_new_daily_file(rtc().now());
                 LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
             }
 

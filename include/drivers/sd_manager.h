@@ -20,7 +20,7 @@
  * @code
  * if (!sd_initialization()) { return; }
  *
- * DateTime now = rtc.now();
+ * DateTime now = rtc().now();
  * daily_data_file(get_filename(), now);
  *
  * SensorFrame frame = readAllSensors();

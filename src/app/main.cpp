@@ -149,17 +149,21 @@ SystemState runBootSequence() {
 
     if (hw_assembly.rtc_type == "ds3231") {
         LOG_INFO("RTC type: DS3231");
-        /* Initialize RTC */
-        if (!rtc_initialization()) {
+        // Register RTC ISR callback
+        rtc_set_alarm_callback(nullptr);
+        // Initialize RTC
+        if (!rtc_initialization(RTC_INTERRUPT_PIN)) {
+            LOG_ERROR("RTC initialization failed");
             return STATE_ENDOFLIFE;
         }
-        /* Check any fault on RTC*/
+        // Boot-time sanity check
         rtc_boot_recover();
+
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
     }
 
-    DateTime now = rtc.now();
+    DateTime now = rtc().now();
     check_and_create_new_daily_file(now);
 
     /*

@@ -158,7 +158,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
  * @param filename Output buffer (char[13]) for the generated filename.
  * @param now      Current date/time used for naming.
  *
- * @see rtc.now(), error()
+ * @see rtc().now(), error()
  */
 u_int8_t daily_data_file(char* filename, const DateTime& now) {
     snprintf(filename, 16, "%04d%02d%02d.TXT", now.year(), now.month(), now.day());
