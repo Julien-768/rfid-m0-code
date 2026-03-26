@@ -165,6 +165,13 @@ void runConnectedMode(SystemState& state) {
             break;
         }
 
+        case CommandType::SET_RUN_START: {
+            Serial1.println("{\"config\":\"ACK\"}");
+
+            LOG_INFO("Deploy mode started from GUI");
+            state = STATE_INIT;
+            break;
+        }
         case CommandType::SET_IDENTITY: {
             LOG_INFO("Factory SET_IDENTITY command received");
 
