@@ -138,7 +138,9 @@ SystemState runBootSequence() {
     LOG_INFO(board.c_str());
     LOG_INFO(string_widget.c_str());
 
-    /* Initialize SD card */
+    /*
+    Initialize SD card
+     */
     if (!sd_initialization(PIN_SD_CS)) {
         return STATE_ENDOFLIFE;
     }
@@ -147,6 +149,9 @@ SystemState runBootSequence() {
     assembly_load(hw_assembly);
     LOG_INFO("Assembly information loaded from assembly.cfg");
 
+    /*
+    RTC initialization and sanity check
+     */
     if (hw_assembly.rtc_type == "ds3231") {
         LOG_INFO("RTC type: DS3231");
         // Register RTC ISR callback
@@ -158,13 +163,21 @@ SystemState runBootSequence() {
         }
         // Boot-time sanity check
         rtc_boot_recover();
-
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
     }
 
     DateTime now = rtc().now();
     check_and_create_new_daily_file(now);
+
+    /*
+    Load configuration from SD card
+    */
+    if (loadConfiguration(config)) {
+        LOG_INFO("Configuration loaded from SD");
+    } else {
+        LOG_WARN("Using default compiled configuration");
+    }
 
     /*
      Battery initialization
@@ -179,7 +192,7 @@ SystemState runBootSequence() {
     cfg.hw.adc_cfg.adc_max    = 4095;
 
     // Get configuration policy from configuration file
-    battery_thresholds_t batt_thr = battery_service_apply_type_string(app_config.battery_type);
+    battery_thresholds_t batt_thr = battery_service_apply_type_string(hw_assembly.battery_type);
     cfg.policy.plausible_min_mv   = batt_thr.low_crit_mv;   // e.g. 3300mV for LiPo 1S
     cfg.policy.plausible_max_mv   = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
 
@@ -237,7 +250,8 @@ SystemState runBootSequence() {
 
     Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
     LOG_INFO("Boot sequence completed");
-    return STATE_INIT;
+    LOG_INFO("Entering CONNECTED mode");
+    return STATE_CONNECTED;
 }
 
 /**
@@ -296,29 +310,26 @@ void loop() {
 
     switch (currentState) {
         case STATE_INIT:
-            if (DET_EXT_Connected()) {
-                LOG_INFO("Entering CONNECTED mode");
-                currentState = STATE_CONNECTED;
+            // Load configuration from SD card
+            if (loadConfiguration(config)) {
+                LOG_INFO("Configuration loaded from SD");
             } else {
-                LOG_INFO("Initializing sensors for DEPLOY mode");
-                if (loadConfiguration(config)) {
-                    LOG_INFO("Configuration loaded from SD");
-                } else {
-                    LOG_WARN("Using default compiled configuration");
-                }
-
-                // Initialize sensors once before entering DEPLOY
-                Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
-
-                LOG_DEBUG("Entering DEPLOY mode");
-                currentState = STATE_DEPLOY;
+                LOG_WARN("Using default compiled configuration");
             }
+
+            // Initialize sensors once before entering DEPLOY
+            LOG_INFO("Initializing sensors for DEPLOY mode");
+            Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
+            LOG_DEBUG("Entering DEPLOY mode");
+            currentState = STATE_DEPLOY;
             break;
 
-        case STATE_CONNECTED: {
-            runConnectedMode(currentState);
+        case STATE_CONNECTED:
+            if (DET_EXT_Connected()) {
+                runConnectedMode(currentState);
+            }
+            currentState = STATE_INIT;
             break;
-        }
 
         case STATE_DEPLOY:
 
