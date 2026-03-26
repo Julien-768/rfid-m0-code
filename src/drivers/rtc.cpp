@@ -73,16 +73,6 @@ static volatile bool s_alarm_flag = false;
 // -----------------------------------------------------------------------------
 
 /**
- * @brief Initialize the RTC interrupt pin.
- *
- * @param interruptPin The pin number to use for the RTC interrupt.
- */
-void rtc_init_interrupt_pin(uint8_t interruptPin) {
-    s_rtcInterruptPin = interruptPin;
-    LOG_INFO("RTC interrupt pin set to %d.", s_rtcInterruptPin);
-}
-
-/**
  * @brief RTC alarm ISR: sets the internal alarm flag.
  *
  * This ISR is attached to the DS3231 INT/SQW pin configured for alarm interrupts.
