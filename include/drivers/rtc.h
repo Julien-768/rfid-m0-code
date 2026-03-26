@@ -151,7 +151,7 @@ void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)());
  * @param now Current time.
  * @param interval_s Wake interval in seconds.
  */
-void rtc_clear_and_set_alarm(const DateTime& now, uint16_t interval_s);
+void rtc_clear_and_set_alarm(const DateTime& now, uint32_t interval_s);
 
 /**
  * @brief Set or replace the optional user callback executed by the RTC ISR.

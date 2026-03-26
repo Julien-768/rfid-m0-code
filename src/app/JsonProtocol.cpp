@@ -174,7 +174,10 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
             strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
             out.cfg.dateCurrentIso[sizeof(out.cfg.dateCurrentIso) - 1] = '\0';
 
-            out.cfg.acquisition_interval_s = jsonConfig["acquisition_interval_s"] | 0;
+            out.cfg.acquisition_interval_s =
+                jsonConfig.containsKey("acquisition_interval_s")
+                    ? jsonConfig["acquisition_interval_s"].as<uint16_t>()
+                    : 0;
 
             out.cfg.enable_light1 = jsonConfig.containsKey("enable_light1")
                                         ? jsonConfig["enable_light1"].as<bool>()
