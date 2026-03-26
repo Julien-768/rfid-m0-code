@@ -116,7 +116,7 @@ void rtc_configure_interrupt(u_int32_t interrupt_pin, void (*isr)());
  * @param now Current time.
  * @param interval_s Wake interval in seconds.
  */
-void rtc_schedule_next_wake(const DateTime& now, uint16_t interval_s);
+void rtc_clear_and_set_alarm(const DateTime& now, uint16_t interval_s);
 
 // -----------------------------------------------------------------------------
 // Boot / GUI time handling
