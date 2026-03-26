@@ -51,6 +51,7 @@
 
 #include "system_state.h"
 #include "log.h"
+#include "error_handler.h"
 #include "connected_mode.h"
 #include "det_ext.h"
 #include "deploy_mode.h"
@@ -71,22 +72,6 @@ SystemState currentState = STATE_INIT;
  * @brief IR PWM driver instance
  */
 ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
-
-enum class BlinkMode {
-    Slow   = 500,
-    Medium = 250,
-    Fast   = 100
-    // Seules 3 valeurs possibles
-};
-
-void Led_Blink(uint32_t Pin, BlinkMode speed, uint8_t count) {
-    for (uint8_t i = 0; i < count; i++) {
-        digitalWrite(Pin, HIGH);
-        delay((uint16_t)speed);
-        digitalWrite(Pin, LOW);
-        delay((uint16_t)speed);
-    }
-}
 
 /**
  * @brief Execute the full hardware initialization sequence at startup.
@@ -213,6 +198,7 @@ SystemState runBootSequence() {
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
         if (!battery_service_decision("Boot", vbat_mv)) {
             // Handle decision failure
+            error_signal(ERR_BATTERY_CRITICAL, false, PIN_ERROR);
             return STATE_ENDOFLIFE;
         }
     }

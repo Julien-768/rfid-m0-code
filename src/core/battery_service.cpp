@@ -34,7 +34,6 @@
  */
 
 #include "battery_service.h"
-#include "error_handler.h"
 #include "log.h"
 
 static battery_hw_config_t batt_hw_cfg{};
@@ -195,7 +194,6 @@ bool battery_service_decision(const char* context, int32_t vbat_mv) {
         case battery_critical_high:
         case battery_critical_low:
             LOG_ERROR("%s: CRITICAL battery (%ld mV)", context, vbat_mv);
-            error_signal(ERR_BATTERY_CRITICAL, false);
             return false;
     }
 
@@ -296,8 +294,8 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
 
     vbat_mv = batt_filter_state.ema_mv;
 
-    LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d", (long)v,
-              (long)batt_filter_state.median_mv, (long)batt_filter_state.ema_mv, (int)changed);
+    LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d", v, batt_filter_state.median_mv,
+              batt_filter_state.ema_mv, (int)changed);
 
     return true;
 }
