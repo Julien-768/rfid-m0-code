@@ -15,10 +15,6 @@
 
 #pragma once
 
-#ifndef
-#define PIN_ERROR PIN_LEDBUILTIN
-#endif
-
 /**
  * @enum ErrorCode
  * @brief Error code definitions for LED-based signaling.
@@ -59,4 +55,4 @@ enum ErrorCode : uint8_t {
  *
  * @ingroup SystemModules
  */
-void error_signal(ErrorCode code, bool halt_system, uint8_t blink_pin = PIN_ERROR);
+void error_signal(ErrorCode code, bool halt_system, uint8_t blink_pin = LED_BUILTIN);
