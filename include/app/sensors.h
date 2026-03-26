@@ -15,7 +15,8 @@ struct SensorFrame {
     // TSL2591Reading tsl2591;
     // bool valid_tsl2591 = false;
 
-    int32_t vbat_mv = 0.0f;
+    bool battery_valid = false;
+    int32_t vbat_mv    = 0.0f;
 };
 
 /**
