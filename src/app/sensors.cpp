@@ -69,7 +69,7 @@
  */
 static void battery_measurement(void* ctx) {
     auto* frame    = static_cast<SensorFrame*>(ctx);
-    frame->vbat_mv = read_battery_voltage(PIN_VBAT);
+    frame->vbat_mv = read_battery_voltage(cfg.hw.pin);
 }
 
 bool battery_initialisation() {

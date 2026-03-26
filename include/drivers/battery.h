@@ -135,7 +135,8 @@ bool battery_init(const battery_hw_config_t& cfg);
  * @brief Read battery voltage in mV.
  * @return Voltage in mV, negative value on error.
  */
-int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg);
+int32_t read_battery_voltage(uint32_t pin,
+                             const battery_adc_config_t& cfg = battery_adc_config_t{});
 
 /**
  * @brief Check plausibility of voltage.

@@ -167,19 +167,21 @@ SystemState runBootSequence() {
      */
     battery_service_config_t cfg{};
 
-    // 1) Remplir cfg.hw
-    cfg.hw.pin                = ...;
-    cfg.hw.adc_cfg.ratio      = ...;
-    cfg.hw.adc_cfg.adc_ref_mv = ...;
-    cfg.hw.adc_cfg.adc_max    = ...;
+    // Hardware configuration
+    cfg.hw.pin = PIN_VBAT;
+    // ADC configuration - defaults as a reminder, can be overridden if needed
+    cfg.hw.adc_cfg.ratio      = 2.0f;
+    cfg.hw.adc_cfg.adc_ref_mv = 3300;
+    cfg.hw.adc_cfg.adc_max    = 4095;
 
-    // 2) Remplir cfg.policy
-    cfg.policy.plausible_min_mv = ...;
-    cfg.policy.plausible_max_mv = ...;
+    // Get configuration policy from configuration file
+    battery_thresholds_t batt_thr = battery_service_apply_type_string(app_config.battery_type);
+    cfg.policy.plausible_min_mv   = batt_thr.low_crit_mv;   // e.g. 3300mV for LiPo 1S
+    cfg.policy.plausible_max_mv   = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
 
     // 3) Remplir cfg.filter
-    cfg.filter.ema_alpha          = ...;
-    cfg.filter.delta_threshold_mv = ...;
+    cfg.filter.ema_alpha          = 0.2;  // Smoothing factor for EMA (0..1).
+    cfg.filter.delta_threshold_mv = 10;  // Change in mV to consider the battery level as "changed".
 
     // 4) Init service
     if (!battery_service_init(cfg)) {
@@ -187,7 +189,6 @@ SystemState runBootSequence() {
     }
 
     // 5) Appliquer le type batterie réel
-    battery_service_apply_type_string(app_config.battery_type);
 
     // 6) Vérification initiale boot
     int32_t vbat_mv = 0;
@@ -300,10 +301,6 @@ void loop() {
                     LOG_INFO("Configuration loaded from SD");
                 } else {
                     LOG_WARN("Using default compiled configuration");
-                }
-                if (hw_assembly.rtc_type == "ds3231") {
-                    LOG_INFO("Scheduling first wake-up via RTC alarm");
-                    rtc_init_interrupt_pin(interrupt_pin);  // Initialize the interrupt pin
                 }
 
                 // Initialize sensors once before entering DEPLOY
