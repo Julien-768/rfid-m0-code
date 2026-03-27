@@ -60,21 +60,17 @@
 //     frame->valid_tsl2591 = true;
 // }
 
-/**
- * @brief HAL read callback: acquire battery voltage into a @ref SensorFrame.
- *
- * @param ctx Opaque pointer expected to be a `SensorFrame*`.
- *
- * @warning The caller must ensure @p ctx points to a valid @ref SensorFrame.
- */
-static void battery_measurement(void* ctx) {
-    auto* frame    = static_cast<SensorFrame*>(ctx);
-    frame->vbat_mv = read_battery_voltage(cfg.hw.pin);
-}
-
-bool battery_initialisation() {
-    return battery_service_init();
-}
+// /**
+//  * @brief HAL read callback: acquire battery voltage into a @ref SensorFrame.
+//  *
+//  * @param ctx Opaque pointer expected to be a `SensorFrame*`.
+//  *
+//  * @warning The caller must ensure @p ctx points to a valid @ref SensorFrame.
+//  */
+// static void battery_measurement(void* ctx) {
+//     auto* frame    = static_cast<SensorFrame*>(ctx);
+//     frame->vbat_mv = read_battery_voltage(batt_serv_cfg.hw.pin);
+// }
 
 /**
  * @todo Simplify validity handling: consider removing `valid_vbat` and relying
@@ -103,7 +99,7 @@ SensorSpec g_sensors[] = {
     // {"AS7341", &config.enable_light1, initAS7341, readAS7341IntoContext},
     // {"TSL2591", &config.enable_light2, initTSL2591, readTSL2591IntoContext},
     // TODO battery
-    {"VBAT", &config.enable_vbat, battery_initialisation, battery_measurement},
+    {"VBAT", &config.enable_vbat, nullptr, nullptr},
 };
 
 /**
@@ -178,8 +174,8 @@ SensorFrame readAllSensors(SensorSpec* table, size_t count) {
  */
 void logSensorFrame(const DateTime& now, const SensorFrame& f) {
 
-    // --- VBAT ---
-    if (f.battery_valid) {
-        logMeasurement(now, "VBAT", (float)f.vbat_mv, "V", config.use_buffer);
-    }
+    // // --- VBAT ---
+    // if (f.battery_valid) {
+    //     logMeasurement(now, "VBAT", (float)f.vbat_mv, "V", config.use_buffer);
+    // }
 }

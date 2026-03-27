@@ -35,6 +35,7 @@
 
 #include "battery_service.h"
 #include "log.h"
+extern battery_service_config_t batt_serv_cfg{};
 
 static battery_hw_config_t batt_hw_cfg{};
 static battery_policy_config_t batt_policy_cfg{};

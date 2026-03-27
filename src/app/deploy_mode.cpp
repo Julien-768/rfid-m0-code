@@ -170,13 +170,16 @@ void run_deploy_state(SystemState& state) {
         // Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
         logSensorFrame(now, frame);
 
-        vbat_counter += rtc_wake_count;
+        if (config.enable_vbat) {
+            vbat_counter += rtc_wake_count;
 
-        // Perform battery check every 10 RTC wakes.
-        if (vbat_counter >= 10) {
-            vbat_counter = 0;
-            battery_service_read_vbat_filtered_mv(vbat_mv, changed);
-            if (!battery_service_decision("Boot", vbat_mv)) {
+            // Perform battery check every 10 RTC wakes.
+            if (vbat_counter >= 10) {
+                vbat_counter = 0;
+                battery_service_read_vbat_filtered_mv(vbat_mv, changed);
+                logMeasurement(now, "VBAT", (float)vbat_mv, "V", config.use_buffer);
+            }
+            if (!battery_service_decision("Deployment", vbat_mv)) {
                 // Handle decision failure
                 error_signal(ERR_BATTERY_CRITICAL);
                 state = STATE_ENDOFLIFE;
