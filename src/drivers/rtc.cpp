@@ -172,12 +172,12 @@ bool rtc_initialization(uint32_t interrupt_pin) {
 
     if (i2c_status != 0) {
         LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
-        error_signal(ERR_I2C_NOT_READY, false, PIN_ERROR);
+        error_signal(ERR_I2C_NOT_READY);
         return false;
     }
 
     if (!rtc.begin()) {
-        error_signal(ERR_RTC_FAILURE, false, PIN_ERROR);
+        error_signal(ERR_RTC_FAILURE);
         return false;
     }
 

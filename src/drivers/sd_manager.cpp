@@ -64,7 +64,7 @@ bool sd_initialization(uint8_t pin_cs) {
 
     if (!SD.begin(pin_cs)) {
         // 🔴 Blink code 2× — non-blocking
-        error_signal(ERR_SD_NOT_FOUND, false, PIN_ERROR);
+        error_signal(ERR_SD_NOT_FOUND);
 
         return false;  // ❌ Initialization failed
     }
@@ -121,7 +121,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
 
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log) {
-        error_signal(ERR_SD_WRITE_FAIL, false, PIN_ERROR);
+        error_signal(ERR_SD_WRITE_FAIL);
         return -1;
     }
 
@@ -140,7 +140,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
     log.close();
 
     if (!writeSuccess) {
-        error_signal(ERR_SD_WRITE_FAIL, false, PIN_ERROR);
+        error_signal(ERR_SD_WRITE_FAIL);
         return -1;
     } else {
         cb->tail = cb->head;  // Reset buffer after successful flush
@@ -166,7 +166,7 @@ u_int8_t daily_data_file(char* filename, const DateTime& now) {
 
     File logfile = SD.open(filename, FILE_WRITE);
     if (!logfile) {
-        error_signal(ERR_SD_WRITE_FAIL, false, PIN_ERROR);
+        error_signal(ERR_SD_WRITE_FAIL);
         return -1;
     }
 
@@ -211,7 +211,7 @@ u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, co
 
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log) {
-        error_signal(ERR_SD_WRITE_FAIL, false, PIN_ERROR);
+        error_signal(ERR_SD_WRITE_FAIL);
         return -1;
     }
 
@@ -219,7 +219,7 @@ u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, co
     log.close();
 
     if (written == 0) {
-        error_signal(ERR_SD_WRITE_FAIL, false, PIN_ERROR);
+        error_signal(ERR_SD_WRITE_FAIL);
         return -1;
     }
     return 0;

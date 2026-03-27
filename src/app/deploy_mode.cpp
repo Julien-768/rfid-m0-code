@@ -178,7 +178,7 @@ void run_deploy_state(SystemState& state) {
             battery_service_read_vbat_filtered_mv(vbat_mv, changed);
             if (!battery_service_decision("Boot", vbat_mv)) {
                 // Handle decision failure
-                error_signal(ERR_BATTERY_CRITICAL, false, PIN_ERROR);
+                error_signal(ERR_BATTERY_CRITICAL);
                 state = STATE_ENDOFLIFE;
                 return;
             }

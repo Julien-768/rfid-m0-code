@@ -14,6 +14,7 @@
  */
 
 #pragma once
+#include <stdint.h>
 
 /**
  * @enum ErrorCode
@@ -55,4 +56,4 @@ enum ErrorCode : uint8_t {
  *
  * @ingroup SystemModules
  */
-void error_signal(ErrorCode code, bool halt_system, uint8_t blink_pin = LED_BUILTIN);
+void error_signal(ErrorCode code);

@@ -63,6 +63,7 @@
 #include "battery.h"
 #include "battery_service.h"
 #include "ir_pwm.h"
+#include "signal.h"
 
 //TODO record in SD log messages if needed
 
@@ -122,6 +123,12 @@ SystemState runBootSequence() {
     LOG_INFO(buildDateTime.c_str());
     LOG_INFO(board.c_str());
     LOG_INFO(string_widget.c_str());
+
+    /*
+    Initialize the built-in LED for visual feedback during boot.
+    */
+    signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
+    led_start_blink_isr(3, blink_mode::fast);
 
     /*
     Initialize SD card
@@ -198,7 +205,7 @@ SystemState runBootSequence() {
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
         if (!battery_service_decision("Boot", vbat_mv)) {
             // Handle decision failure
-            error_signal(ERR_BATTERY_CRITICAL, false, PIN_ERROR);
+            error_signal(ERR_BATTERY_CRITICAL);
             return STATE_ENDOFLIFE;
         }
     }
@@ -234,7 +241,7 @@ SystemState runBootSequence() {
     ir_driver.begin(true, true, nullptr, nullptr);
     LOG_INFO("IR PWM driver initialized");
 
-    Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
+    led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
     LOG_INFO("Entering CONNECTED mode");
     return STATE_CONNECTED;
@@ -334,13 +341,19 @@ void loop() {
 
             SD.end();
             LOG_INFO("All peripherals powered off");
-            Led_Blink(LED_BUILTIN, BlinkMode::Slow, 1);
-            Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
+            led_start_blink_isr(1, blink_mode::slow);
+            led_start_blink_isr(3, blink_mode::fast);
+            delay(2000);
             LOG_DEBUG("System halted. LED off. Entering infinite sleep.");
 
             while (true) {
                 LowPower.deepSleep();
             }
+            break;
+
+        case STATE_WAIT:
+            LOG_ERROR("Error, unexpected STATE_WAIT reached.");
+            currentState = STATE_INIT;
             break;
 
         default:
