@@ -56,7 +56,7 @@
 #include "logger_identity.h"
 #include "sd_manager.h"
 #include "utils.h"
-#include "battery.h"
+#include "battery_service.h"
 
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
@@ -132,7 +132,9 @@ void runConnectedMode(SystemState& state) {
 
         case CommandType::GET_VBAT: {
             // One-shot battery measurement for GUI request (not used in DEPLOY loop)
-            uint16_t vbat_mv = read_battery_voltage(batt_cfg.pin);  // volts in mV (e.g. 3700)
+            int32_t vbat_mv;
+            bool changed;
+            battery_service_read_vbat_filtered_mv(vbat_mv, changed);  // volts in mV (e.g. 3700)
             const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
             Serial1.println(json);
             break;
