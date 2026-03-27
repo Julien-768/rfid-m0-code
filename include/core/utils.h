@@ -11,7 +11,7 @@
 
 #include <Arduino.h>
 #include <RTClib.h>
-#include "drivers/rtc.h"
+#include "rtc.h"
 
 /**
  * @brief Checks the current date and creates a new daily log file if needed.

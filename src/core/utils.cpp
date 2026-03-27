@@ -19,12 +19,19 @@ uint32_t synchro_offset_ms,
     previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
 uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet over the time
 
+#include "utils.h"
+#include "rtc.h"
+#include "sd_manager.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
 void check_and_create_new_daily_file(const DateTime& now) {
-    if (now.day() != rtc_state.last_log_day) {
+    if (now.day() != rtc_state().last_log_day) {
         char file_name[16];
         strcpy(file_name, get_filename());
         daily_data_file(file_name, now);
-        rtc_state.last_log_day = now.day();
+        rtc_state().last_log_day = now.day();
     }
 }
 
