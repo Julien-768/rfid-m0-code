@@ -13,7 +13,7 @@
  * | STATE_DEPLOY | Autonomous low-power data logging mode. |
  * | STATE_STOCK | Storage / idle mode before deployment. |
  * | STATE_ENDOFLIFE | Permanent shutdown after critical error or battery failure. |
- * | STATE_WAIT | Fallback / placeholder idle state. |
+ * | STATE_ERROR | Fallback / placeholder idle state. |
  *
  * ## Boot model
  * The hardware boot and diagnostic sequence is executed once in `setup()`
@@ -37,5 +37,5 @@ enum SystemState : uint8_t {
     STATE_DEPLOY,     ///< Autonomous data acquisition mode
     STATE_STOCK,      ///< Low-power storage / idle mode
     STATE_ENDOFLIFE,  ///< Permanent shutdown / deep sleep
-    STATE_WAIT        ///< Fallback / placeholder idle state.
+    STATE_ERROR       ///< Fallback / placeholder idle state.
 };

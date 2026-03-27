@@ -249,18 +249,6 @@ SystemState runBootSequence() {
 
 /**
  * @brief Arduino setup routine — performs one-time boot sequence and starts runtime.
- *
- * This function:
- * - Initializes serial communication (`Serial1`) for debug output.
- * - Configures the built-in LED for visual feedback.
- * - Initializes I²C (`Wire.begin()`) and external detector input (@ref DET_EXT_Init()).
- * - Runs the one-time boot sequence via @ref runBootSequence().
- *
- * After @ref runBootSequence(), the global state machine starts in @ref loop()
- * using the value set in @ref currentState (typically @ref STATE_INIT).
- *
- * @see runBootSequence()
- * @see loop()
  */
 
 void setup() {
@@ -290,7 +278,7 @@ void setup() {
  * | **STATE_DEPLOY**    | Periodic low-power data logging of sensors and battery. |
  * | **STATE_STOCK**     | Storage/idle state for pre-deployment conservation. |
  * | **STATE_ENDOFLIFE** | Safe shutdown when a critical error or low battery occurs. |
- * | **STATE_WAIT**      | Default fallback / placeholder state. |
+ * | **STATE_ERROR**      | Default fallback / placeholder state. |
  *
  * ## Power Management
  * Uses `ArduinoLowPower` to minimize energy usage between acquisitions.
@@ -350,14 +338,14 @@ void loop() {
             }
             break;
 
-        case STATE_WAIT:
-            LOG_ERROR("Error, unexpected STATE_WAIT mode reached.");
+        case STATE_ERROR:
+            LOG_ERROR("Error, unexpected STATE_ERROR mode reached.");
             currentState = STATE_INIT;
             break;
 
         default:
             LOG_ERROR("Error, unexpected default mode reached.");
-            currentState = STATE_WAIT;
+            currentState = STATE_ERROR;
             break;
     }
 }
