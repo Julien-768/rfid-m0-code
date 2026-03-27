@@ -65,8 +65,6 @@
 #include "ir_pwm.h"
 #include "signal.h"
 
-//TODO record in SD log messages if needed
-
 SystemState currentState = STATE_INIT;
 
 /**
@@ -165,7 +163,7 @@ SystemState runBootSequence() {
     /*
     Load configuration from SD card
     */
-    if (loadConfiguration(config)) {
+    if (load_configuration(config)) {
         LOG_INFO("Configuration loaded from SD");
     } else {
         LOG_WARN("Using default compiled configuration");
@@ -174,6 +172,7 @@ SystemState runBootSequence() {
     /*
      Battery initialization
      */
+
     battery_service_config_t batt_serv_cfg{};
 
     // Hardware configuration
@@ -305,7 +304,7 @@ void loop() {
     switch (currentState) {
         case STATE_INIT:
             // Load configuration from SD card
-            if (loadConfiguration(config)) {
+            if (load_configuration(config)) {
                 LOG_INFO("Configuration loaded from SD");
             } else {
                 LOG_WARN("Using default compiled configuration");

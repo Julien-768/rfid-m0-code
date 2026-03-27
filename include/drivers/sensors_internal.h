@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include "hal/sensors_hal.h"  // for SensorSpec
+#include "sensors_hal.h"  // for SensorSpec
 
 /// Moonraker sensor table (defined in sensors.cpp).
 extern SensorSpec g_sensors[];

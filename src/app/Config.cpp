@@ -12,7 +12,7 @@
  *                 (stored in RAM after SET_CONFIG reception).
  *
  * ## Typical flow
- * - Boot (autonomous): @ref loadConfiguration() loads runtime options from `/config.cfg`.
+ * - Boot (autonomous): @ref load_configuration() loads runtime options from `/config.cfg`.
  * - Connected mode: GUI sends a `SET_CONFIG` payload, applied by
  *   @ref applyGuiConfigAndBuildDateTime(), which updates:
  *   - @ref Cfg_p (protocol-facing configuration copy)
@@ -20,7 +20,7 @@
  *   - returns a `DateTime` used to update the RTC
  *
  * @note JSON parsing uses ArduinoJson v6.
- * @warning SD card must be initialized before calling @ref loadConfiguration().
+ * @warning SD card must be initialized before calling @ref load_configuration().
  */
 
 #include <ArduinoJson.h>
@@ -38,7 +38,7 @@
  * (state machine, deploy loop, sensor enabling, etc.).
  *
  * It is typically loaded from `/config.cfg` on the SD card using
- * @ref loadConfiguration(), and may be updated at runtime from GUI commands
+ * @ref load_configuration(), and may be updated at runtime from GUI commands
  * (see @ref applyGuiConfigAndBuildDateTime()).
  */
 Config config;  // Actual allocation of the global variable
@@ -90,7 +90,7 @@ Cfg_t Cfg_rb = {};
  * @note Unknown JSON keys are ignored. Missing keys keep current defaults via
  *       ArduinoJson's `|` operator.
  */
-bool loadConfiguration(Config& config_var) {
+bool load_configuration(Config& config_var) {
 
     File file = SD.open("/config.cfg");
     if (!file) {

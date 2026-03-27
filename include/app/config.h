@@ -10,7 +10,7 @@
  * - @ref Config : The main runtime configuration loaded from `config.cfg`
  * - @ref Cfg_t  : The serialized configuration payload exchanged over UART
  * - Global instances for pending and read-back configuration (@ref Cfg_p, @ref Cfg_rb)
- * - @ref loadConfiguration() : Function to load configuration from SD card
+ * - @ref load_configuration() : Function to load configuration from SD card
  *
  * @ingroup ConfigLayer
  */
@@ -27,7 +27,7 @@
  *
  * This structure contains all user-adjustable parameters that affect the
  * logger’s behavior during DEPLOY mode. It is populated once at startup
- * via @ref loadConfiguration().
+ * via @ref load_configuration().
  *
  * ### Fields
  * - **use_buffer** — Enable or disable circular-buffered SD logging
@@ -38,7 +38,7 @@
  *
  * Typical usage:
  * @code
- * loadConfiguration(config);
+ * load_configuration(config);
  *
  * if (config.enable_light1) {
  *     // Acquire AS7341 readings
@@ -56,7 +56,7 @@ struct Config {
 /**
  * @brief Global runtime configuration instance.
  *
- * After calling @ref loadConfiguration, this object contains all runtime
+ * After calling @ref load_configuration, this object contains all runtime
  * parameters used across the system (sensor enable flags, interval, etc.).
  *
  * @ingroup ConfigLayer
@@ -118,7 +118,7 @@ extern Cfg_t Cfg_rb;
  *
  * @ingroup ConfigLayer
  */
-bool loadConfiguration(Config& config);
+bool load_configuration(Config& config);
 
 /// Apply GUI configuration payload to persistent + runtime config,
 /// and build the corresponding DateTime for the RTC.
