@@ -21,14 +21,28 @@
 #include "wiring_private.h"
 
 /**
- * @brief Global LED channel state.
+ * @brief Global LED channel state instance.
  */
-signal_channel_state_t g_led_channel;
+static signal_channel_state_t s_led_channel;
 
 /**
- * @brief Global buzzer channel state.
+ * @brief Global buzzer channel state instance.
  */
-signal_channel_state_t g_buzzer_channel;
+static signal_channel_state_t s_buzzer_channel;
+
+/**
+ * @brief Return the global LED channel state.
+ */
+signal_channel_state_t& get_led_channel() {
+    return s_led_channel;
+}
+
+/**
+ * @brief Return the global buzzer channel state.
+ */
+signal_channel_state_t& get_buzzer_channel() {
+    return s_buzzer_channel;
+}
 
 /**
  * @brief Configure TC5 to generate a periodic 1 ms interrupt on SAMD21.
@@ -124,13 +138,16 @@ static void update_channel_isr(signal_channel_state_t& channel) {
  * @brief Initialize the shared ISR engine and both output channels.
  */
 void signal_engine_init(uint32_t led_pin, uint32_t buzzer_pin) {
+    signal_channel_state_t& led_channel    = get_led_channel();
+    signal_channel_state_t& buzzer_channel = get_buzzer_channel();
+
     noInterrupts();
 
-    g_led_channel.pin = led_pin;
-    reset_channel(g_led_channel);
+    led_channel.pin = led_pin;
+    reset_channel(led_channel);
 
-    g_buzzer_channel.pin = buzzer_pin;
-    reset_channel(g_buzzer_channel);
+    buzzer_channel.pin = buzzer_pin;
+    reset_channel(buzzer_channel);
 
     interrupts();
 
@@ -149,24 +166,26 @@ void signal_engine_init(uint32_t led_pin, uint32_t buzzer_pin) {
  * One full blink = ON then OFF.
  */
 void led_start_blink_isr(uint8_t count, blink_mode speed) {
+    signal_channel_state_t& led_channel = get_led_channel();
+
     noInterrupts();
 
     if (count == 0) {
-        digitalWrite(g_led_channel.pin, LOW);
-        reset_channel(g_led_channel);
+        digitalWrite(led_channel.pin, LOW);
+        reset_channel(led_channel);
         interrupts();
         return;
     }
 
-    g_led_channel.active       = true;
-    g_led_channel.level_high   = true;
-    g_led_channel.mode         = signal_mode::blink;
-    g_led_channel.period_ms    = static_cast<uint16_t>(speed);
-    g_led_channel.elapsed_ms   = 0;
-    g_led_channel.duration_ms  = 0;
-    g_led_channel.toggles_left = static_cast<uint8_t>(count * 2U - 1U);
+    led_channel.active       = true;
+    led_channel.level_high   = true;
+    led_channel.mode         = signal_mode::blink;
+    led_channel.period_ms    = static_cast<uint16_t>(speed);
+    led_channel.elapsed_ms   = 0;
+    led_channel.duration_ms  = 0;
+    led_channel.toggles_left = static_cast<uint8_t>(count * 2U - 1U);
 
-    digitalWrite(g_led_channel.pin, HIGH);
+    digitalWrite(led_channel.pin, HIGH);
 
     interrupts();
 }
@@ -175,9 +194,11 @@ void led_start_blink_isr(uint8_t count, blink_mode speed) {
  * @brief Stop the LED sequence and force the output LOW.
  */
 void led_stop_isr() {
+    signal_channel_state_t& led_channel = get_led_channel();
+
     noInterrupts();
-    digitalWrite(g_led_channel.pin, LOW);
-    reset_channel(g_led_channel);
+    digitalWrite(led_channel.pin, LOW);
+    reset_channel(led_channel);
     interrupts();
 }
 
@@ -185,24 +206,26 @@ void led_stop_isr() {
  * @brief Start an ISR-driven buzzer pulse.
  */
 void buzzer_beep_isr(uint16_t duration_ms) {
+    signal_channel_state_t& buzzer_channel = get_buzzer_channel();
+
     noInterrupts();
 
     if (duration_ms == 0) {
-        digitalWrite(g_buzzer_channel.pin, LOW);
-        reset_channel(g_buzzer_channel);
+        digitalWrite(buzzer_channel.pin, LOW);
+        reset_channel(buzzer_channel);
         interrupts();
         return;
     }
 
-    g_buzzer_channel.active       = true;
-    g_buzzer_channel.level_high   = true;
-    g_buzzer_channel.mode         = signal_mode::pulse;
-    g_buzzer_channel.period_ms    = 0;
-    g_buzzer_channel.elapsed_ms   = 0;
-    g_buzzer_channel.duration_ms  = duration_ms;
-    g_buzzer_channel.toggles_left = 0;
+    buzzer_channel.active       = true;
+    buzzer_channel.level_high   = true;
+    buzzer_channel.mode         = signal_mode::pulse;
+    buzzer_channel.period_ms    = 0;
+    buzzer_channel.elapsed_ms   = 0;
+    buzzer_channel.duration_ms  = duration_ms;
+    buzzer_channel.toggles_left = 0;
 
-    digitalWrite(g_buzzer_channel.pin, HIGH);
+    digitalWrite(buzzer_channel.pin, HIGH);
 
     interrupts();
 }
@@ -211,9 +234,11 @@ void buzzer_beep_isr(uint16_t duration_ms) {
  * @brief Stop the buzzer sequence and force the output LOW.
  */
 void buzzer_stop_isr() {
+    signal_channel_state_t& buzzer_channel = get_buzzer_channel();
+
     noInterrupts();
-    digitalWrite(g_buzzer_channel.pin, LOW);
-    reset_channel(g_buzzer_channel);
+    digitalWrite(buzzer_channel.pin, LOW);
+    reset_channel(buzzer_channel);
     interrupts();
 }
 
@@ -227,6 +252,6 @@ void TC5_Handler() {
         TC5->COUNT16.INTFLAG.bit.MC0 = 1;
     }
 
-    update_channel_isr(g_led_channel);
-    update_channel_isr(g_buzzer_channel);
+    update_channel_isr(get_led_channel());
+    update_channel_isr(get_buzzer_channel());
 }

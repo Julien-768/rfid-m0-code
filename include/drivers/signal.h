@@ -30,14 +30,18 @@ struct signal_channel_state_t {
 };
 
 /**
- * @brief Global LED channel state.
+ * @brief Return the global LED channel state.
+ *
+ * @return Reference to the LED channel state.
  */
-extern signal_channel_state_t g_led_channel;
+signal_channel_state_t& get_led_channel();
 
 /**
- * @brief Global buzzer channel state.
+ * @brief Return the global buzzer channel state.
+ *
+ * @return Reference to the buzzer channel state.
  */
-extern signal_channel_state_t g_buzzer_channel;
+signal_channel_state_t& get_buzzer_channel();
 
 /**
  * @brief Initialize the shared ISR engine and output pins.
