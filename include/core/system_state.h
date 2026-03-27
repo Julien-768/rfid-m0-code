@@ -37,4 +37,5 @@ enum SystemState : uint8_t {
     STATE_DEPLOY,     ///< Autonomous data acquisition mode
     STATE_STOCK,      ///< Low-power storage / idle mode
     STATE_ENDOFLIFE,  ///< Permanent shutdown / deep sleep
+    STATE_WAIT        ///< Fallback / placeholder idle state.
 };
