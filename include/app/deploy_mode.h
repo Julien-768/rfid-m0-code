@@ -14,6 +14,7 @@
 #pragma once
 
 #include "system_state.h"
+#include "stdint.h"
 
 void callback_rtc();
 void callback_ir1(uint8_t state);
