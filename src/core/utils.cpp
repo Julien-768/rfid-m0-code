@@ -26,13 +26,14 @@ uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet
 #include <string.h>
 #include <stdlib.h>
 
-void check_and_create_new_daily_file(const DateTime& now) {
+bool check_and_create_new_daily_file(const DateTime& now) {
     if (now.day() != rtc_state().last_log_day) {
         char file_name[16];
         strcpy(file_name, get_filename());
-        daily_data_file(file_name, now);
         rtc_state().last_log_day = now.day();
+        return daily_data_file(file_name, now);
     }
+    return true;
 }
 
 /**

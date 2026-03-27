@@ -161,19 +161,19 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
  *
  * @see rtc().now(), error()
  */
-u_int8_t daily_data_file(char* filename, const DateTime& now) {
+bool daily_data_file(char* filename, const DateTime& now) {
     snprintf(filename, 16, "%04d%02d%02d.TXT", now.year(), now.month(), now.day());
 
     File logfile = SD.open(filename, FILE_WRITE);
     if (!logfile) {
         error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
+        return false;
     }
 
     logfile.close();
 
     LOG_INFO("Daily log file ready: %s", filename);
-    return 0;
+    return true;
 }
 
 /**

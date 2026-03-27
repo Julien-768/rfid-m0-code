@@ -120,7 +120,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb);
  * @param filename Output buffer where the filename (8.3 format) is stored.
  * @param now      Current timestamp used to generate the filename.
  */
-u_int8_t daily_data_file(char* filename, const DateTime& now);
+bool daily_data_file(char* filename, const DateTime& now);
 
 /**
  * @brief Log a single measurement in semicolon-delimited format.

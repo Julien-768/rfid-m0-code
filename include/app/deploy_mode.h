@@ -15,6 +15,7 @@
 
 #include "system_state.h"
 #include "stdint.h"
+#include "ir_pwm.h"
 
 void callback_rtc();
 void callback_ir1(uint8_t state);
@@ -36,4 +37,4 @@ void callback_tsl2591();
  *
  * @param state Reference to the current system state variable.
  */
-void run_deploy_state(SystemState& state);
+void run_deploy_state(SystemState& state, ir_pwm& driver);

@@ -22,7 +22,7 @@
  *
  * @param now Current DateTime instance.
  */
-void check_and_create_new_daily_file(const DateTime& now);
+bool check_and_create_new_daily_file(const DateTime& now);
 
 /**
  * @brief Formats a DateTime as a filename-friendly date string.

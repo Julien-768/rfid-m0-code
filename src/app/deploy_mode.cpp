@@ -32,11 +32,6 @@
 #include "utils.h"
 #include "assembly.h"
 #include "hardware.h"
-#include "ir_pwm.h"
-
-// External references to global objects and configuration
-extern ir_pwm
-    ir_driver;  // not as good as using a reference `run_boot_sequence(ir_pwm& driver);` but will do the job for now
 
 // Event flags for DEPLOY state
 enum deploy_event : uint8_t {
@@ -63,7 +58,9 @@ volatile uint32_t g_ir1_last_ts = 0;
 volatile uint32_t g_ir2_last_ts = 0;
 
 // Minimum delay between two valid events (us)
-constexpr uint32_t ir_debounce_us = 50000;
+constexpr uint32_t IR_DEBOUNCE_US = 50000;
+
+constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
 
 // ===== Interrupt Service Routines =====
 
@@ -75,7 +72,7 @@ void callback_rtc() {
 void callback_ir1(uint8_t state) {
     uint32_t now = micros();
 
-    if ((now - g_ir1_last_ts) < ir_debounce_us) return;
+    if ((now - g_ir1_last_ts) < IR_DEBOUNCE_US) return;
 
     g_ir1_last_ts = now;
 
@@ -86,7 +83,7 @@ void callback_ir1(uint8_t state) {
 void callback_ir2(uint8_t state) {
     uint32_t now = micros();
 
-    if ((now - g_ir2_last_ts) < ir_debounce_us) return;
+    if ((now - g_ir2_last_ts) < IR_DEBOUNCE_US) return;
 
     g_ir2_last_ts = now;
 
@@ -114,7 +111,7 @@ uint32_t rtc_period   = 0;
  * @param state Reference to the current system state. May be set to
  *              @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  */
-void run_deploy_state(SystemState& state) {
+void run_deploy_state(SystemState& state, ir_pwm& driver) {
     if (!init_step) {
         rtc_period = config.acquisition_interval_s;
         // Bypass drivers interrupts
@@ -131,6 +128,7 @@ void run_deploy_state(SystemState& state) {
     uint32_t ir2_count      = 0;
     int32_t vbat_mv         = 0;
     bool changed            = false;
+    DateTime now;
 
     // Enter low-power sleep; RTC alarm or sensor interrupt will wake the MCU.
     LowPower.sleep();
@@ -152,17 +150,17 @@ void run_deploy_state(SystemState& state) {
     // If wake-up was not caused by the RTC alarm or a sensor interrupt, exit early.
     if (events == DEPLOY_EVT_NONE) return;
 
-    if (events & DEPLOY_EVT_RTC_WAKE) {
-        // Clear alarm and program next wake-up.
-        rtc_clear_and_set_alarm(rtc().now(), rtc_period);
+    // For every interrupt
+    now = rtc().now();
+    if (!check_and_create_new_daily_file(now)) {
+        state = STATE_ENDOFLIFE;
+        return;
     }
 
     // ===== Periodic full acquisition (RTC driven) =====
     if (events & DEPLOY_EVT_RTC_WAKE) {
-
-        // Ensure today’s data file exists.
-        DateTime now = rtc().now();
-        check_and_create_new_daily_file(now);
+        // Clear alarm and program next wake-up.
+        rtc_clear_and_set_alarm(rtc().now(), rtc_period);
 
         // Read all active sensors.
         SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
@@ -201,9 +199,13 @@ void run_deploy_state(SystemState& state) {
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
         // Handle IR1 event(s) using ir1_count
+        LOG_INFO("IR1 event detected (count: %d)", ir1_count);
+        logMeasurement(now, "IR1_EVENT", (float)ir1_count, "count", config.use_buffer);
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR2) {
         // Handle IR2 event(s) using ir2_count
+        LOG_INFO("IR2 event detected (count: %d)", ir2_count);
+        logMeasurement(now, "IR2_EVENT", (float)ir2_count, "count", config.use_buffer);
     }
 }
