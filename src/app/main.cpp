@@ -174,26 +174,27 @@ SystemState runBootSequence() {
     /*
      Battery initialization
      */
-    battery_service_config_t cfg{};
+    battery_service_config_t batt_serv_cfg{};
 
     // Hardware configuration
-    cfg.hw.pin = PIN_VBAT;
+    batt_serv_cfg.hw.pin = PIN_VBAT;
     // ADC configuration - defaults as a reminder, can be overridden if needed
-    cfg.hw.adc_cfg.ratio      = 2.0f;
-    cfg.hw.adc_cfg.adc_ref_mv = 3300;
-    cfg.hw.adc_cfg.adc_max    = 4095;
+    batt_serv_cfg.hw.adc_cfg.ratio      = 2.0f;
+    batt_serv_cfg.hw.adc_cfg.adc_ref_mv = 3300;
+    batt_serv_cfg.hw.adc_cfg.adc_max    = 4095;
 
     // Get configuration policy from configuration file
     battery_thresholds_t batt_thr = battery_service_apply_type_string(hw_assembly.battery_type);
-    cfg.policy.plausible_min_mv   = batt_thr.low_crit_mv;   // e.g. 3300mV for LiPo 1S
-    cfg.policy.plausible_max_mv   = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
+    batt_serv_cfg.policy.plausible_min_mv = batt_thr.low_crit_mv;   // e.g. 3300mV for LiPo 1S
+    batt_serv_cfg.policy.plausible_max_mv = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
 
-    // 3) Remplir cfg.filter
-    cfg.filter.ema_alpha          = 0.2;  // Smoothing factor for EMA (0..1).
-    cfg.filter.delta_threshold_mv = 10;  // Change in mV to consider the battery level as "changed".
+    // 3) Remplir batt_serv_cfg.filter
+    batt_serv_cfg.filter.ema_alpha = 0.2;  // Smoothing factor for EMA (0..1).
+    batt_serv_cfg.filter.delta_threshold_mv =
+        10;  // Change in mV to consider the battery level as "changed".
 
     // 4) Init service
-    if (!battery_service_init(cfg)) {
+    if (!battery_service_init(batt_serv_cfg)) {
         // gestion erreur init hardware batterie
     }
 
@@ -338,13 +339,12 @@ void loop() {
         case STATE_ENDOFLIFE:
             // @todo Factorize shutdown steps into a dedicated shutdown function.
             LOG_DEBUG("Entering END OF LIFE mode: shutting down sensors and SD card.");
-
             SD.end();
             LOG_INFO("All peripherals powered off");
             led_start_blink_isr(1, blink_mode::slow);
-            led_start_blink_isr(3, blink_mode::fast);
+            led_start_blink_isr(10, blink_mode::fast);
+            LOG_DEBUG("Entering infinite sleep.");
             delay(2000);
-            LOG_DEBUG("System halted. LED off. Entering infinite sleep.");
 
             while (true) {
                 LowPower.deepSleep();
@@ -352,11 +352,12 @@ void loop() {
             break;
 
         case STATE_WAIT:
-            LOG_ERROR("Error, unexpected STATE_WAIT reached.");
+            LOG_ERROR("Error, unexpected STATE_WAIT mode reached.");
             currentState = STATE_INIT;
             break;
 
         default:
+            LOG_ERROR("Error, unexpected default mode reached.");
             currentState = STATE_WAIT;
             break;
     }
