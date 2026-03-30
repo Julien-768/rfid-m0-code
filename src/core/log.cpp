@@ -1,15 +1,7 @@
 /**
  * @file log.cpp
- * @brief Centralized logging backend for the Moonraker data logger.
+ * @brief
  *
- * This module implements the core logging pipeline:
- * - Adds a textual log level tag (ERROR, WARN, INFO, DEBUG)
- * - Formats user messages using printf-style formatting
- * - Sends the final message to logSystemEvent() for timestamped SD storage
- * - Optionally mirrors logs to Serial1, depending on compile-time settings
- *
- * User code should only call the LOG_ERROR / LOG_WARN / LOG_INFO / LOG_DEBUG
- * macros, which route into logPrintf().
  */
 
 #include "log.h"
@@ -19,7 +11,11 @@
 #include <SD.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <string.h>  // for strcpy, strlen
+#include <string.h>    // for strcpy, strlen
+#include "assembly.h"  // for hw_assembly.rtc_type
+
+// TODO remove dependency on rtc
+// TODO remove dependency on hw_assembly
 
 // ---------------------------------------------------------------------------
 // Map numeric log level to printable tag string
@@ -27,15 +23,15 @@
 /**
  * @brief Converts a numeric log level into its textual representation.
  *
- * @param level One of LOG_LEVEL_ERROR, LOG_LEVEL_WARN, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG.
+ * @param level One of LOG_LEVEL_ERROR, LOG_LEVEL_WARNING, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG.
  * @return A constant string such as "ERROR" or "DEBUG".
  */
 static const char* logLevelTag(uint8_t level) {
     switch (level) {
         case LOG_LEVEL_ERROR:
             return "ERROR";
-        case LOG_LEVEL_WARN:
-            return "WARN";
+        case LOG_LEVEL_WARNING:
+            return "WARNING";
         case LOG_LEVEL_INFO:
             return "INFO";
         case LOG_LEVEL_DEBUG:
@@ -43,6 +39,50 @@ static const char* logLevelTag(uint8_t level) {
         default:
             return "LOG";
     }
+}
+
+static void formatLogLine(char* out, size_t size, const char* format, const char* timestamp,
+                          const char* level, const char* message, const char* source) {
+    size_t pos = 0;
+
+    for (const char* p = format; *p && pos < size - 1; ++p) {
+        if (*p == '%') {
+            ++p;
+            const char* insert = "";
+
+            switch (*p) {
+                case 'T':
+                    insert = timestamp;
+                    break;
+                case 'L':
+                    insert = level;
+                    break;
+                case 'M':
+                    insert = message;
+                    break;
+                case 'S':
+                    insert = source;
+                    break;
+                default:
+                    insert = "?";
+                    break;
+            }
+
+            int written = snprintf(out + pos, size - pos, "%s", insert);
+            if (written < 0) break;
+
+            if ((size_t)written >= size - pos) {
+                pos = size - 1;
+                break;
+            }
+
+            pos += (size_t)written;
+        } else {
+            out[pos++] = *p;
+        }
+    }
+
+    out[pos] = '\0';
 }
 
 // ---------------------------------------------------------------------------
@@ -69,34 +109,40 @@ static const char* logLevelTag(uint8_t level) {
  *       Use LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG.
  */
 void logPrintf(uint8_t level, const char* fmt, ...) {
-    char buffer[192];
+    char message[192];
 
     // Safety: ignore nullptr format string
     if (!fmt) return;
 
-    // Build "[LEVEL] " prefix
-    const char* tag = logLevelTag(level);
-    int offset      = snprintf(buffer, sizeof(buffer), "[%s] ", tag);
-
-    if (offset < 0 || offset >= (int)sizeof(buffer)) {
-        // Highly unlikely, fallback to a safe prefix
-        strcpy(buffer, "[LOG] ");
-        offset = (int)strlen(buffer);
-    }
-
-    // Format user message after prefix
+    // Format user message
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buffer + offset, sizeof(buffer) - offset, fmt, args);
+    vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // Dispatch to SD + timestamp
-    logSystemEvent(buffer);
+    // Build timestamp with RTC fallback
+    char timestamp[32];
 
-    // Optional debug mirroring on Serial1
+    if (rtc_available) {
+        DateTime now = rtc().now();
+        snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(),
+                 now.month(), now.day(), now.hour(), now.minute(), now.second());
+    } else {
+        snprintf(timestamp, sizeof(timestamp), "NO_RTC");
+    }
+
+    // Build final formatted line
+    char final[256];
+    formatLogLine(final, sizeof(final), LOG_FORMAT, timestamp, logLevelTag(level), message,
+                  "SYSTEM");
+
+    // Dispatch to SD
+    logSystemEvent(final);
+
+    // Optional mirroring on Serial1
 #if LOG_ENABLE_SERIAL1
-    if (level <= LOG_LEVEL && level >= LOG_SERIAL1_MIN_LEVEL) {
-        Serial1.println(buffer);
+    if (level >= LOG_SERIAL1_LEVEL) {
+        Serial1.println(final);
     }
 #endif
 }
@@ -121,11 +167,9 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
  * @param message User-formatted log payload (without timestamp).
  */
 void logSystemEvent(const char* message) {
-    static char pending[192] = {0};
+    static char pending[256] = {0};
     static bool hasPending   = false;
 
-    // If log file name is not yet available, store message temporarily
-    // TODO filename
     if (get_filename()[0] == '\0') {
         snprintf(pending, sizeof(pending), "%s", message);
         hasPending = true;
@@ -134,32 +178,17 @@ void logSystemEvent(const char* message) {
 
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log) {
-        // Could not write; keep last message for later flush
         snprintf(pending, sizeof(pending), "%s", message);
         hasPending = true;
         return;
     }
 
-    // Build timestamp prefix
-    DateTime now = rtc().now();
-    char timestamp[32];
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(),
-             now.day(), now.hour(), now.minute(), now.second());
-
-    // If a message was pending, flush it first
     if (hasPending) {
-        char linePending[256];
-        snprintf(linePending, sizeof(linePending), "%s;SYSTEM;%s", timestamp, pending);
-        log.println(linePending);
-
+        log.println(pending);
         hasPending = false;
         pending[0] = '\0';
     }
 
-    // Write current message
-    char line[256];
-    snprintf(line, sizeof(line), "%s;SYSTEM;%s", timestamp, message);
-    log.println(line);
-
+    log.println(message);
     log.close();
 }
