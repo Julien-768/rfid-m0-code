@@ -184,22 +184,21 @@ SystemState runBootSequence() {
 
     // Get configuration policy from configuration file
     battery_thresholds_t batt_thr = battery_service_apply_type_string(hw_assembly.battery_type);
-    batt_serv_cfg.policy.plausible_min_mv = batt_thr.low_crit_mv;   // e.g. 3300mV for LiPo 1S
+    batt_serv_cfg.policy.plausible_min_mv = batt_thr.low_warn_mv;   // e.g. 3300mV for LiPo 1S
     batt_serv_cfg.policy.plausible_max_mv = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
 
-    // 3) Remplir batt_serv_cfg.filter
-    batt_serv_cfg.filter.ema_alpha = 0.2;  // Smoothing factor for EMA (0..1).
-    batt_serv_cfg.filter.delta_threshold_mv =
-        10;  // Change in mV to consider the battery level as "changed".
+    // Remplir batt_serv_cfg.filter
+    batt_serv_cfg.filter.ema_alpha          = 0.2;  // Smoothing factor for EMA (0..1).
+    batt_serv_cfg.filter.delta_threshold_mv = 10;   // Change in mV for a battery level "changed".
 
-    // 4) Init service
+    // Init service
     if (!battery_service_init(batt_serv_cfg)) {
-        // gestion erreur init hardware batterie
+        // Handle battery initialization failure
+        LOG_ERROR("Battery service initialization failed");
+        return STATE_ENDOFLIFE;
     }
 
-    // 5) Appliquer le type batterie réel
-
-    // 6) Vérification initiale boot
+    // Vérification initiale boot
     int32_t vbat_mv = 0;
     bool changed    = false;
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
@@ -219,32 +218,33 @@ SystemState runBootSequence() {
     // Read all hardware UIDs (in RAM only) ---
     if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
         hw_assembly.uid_mainboard = mcu_uid_read();
-        assembly_save(hw_assembly);
     }
     // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
     //     {
     //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
-    //         assembly_save(hw_assembly);
     // }
     // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
     //     {
     //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
-    //         assembly_save(hw_assembly);
     // }
 
-    // --- Sync SD assembly with factory identity (SN, etc.) ---
-    assembly_sync_sn();
+    if (!assembly_save(hw_assembly)) {
+        LOG_ERROR("Failed to save assembly configuration");
 
-    // --- Initialize IR PWM module ---
+        // --- Sync SD assembly with factory identity (SN, etc.) ---
+        assembly_sync_sn();
 
-    // Enable both sensors and provide the ISR callback
-    ir_driver.begin(true, true, nullptr, nullptr);
-    LOG_INFO("IR PWM driver initialized");
+        // --- Initialize IR PWM module ---
 
-    led_start_blink_isr(3, blink_mode::fast);
-    LOG_INFO("Boot sequence completed");
-    LOG_INFO("Entering CONNECTED mode");
-    return STATE_CONNECTED;
+        // Enable both sensors and provide the ISR callback
+        ir_driver.begin(true, true, nullptr, nullptr);
+        LOG_INFO("IR PWM driver initialized");
+
+        led_start_blink_isr(3, blink_mode::fast);
+        LOG_INFO("Boot sequence completed");
+        LOG_INFO("Entering CONNECTED mode");
+        return STATE_CONNECTED;
+    }
 }
 
 /**
@@ -314,7 +314,7 @@ void loop() {
 
         case STATE_DEPLOY:
 
-            run_deploy_state(currentState);
+            run_deploy_state(currentState, ir_driver);
             break;
 
         case STATE_STOCK:
