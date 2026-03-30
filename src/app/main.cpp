@@ -158,7 +158,13 @@ SystemState runBootSequence() {
     }
 
     DateTime now = rtc().now();
-    check_and_create_new_daily_file(now);
+    /*
+    Check and create the daily log file on SD card
+     */
+    if (!check_and_create_new_daily_file(now)) {
+        LOG_ERROR("Failed to create daily log file at boot");
+        return STATE_ENDOFLIFE;
+    }
 
     /*
     Load configuration from SD card
@@ -229,22 +235,21 @@ SystemState runBootSequence() {
     // }
 
     if (!assembly_save(hw_assembly)) {
-        LOG_ERROR("Failed to save assembly configuration");
-
-        // --- Sync SD assembly with factory identity (SN, etc.) ---
-        assembly_sync_sn();
-
-        // --- Initialize IR PWM module ---
-
-        // Enable both sensors and provide the ISR callback
-        ir_driver.begin(true, true, nullptr, nullptr);
-        LOG_INFO("IR PWM driver initialized");
-
-        led_start_blink_isr(3, blink_mode::fast);
-        LOG_INFO("Boot sequence completed");
-        LOG_INFO("Entering CONNECTED mode");
-        return STATE_CONNECTED;
+        LOG_WARN("Failed to save assembly configuration; continuing with RAM state only");
     }
+    // --- Sync SD assembly with factory identity (SN, etc.) ---
+    assembly_sync_sn();
+
+    // --- Initialize IR PWM module ---
+
+    // Enable both sensors and provide the ISR callback
+    ir_driver.begin(true, true, nullptr, nullptr);
+    LOG_INFO("IR PWM driver initialized");
+
+    led_start_blink_isr(3, blink_mode::fast);
+    LOG_INFO("Boot sequence completed");
+    LOG_INFO("Entering CONNECTED mode");
+    return STATE_CONNECTED;
 }
 
 /**
@@ -262,7 +267,7 @@ void setup() {
     Wire.begin();
 
     DET_EXT_Init();
-    runBootSequence();
+    currentState = runBootSequence();
 }
 
 /**
@@ -284,7 +289,6 @@ void setup() {
  * Uses `ArduinoLowPower` to minimize energy usage between acquisitions.
  *
  * @see runConnectedMode()
- * @see runDeployState()
  */
 
 void loop() {
@@ -308,8 +312,10 @@ void loop() {
         case STATE_CONNECTED:
             if (DET_EXT_Connected()) {
                 runConnectedMode(currentState);
+            } else {
+                LOG_INFO("GUI disconnected. Entering INIT mode.");
+                currentState = STATE_INIT;
             }
-            currentState = STATE_INIT;
             break;
 
         case STATE_DEPLOY:
