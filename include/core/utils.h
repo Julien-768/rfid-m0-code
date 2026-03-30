@@ -14,7 +14,7 @@
 #include "rtc.h"
 
 /**
- * @brief Checks the current date and creates a new daily log file if needed.
+ * @brief Check and create the daily log file on SD card
  *
  * Compares the day of the month in `now` with the last logged day stored
  * in `rtc_state`. If they differ, it generates a new daily log filename

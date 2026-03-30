@@ -80,10 +80,7 @@ ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
  *
  * ### Responsibilities
  * - Initialize SD card storage via @ref sd_initialization().
- * - Initialize RTC (DS3231), validate time, and perform recovery via
- *   @ref rtc_bootRecover().
- * - Initialize RTC (DS3231), validate time, and perform recovery via
- *   @ref rtc_bootRecover().
+ * - Initialize RTC (DS3231), validate time, and perform recovery via @ref rtc_bootRecover().
  * - Create the daily log file if the RTC time is trusted, or delay file creation
  *   until time is confirmed when connected to a GUI.
  * - Perform a battery diagnostic and enforce @ref STATE_ENDOFLIFE if voltage is critical.
@@ -95,7 +92,8 @@ ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
  * - If SD or RTC initialization fails → transitions to @ref STATE_ENDOFLIFE.
  * - If RTC time is invalid and a GUI is connected → waits for GUI-provided time
  *   before creating the daily log file.
- * - On success → sets @ref currentState to @ref STATE_INIT.
+ * - On success → returns the initial runtime state
+ * @ref STATE_CONNECTED if GUI is detected, otherwise @ref STATE_INIT.
  *
  * @note This function interacts heavily with the logging system. If no daily file
  *       exists yet, logging may be buffered in RAM and flushed once the daily file
@@ -111,7 +109,7 @@ ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
  * @see batteryBootDiagnostic()
  * @see loggerIdentity_init()
  */
-SystemState runBootSequence() {
+static SystemState runBootSequence() {
     String buildDateTime = "Build" + String(F(__DATE__)) + " " + String(F(__TIME__));
     String board         = "Board:" + String(__PIO_BOARD_NAME__);
     String string_widget = "------------------------------------------------------------";
@@ -209,10 +207,12 @@ SystemState runBootSequence() {
     bool changed    = false;
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
         if (!battery_service_decision("Boot", vbat_mv)) {
-            // Handle decision failure
+            // Log and blink error led
             error_signal(ERR_BATTERY_CRITICAL);
             return STATE_ENDOFLIFE;
         }
+    } else {
+        LOG_WARN("Initial battery reading failed");
     }
 
     loggerIdentity_init();
@@ -234,11 +234,12 @@ SystemState runBootSequence() {
     //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
     // }
 
+    // --- Sync SD assembly with factory identity (SN, etc.) ---
+    assembly_sync_sn(hw_assembly);
+
     if (!assembly_save(hw_assembly)) {
         LOG_WARN("Failed to save assembly configuration; continuing with RAM state only");
     }
-    // --- Sync SD assembly with factory identity (SN, etc.) ---
-    assembly_sync_sn();
 
     // --- Initialize IR PWM module ---
 
@@ -248,8 +249,13 @@ SystemState runBootSequence() {
 
     led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
-    LOG_INFO("Entering CONNECTED mode");
-    return STATE_CONNECTED;
+    if (DET_EXT_Connected()) {
+        LOG_INFO("Entering CONNECTED mode");
+        return STATE_CONNECTED;
+    }
+
+    LOG_INFO("Entering INIT mode");
+    return STATE_INIT;
 }
 
 /**
@@ -310,12 +316,7 @@ void loop() {
             break;
 
         case STATE_CONNECTED:
-            if (DET_EXT_Connected()) {
-                runConnectedMode(currentState);
-            } else {
-                LOG_INFO("GUI disconnected. Entering INIT mode.");
-                currentState = STATE_INIT;
-            }
+            runConnectedMode(currentState);
             break;
 
         case STATE_DEPLOY:

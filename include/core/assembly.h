@@ -77,7 +77,7 @@ extern Assembly hw_assembly;
  * @param hw_assembly Reference to the Assembly structure to populate.
  * @see assembly_save()
  */
-void assembly_load(Assembly& hw_assembly);
+void assembly_load(Assembly& hw_assembly_local);
 
 /**
  * @brief Saves the current Assembly configuration to the SD card.
@@ -113,4 +113,4 @@ bool assembly_save(const Assembly& hw_assembly);
  *
  * @see logger_identity.h
  */
-bool assembly_sync_sn();
+bool assembly_sync_sn(Assembly& hw_assembly);

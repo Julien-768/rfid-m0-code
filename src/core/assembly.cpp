@@ -126,7 +126,7 @@ void create_assembly_file() {
  * @see create_assembly_file()
  * @see assembly_save()
  */
-void assembly_load(Assembly& hw_assembly) {
+void assembly_load(Assembly& hw_assembly_local) {
     File file_c = SD.open(kAssemblyFilename);
     if (file_c) {
         StaticJsonDocument<512> doc;
@@ -134,14 +134,14 @@ void assembly_load(Assembly& hw_assembly) {
         if (error) {
             LOG_ERROR("Failed to read hw_assembly.cfg — keeping defaults");
         } else {
-            hw_assembly.uid_mainboard     = doc["uid_mainboard"].as<String>();
-            hw_assembly.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
-            hw_assembly.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
-            hw_assembly.uid_software      = doc["uid_software"].as<String>();
-            hw_assembly.uid_experiment    = doc["uid_experiment"].as<String>();
-            hw_assembly.sn_logger         = doc["sn_logger"] | String("");
-            hw_assembly.battery_type      = doc["battery_type"] | String("");
-            hw_assembly.rtc_type          = doc["rtc_type"] | String("");
+            hw_assembly_local.uid_mainboard     = doc["uid_mainboard"].as<String>();
+            hw_assembly_local.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
+            hw_assembly_local.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
+            hw_assembly_local.uid_software      = doc["uid_software"].as<String>();
+            hw_assembly_local.uid_experiment    = doc["uid_experiment"].as<String>();
+            hw_assembly_local.sn_logger         = doc["sn_logger"] | String("");
+            hw_assembly_local.battery_type      = doc["battery_type"] | String("");
+            hw_assembly_local.rtc_type          = doc["rtc_type"] | String("");
             LOG_INFO("hw_assembly.cfg loaded successfully");
         }
         file_c.close();
@@ -225,10 +225,9 @@ bool assembly_save(const Assembly& hw_assembly) {
  * @see device_id_get()
  * @see assembly_save()
  */
-// TODO avoid using global variable
-bool assembly_sync_sn() {
+bool assembly_sync_sn(Assembly& hw_assembly) {
     const LoggerIdentityFlash& id_flash = device_id_get();
-    bool modified                       = false;
+    // bool modified                       = false;
 
     // --- Serial number sync ---
     if (strcmp(id_flash.serial_number, "UNKNOWN") != 0) {
@@ -236,21 +235,22 @@ bool assembly_sync_sn() {
             LOG_INFO("Updating SN from flash: %s -> %s", hw_assembly.sn_logger.c_str(),
                      id_flash.serial_number);
             hw_assembly.sn_logger = id_flash.serial_number;
-            modified              = true;
+            return true;
         }
     } else {
         LOG_WARN("Factory SN is UNKNOWN — hw_assembly SN unchanged");
+        return false;
     }
 
-    // --- Save if anything changed ---
-    if (modified) {
-        if (assembly_save(hw_assembly)) {
-            LOG_INFO("hw_assembly.cfg synced with factory identity.");
-            return true;
-        } else {
-            LOG_ERROR("Failed to save hw_assembly.cfg during identity sync.");
-        }
-    }
+    // // --- Save if anything changed ---
+    // if (modified) {
+    //     if (assembly_save(hw_assembly)) {
+    //         LOG_INFO("hw_assembly.cfg synced with factory identity.");
+    //         return true;
+    //     } else {
+    //         LOG_ERROR("Failed to save hw_assembly.cfg during identity sync.");
+    //     }
+    // }
 
     LOG_DEBUG("Assembly already up-to-date with factory identity.");
     return false;

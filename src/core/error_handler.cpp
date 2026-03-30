@@ -31,7 +31,7 @@ inline uint8_t blink_count(ErrorCode code) {
 }  // namespace
 
 /**
- * @brief Signal an error using LED blink patterns and optional system halt.
+ * @brief Log and signal an error using LED blink patterns and optional system halt.
  *
  * The error code is represented by a number of LED blinks equal to the
  * numeric value of @p code.
