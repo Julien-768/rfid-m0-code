@@ -92,6 +92,8 @@ void assembly_load(Assembly& hw_assembly_local);
  */
 bool assembly_save(const Assembly& hw_assembly);
 
+void create_assembly_file();
+
 /**
  * @brief Synchronize hw_assembly.cfg with factory identity stored in MCU flash.
  *

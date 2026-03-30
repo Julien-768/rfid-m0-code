@@ -47,8 +47,9 @@
 
 /**
  * @brief Path to the hw_assembly configuration file on the SD card.
+ * maximum path length is 31 chars for 8.3 filename + null terminator, so this fits.
  */
-constexpr const char* kAssemblyFilename = "/hw_assembly.cfg";
+constexpr const char* kAssemblyFilename = "/hw_assem.cfg";
 
 /**
  * @brief Global instance of the hw_assembly metadata.
@@ -74,11 +75,11 @@ Assembly hw_assembly;
 void create_assembly_file() {
     File file = SD.open(kAssemblyFilename, FILE_WRITE);
     if (!file) {
-        LOG_ERROR("Failed to create hw_assembly.cfg");
+        LOG_ERROR("Failed to create %s", kAssemblyFilename);
         return;
     }
 
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<1024> doc;
     doc["uid_mainboard"]     = hw_assembly.uid_mainboard;
     doc["uid_light_sensor1"] = hw_assembly.uid_light_sensor1;  // AS7341 sensor
     doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;  // TSL2591 sensor
@@ -87,13 +88,12 @@ void create_assembly_file() {
     doc["sn_logger"]         = hw_assembly.sn_logger;
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
-
     if (serializeJson(doc, file) == 0) {
-        LOG_ERROR("Failed to write JSON to hw_assembly.cfg");
+        LOG_ERROR("Failed to write JSON to %s", kAssemblyFilename);
     } else {
-        LOG_INFO("hw_assembly.cfg created successfully");
+        LOG_INFO("%s created successfully", kAssemblyFilename);
     }
-
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
     file.close();
 }
 
@@ -129,24 +129,37 @@ void create_assembly_file() {
 void assembly_load(Assembly& hw_assembly_local) {
     File file_c = SD.open(kAssemblyFilename);
     if (file_c) {
-        StaticJsonDocument<512> doc;
+        StaticJsonDocument<1024> doc;
         DeserializationError error = deserializeJson(doc, file_c);
         if (error) {
-            LOG_ERROR("Failed to read hw_assembly.cfg — keeping defaults");
+            LOG_ERROR("JSON parse error: %s", error.c_str());
         } else {
-            hw_assembly_local.uid_mainboard     = doc["uid_mainboard"].as<String>();
-            hw_assembly_local.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
-            hw_assembly_local.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
-            hw_assembly_local.uid_software      = doc["uid_software"].as<String>();
-            hw_assembly_local.uid_experiment    = doc["uid_experiment"].as<String>();
-            hw_assembly_local.sn_logger         = doc["sn_logger"] | String("");
-            hw_assembly_local.battery_type      = doc["battery_type"] | String("");
-            hw_assembly_local.rtc_type          = doc["rtc_type"] | String("");
-            LOG_INFO("hw_assembly.cfg loaded successfully");
+            Assembly tmp          = hw_assembly_local;
+            tmp.uid_mainboard     = doc["uid_mainboard"] | String("");
+            tmp.uid_light_sensor1 = doc["uid_light_sensor1"] | String("");
+            tmp.uid_light_sensor2 = doc["uid_light_sensor2"] | String("");
+            tmp.uid_software      = doc["uid_software"] | String("");
+            tmp.uid_experiment    = doc["uid_experiment"] | String("");
+            tmp.sn_logger         = doc["sn_logger"] | String("");
+            tmp.battery_type      = doc["battery_type"] | String("");
+            tmp.rtc_type          = doc["rtc_type"] | String("");
+            LOG_DEBUG("Assembly loaded from %s:", kAssemblyFilename);
+            LOG_DEBUG("\tuid_mainboard: %s", tmp.uid_mainboard.c_str());
+            LOG_DEBUG("\tuid_light_sensor1: %s", tmp.uid_light_sensor1.c_str());
+            LOG_DEBUG("\tuid_light_sensor2: %s", tmp.uid_light_sensor2.c_str());
+            LOG_DEBUG("\tuid_software: %s", tmp.uid_software.c_str());
+            LOG_DEBUG("\tuid_experiment: %s", tmp.uid_experiment.c_str());
+            LOG_DEBUG("\tsn_logger: %s", tmp.sn_logger.c_str());
+            LOG_DEBUG("\tbattery_type: %s", tmp.battery_type.c_str());
+            LOG_DEBUG("\trtc_type: %s", tmp.rtc_type.c_str());
+            LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
+            delay(1000);
+            hw_assembly_local = tmp;
+            LOG_DEBUG("%s loaded successfully", kAssemblyFilename);
         }
         file_c.close();
     } else {
-        LOG_WARN("hw_assembly.cfg not found — creating default file");
+        LOG_WARN("%s not found — creating default file", kAssemblyFilename);
         create_assembly_file();
     }
 }
@@ -172,7 +185,6 @@ void assembly_load(Assembly& hw_assembly_local) {
  * @see create_assembly_file()
  */
 bool assembly_save(const Assembly& hw_assembly) {
-    const char* kAssemblyFilename = "/hw_assembly.cfg";  // local shadowing of global
 
     // Delete previous version if it exists
     if (SD.exists(kAssemblyFilename)) {
@@ -181,11 +193,11 @@ bool assembly_save(const Assembly& hw_assembly) {
 
     File file = SD.open(kAssemblyFilename, FILE_WRITE);
     if (!file) {
-        LOG_ERROR("Failed to open hw_assembly.cfg for write");
+        LOG_ERROR("Failed to open %s for write", kAssemblyFilename);
         return false;
     }
 
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<1024> doc;
     doc["uid_mainboard"]     = hw_assembly.uid_mainboard;
     doc["uid_light_sensor1"] = hw_assembly.uid_light_sensor1;
     doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;
@@ -194,15 +206,16 @@ bool assembly_save(const Assembly& hw_assembly) {
     doc["sn_logger"]         = hw_assembly.sn_logger;
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
 
     if (serializeJsonPretty(doc, file) == 0) {
-        LOG_ERROR("Failed to write JSON to hw_assembly.cfg");
+        LOG_ERROR("Failed to write JSON to %s", kAssemblyFilename);
         file.close();
         return false;
     }
 
     file.close();
-    LOG_INFO("hw_assembly.cfg saved successfully");
+    LOG_INFO("%s saved successfully", kAssemblyFilename);
     return true;
 }
 
