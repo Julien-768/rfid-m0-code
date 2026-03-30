@@ -17,12 +17,6 @@
 #include "stdint.h"
 #include "ir_pwm.h"
 
-void callback_rtc();
-void callback_ir1(uint8_t state);
-void callback_ir2(uint8_t state);
-void callback_as7341();
-void callback_tsl2591();
-
 /**
  * @brief Execute one iteration of the DEPLOY state.
  *

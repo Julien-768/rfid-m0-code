@@ -12,7 +12,6 @@
  * - Logs the SensorFrame to the SD card via @ref logSensorFrame().
  * - Periodically checks the battery level and may request END-OF-LIFE.
  *
- * @see runDeployState()
  * @see readAllSensors()
  * @see logSensorFrame()
  * @see rtc_scheduleNextWake()
@@ -44,30 +43,33 @@ enum deploy_event : uint8_t {
 };
 
 // Global event flags set by ISRs and checked in the main loop.
-volatile uint8_t g_deploy_events = DEPLOY_EVT_NONE;
+static volatile uint8_t g_deploy_events = DEPLOY_EVT_NONE;
 
-// Global counters for rtc
-volatile uint32_t g_rtc_wake_count = 0;
+// Global counter for RTC wake events
+static volatile uint32_t g_rtc_wake_count = 0;
 
 // IR event counters
-volatile uint32_t g_ir1_count = 0;
-volatile uint32_t g_ir2_count = 0;
+static volatile uint32_t g_ir1_count = 0;
+static volatile uint32_t g_ir2_count = 0;
 
 // Last trigger timestamps (in us)
-volatile uint32_t g_ir1_last_ts = 0;
-volatile uint32_t g_ir2_last_ts = 0;
+static volatile uint32_t g_ir1_last_ts = 0;
+static volatile uint32_t g_ir2_last_ts = 0;
 
 // Minimum delay between two valid events (us)
 constexpr uint32_t IR_DEBOUNCE_US = 50000;
 
+// Counter for periodic battery checks
+constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
+
 // ===== Interrupt Service Routines =====
 
-void callback_rtc() {
+static void callback_rtc() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
     g_rtc_wake_count++;
 }
 
-void callback_ir1(uint8_t state) {
+static void callback_ir1(uint8_t /*state*/) {
     uint32_t now = micros();
 
     if ((now - g_ir1_last_ts) < IR_DEBOUNCE_US) return;
@@ -78,7 +80,7 @@ void callback_ir1(uint8_t state) {
     g_deploy_events |= DEPLOY_EVT_SENSOR_IR1;
 }
 
-void callback_ir2(uint8_t state) {
+static void callback_ir2(uint8_t /*state*/) {
     uint32_t now = micros();
 
     if ((now - g_ir2_last_ts) < IR_DEBOUNCE_US) return;
@@ -89,17 +91,47 @@ void callback_ir2(uint8_t state) {
     g_deploy_events |= DEPLOY_EVT_SENSOR_IR2;
 }
 
-void callback_as7341() {
+static void callback_as7341() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_AS7341;
 }
 
-void callback_tsl2591() {
+static void callback_tsl2591() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
 
-bool init_step        = false;
-uint32_t vbat_counter = 0;
-uint32_t rtc_period   = 0;
+static bool init_step        = false;
+static uint32_t vbat_counter = 0;
+static uint32_t rtc_period   = 0;
+
+/**
+ * @brief Reset internal state of DEPLOY mode.
+ *
+ * Must be called when leaving DEPLOY state or before re-entering it,
+ * to ensure proper re-initialization of callbacks and counters.
+ */
+static void deploy_state_reset(ir_pwm& ir_driver) {
+    noInterrupts();
+
+    // Reset event flags and counters (ISR-related)
+    g_deploy_events  = DEPLOY_EVT_NONE;
+    g_rtc_wake_count = 0;
+    g_ir1_count      = 0;
+    g_ir2_count      = 0;
+
+    g_ir1_last_ts = 0;
+    g_ir2_last_ts = 0;
+    interrupts();
+
+    ir_driver.set_callback_sensor_1(nullptr);
+    ir_driver.set_callback_sensor_2(nullptr);
+    rtc_clear_alarm_flag();
+    rtc_set_alarm_callback(nullptr);
+
+    // Reset runtime state
+    init_step    = false;
+    vbat_counter = 0;
+    rtc_period   = 0;
+}
 
 /**
  * @brief Main DEPLOY state handler.
@@ -107,12 +139,12 @@ uint32_t rtc_period   = 0;
  * This function implements one full iteration of the DEPLOY state.
  *
  * @param state Reference to the current system state. May be set to
- *              @ref STATE_ENDOFLIFE by the battery check or other subsystems.
+ * @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  */
 void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     if (!init_step) {
         rtc_period = config.acquisition_interval_s;
-        // Bypass drivers interrupts
+        // Register driver interrupt callbacks
         ir_driver.set_callback_sensor_1(callback_ir1);
         ir_driver.set_callback_sensor_2(callback_ir2);
         rtc_set_alarm_callback(callback_rtc);
@@ -148,17 +180,18 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     // If wake-up was not caused by the RTC alarm or a sensor interrupt, exit early.
     if (events == DEPLOY_EVT_NONE) return;
 
-    // For every interrupt
+    // Common post-wake handling
     now = rtc().now();
     if (!check_and_create_new_daily_file(now)) {
         state = STATE_ENDOFLIFE;
+        deploy_state_reset(ir_driver);
         return;
     }
 
     // ===== Periodic full acquisition (RTC driven) =====
     if (events & DEPLOY_EVT_RTC_WAKE) {
         // Clear alarm and program next wake-up.
-        rtc_clear_and_set_alarm(rtc().now(), rtc_period);
+        rtc_clear_and_set_alarm(now, rtc_period);
 
         // Read all active sensors.
         SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
@@ -170,14 +203,15 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
             vbat_counter += rtc_wake_count;
 
             // Perform battery check every 10 RTC wakes.
-            if (vbat_counter >= 10) {
+            if (vbat_counter >= VBAT_CHECK_INTERVAL) {
                 vbat_counter = 0;
                 battery_service_read_vbat_filtered_mv(vbat_mv, changed);
-                logMeasurement(now, "VBAT", (float)vbat_mv, "V", config.use_buffer);
+                logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
                 if (!battery_service_decision("Deployment", vbat_mv)) {
                     // Handle decision failure
                     error_signal(ERR_BATTERY_CRITICAL);
                     state = STATE_ENDOFLIFE;
+                    deploy_state_reset(ir_driver);
                     return;
                 }
             }
@@ -187,12 +221,11 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     // ===== Event-driven partial acquisition =====
 
     if (events & DEPLOY_EVT_SENSOR_AS7341) {
-        // Read only AS7341 data (faster, lower power).
-        // Example: read spectral channels without full acquisition cycle.
+        // TODO: implement partial AS7341 acquisition on interrupt wake-up.
     }
 
     if (events & DEPLOY_EVT_SENSOR_TSL2591) {
-        // Read only TSL2591 data or handle threshold event.
+        // TODO: implement partial TSL2591 acquisition on interrupt wake-up.
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
