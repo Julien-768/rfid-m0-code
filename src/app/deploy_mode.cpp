@@ -60,8 +60,6 @@ volatile uint32_t g_ir2_last_ts = 0;
 // Minimum delay between two valid events (us)
 constexpr uint32_t IR_DEBOUNCE_US = 50000;
 
-constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
-
 // ===== Interrupt Service Routines =====
 
 void callback_rtc() {
@@ -111,7 +109,7 @@ uint32_t rtc_period   = 0;
  * @param state Reference to the current system state. May be set to
  *              @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  */
-void run_deploy_state(SystemState& state, ir_pwm& driver) {
+void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     if (!init_step) {
         rtc_period = config.acquisition_interval_s;
         // Bypass drivers interrupts
@@ -176,12 +174,12 @@ void run_deploy_state(SystemState& state, ir_pwm& driver) {
                 vbat_counter = 0;
                 battery_service_read_vbat_filtered_mv(vbat_mv, changed);
                 logMeasurement(now, "VBAT", (float)vbat_mv, "V", config.use_buffer);
-            }
-            if (!battery_service_decision("Deployment", vbat_mv)) {
-                // Handle decision failure
-                error_signal(ERR_BATTERY_CRITICAL);
-                state = STATE_ENDOFLIFE;
-                return;
+                if (!battery_service_decision("Deployment", vbat_mv)) {
+                    // Handle decision failure
+                    error_signal(ERR_BATTERY_CRITICAL);
+                    state = STATE_ENDOFLIFE;
+                    return;
+                }
             }
         }
     }

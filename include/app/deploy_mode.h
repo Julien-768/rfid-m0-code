@@ -37,4 +37,4 @@ void callback_tsl2591();
  *
  * @param state Reference to the current system state variable.
  */
-void run_deploy_state(SystemState& state, ir_pwm& driver);
+void run_deploy_state(SystemState& state, ir_pwm& ir_driver);
