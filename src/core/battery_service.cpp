@@ -229,11 +229,16 @@ bool battery_service_init(const battery_service_config_t& cfg) {
 
     batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
-    LOG_INFO(
-        "Battery service init: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u plausible=[%u..%u]mV",
-        batt_hw_cfg.pin, batt_hw_cfg.adc_cfg.ratio, batt_hw_cfg.adc_cfg.adc_ref_mv,
-        batt_hw_cfg.adc_cfg.adc_max, batt_policy_cfg.plausible_min_mv,
-        batt_policy_cfg.plausible_max_mv);
+    LOG_DEBUG(" battery_hw_cfg: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u", batt_hw_cfg.pin,
+              batt_hw_cfg.adc_cfg.ratio, batt_hw_cfg.adc_cfg.adc_ref_mv,
+              batt_hw_cfg.adc_cfg.adc_max);
+
+    LOG_DEBUG("Battery model defaults: low_warn=%umV low_crit=%umV high_crit=%umV",
+              batt_thresholds_active.low_warn_mv, batt_thresholds_active.low_crit_mv,
+              batt_thresholds_active.high_crit_mv);
+
+    LOG_DEBUG("Battery filter config: ema_alpha=%.3f delta_threshold=%u mV",
+              batt_filter_cfg.ema_alpha, batt_filter_cfg.delta_threshold_mv);
 
     return battery_init(batt_hw_cfg);
 }
@@ -257,9 +262,11 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
     const battery_type_t type = battery_type_from_string(req);
     batt_thresholds_active    = battery_thresholds_default(type);
 
-    LOG_INFO("Battery model applied: requested=%s warn_low=%umV crit_low=%umV crit_high=%umV", req,
-             batt_thresholds_active.low_warn_mv, batt_thresholds_active.low_crit_mv,
-             batt_thresholds_active.high_crit_mv);
+    LOG_DEBUG("Battery model details: type=%d", static_cast<int>(type));
+    LOG_DEBUG("Battery model thresholds: low_warn=%umV", batt_thresholds_active.low_warn_mv);
+    LOG_DEBUG("Battery model thresholds: low_crit=%umV", batt_thresholds_active.low_crit_mv);
+    LOG_DEBUG("Battery model thresholds: high_crit=%umV", batt_thresholds_active.high_crit_mv);
+
     return batt_thresholds_active;
 }
 
