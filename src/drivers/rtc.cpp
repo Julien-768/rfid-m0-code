@@ -86,6 +86,21 @@ static volatile bool s_alarm_flag = false;
  */
 static rtc_alarm_callback_t s_alarm_callback = nullptr;
 
+//-----------------------------------------------------------------------------
+
+static bool isDST(int year, int month, int day) {
+    // simple approximation Europe
+    if (month < 3 || month > 10) return false;
+    if (month > 3 && month < 10) return true;
+
+    int lastSunday = day - ((day + 6) % 7);
+
+    if (month == 3) return lastSunday >= 25;
+    if (month == 10) return lastSunday < 25;
+
+    return false;
+}
+
 // -----------------------------------------------------------------------------
 // Interrupt + wake-up
 // -----------------------------------------------------------------------------
@@ -163,18 +178,6 @@ void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)()) {
  */
 bool rtc_initialization(uint32_t interrupt_pin) {
     RTC_DS3231& rtc = get_rtc();
-
-    // Wire.begin() should already be done before calling this function.
-    // Probe the I2C bus with a harmless transaction to detect an uninitialized
-    // or blocked bus.
-    Wire.beginTransmission(0x00);
-    uint8_t i2c_status = Wire.endTransmission();
-
-    if (i2c_status != 0) {
-        LOG_ERROR("I2C bus not ready (Wire not initialized or busy). Call Wire.begin() first.");
-        error_signal(ERR_I2C_NOT_READY);
-        return false;
-    }
 
     if (!rtc.begin()) {
         error_signal(ERR_RTC_FAILURE);
@@ -292,17 +295,22 @@ bool rtc_boot_recover() {
     RTC_DS3231& rtc      = get_rtc();
     RTC_STATE& rtc_state = get_rtc_state();
 
-    const DateTime build(F(__DATE__), F(__TIME__));
-    const DateTime now = rtc.now();
+    const DateTime build_time(F(__DATE__), F(__TIME__));
 
+    // Calculate local build time by applying a DST offset to the build time.
+    int offset = isDST(build_time.year(), build_time.month(), build_time.day()) ? 2 : 1;
+    DateTime build_time_utc = build_time - TimeSpan(0, offset, 0, 0);
+    const DateTime now      = rtc.now();
+
+    // TODO should use a format converter from 'utils.cpp' instead of individual field accessors
     LOG_DEBUG(
         "RTC boot check: rtc=%04d-%02d-%02d %02d:%02d:%02d, "
-        "build=%04d-%02d-%02d %02d:%02d:%02d, lostPower=%s",
-        now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second(), build.year(),
-        build.month(), build.day(), build.hour(), build.minute(), build.second(),
-        rtc.lostPower() ? "YES" : "NO");
+        "build utc=%04d-%02d-%02d %02d:%02d:%02d, lostPower=%s",
+        now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second(),
+        build_time_utc.year(), build_time_utc.month(), build_time_utc.day(), build_time_utc.hour(),
+        build_time_utc.minute(), build_time_utc.second(), rtc.lostPower() ? "YES" : "NO");
 
-    const bool time_in_range = rtc_sanity_ok(now, build);
+    const bool time_in_range = rtc_sanity_ok(now, build_time_utc);
 
     rtc_state.time_checked           = !rtc.lostPower() && time_in_range;
     rtc_state.time_in_connected_mode = 0;
@@ -311,12 +319,14 @@ bool rtc_boot_recover() {
         LOG_INFO("RTC time accepted as valid at boot: %04d-%02d-%02d %02d:%02d:%02d", now.year(),
                  now.month(), now.day(), now.hour(), now.minute(), now.second());
     } else {
-        rtc.adjust(build);
+        rtc.adjust(build_time_utc);
         rtc_state.time_checked = true;
 
-        LOG_WARN("RTC invalid at boot; using build time fallback: %04d-%02d-%02d %02d:%02d:%02d",
-                 build.year(), build.month(), build.day(), build.hour(), build.minute(),
-                 build.second());
+        LOG_WARN(
+            "RTC time invalid at boot, setting to build time fallback: %04d-%02d-%02d "
+            "%02d:%02d:%02d",
+            build_time_utc.year(), build_time_utc.month(), build_time_utc.day(),
+            build_time_utc.hour(), build_time_utc.minute(), build_time_utc.second());
     }
 
     return true;
