@@ -65,7 +65,7 @@ static_assert(sizeof(IdentityRecord) <= 256,
 /**
  * @brief FlashStorage instance used to persist the identity record.
  */
-FlashStorage(moonraker_identity_store, IdentityRecord);
+FlashStorage(device_id_store, IdentityRecord);
 
 // ---- RAM cache --------------------------------------------------------------
 
@@ -125,8 +125,8 @@ static void safeCopy(char* dst, size_t dstSize, const char* src) {
 static void fillDefaults(LoggerIdentityFlash& id) {
     memset(&id, 0, sizeof(id));
     safeCopy(id.manufacturer, sizeof(id.manufacturer), "CNRS");
-    safeCopy(id.logger_type, sizeof(id.logger_type), "Moonraker");
-    safeCopy(id.date_fab, sizeof(id.date_fab), "2025-01-01");
+    safeCopy(id.logger_type, sizeof(id.logger_type), "RFID-M0");
+    safeCopy(id.date_fab, sizeof(id.date_fab), "2026-xx-xx");
     safeCopy(id.serial_number, sizeof(id.serial_number), "UNKNOWN");
 }
 
@@ -186,8 +186,8 @@ static void sanitize(LoggerIdentityFlash& id) {
  * @note On success, the identity is cached in RAM and can be accessed via
  *       @ref device_id_get.
  */
-bool loggerIdentity_init() {
-    const IdentityRecord r = moonraker_identity_store.read();
+bool device_id_init() {
+    const IdentityRecord r = device_id_store.read();
 
     if (recordValid(r)) {
         g_identity = r.id;
@@ -197,14 +197,14 @@ bool loggerIdentity_init() {
         return true;
     }
 
-    LOG_WARN("Factory identity not found/invalid in FLASH — writing defaults.");
+    LOG_WARN("Factory identity not valid in FLASH — writing defaults.");
     fillDefaults(g_identity);
 
     const IdentityRecord wr = makeRecord(g_identity);
-    moonraker_identity_store.write(wr);
+    device_id_store.write(wr);
 
     // readback check
-    const IdentityRecord rb = moonraker_identity_store.read();
+    const IdentityRecord rb = device_id_store.read();
     if (!recordValid(rb)) {
         LOG_ERROR("FLASH identity write failed (readback invalid).");
         g_identity_valid = false;
@@ -212,7 +212,7 @@ bool loggerIdentity_init() {
     }
 
     g_identity_valid = true;
-    LOG_INFO("Default factory identity written to FLASH (SN=%s)", g_identity.serial_number);
+    LOG_DEBUG("Default factory identity written to FLASH");
     return true;
 }
 
@@ -221,15 +221,15 @@ bool loggerIdentity_init() {
  *
  * @return Reference to the cached identity payload.
  *
- * @warning If called before a successful @ref loggerIdentity_init, this function
+ * @warning If called before a successful @ref device_id_init, this function
  *          will populate RAM defaults and mark the cache valid (without writing flash).
  */
 const LoggerIdentityFlash& device_id_get() {
-    if (!g_identity_valid) {
-        LOG_WARN("device_id_get() called before successful init — using RAM defaults");
-        fillDefaults(g_identity);
-        g_identity_valid = true;
-    }
+    // if (!g_identity_valid) {
+    //     LOG_WARN("device_id_get() called before successful init — using RAM defaults");
+    //     fillDefaults(g_identity);
+    //     g_identity_valid = true;
+    // }
     return g_identity;
 }
 
@@ -244,14 +244,14 @@ const LoggerIdentityFlash& device_id_get() {
  *
  * @warning Flash has limited endurance; avoid frequent calls.
  */
-bool loggerIdentity_program(const LoggerIdentityFlash& id) {
+bool device_id_program(const LoggerIdentityFlash& id) {
     LoggerIdentityFlash tmp = id;
     sanitize(tmp);
 
     const IdentityRecord wr = makeRecord(tmp);
-    moonraker_identity_store.write(wr);
+    device_id_store.write(wr);
 
-    const IdentityRecord rb = moonraker_identity_store.read();
+    const IdentityRecord rb = device_id_store.read();
     if (!recordValid(rb)) {
         LOG_ERROR("Factory identity programming failed (readback invalid).");
         return false;
@@ -270,10 +270,10 @@ bool loggerIdentity_program(const LoggerIdentityFlash& id) {
  *
  * @return true if defaults were programmed successfully, false otherwise.
  */
-bool loggerIdentity_resetDefaults() {
+bool device_id_resetDefaults() {
     LoggerIdentityFlash def{};
     fillDefaults(def);
-    return loggerIdentity_program(def);
+    return device_id_program(def);
 }
 
 static void copyField_(char* dst, size_t dstSize, const char* src) {
@@ -283,8 +283,8 @@ static void copyField_(char* dst, size_t dstSize, const char* src) {
     dst[dstSize - 1] = '\0';
 }
 
-void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger_type,
-                                    const char* date_fab, const char* serial_number) {
+void device_id_applyFromFields(const char* manufacturer, const char* logger_type,
+                               const char* date_fab, const char* serial_number) {
     // Start from existing identity, then override fields
     LoggerIdentityFlash id = device_id_get();  // copy
 
@@ -293,5 +293,5 @@ void loggerIdentity_applyFromFields(const char* manufacturer, const char* logger
     copyField_(id.date_fab, sizeof(id.date_fab), date_fab);
     copyField_(id.serial_number, sizeof(id.serial_number), serial_number);
 
-    loggerIdentity_program(id);
+    device_id_program(id);
 }
