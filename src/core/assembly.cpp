@@ -79,7 +79,7 @@ void create_assembly_file() {
         return;
     }
 
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<512> doc;
     doc["uid_mainboard"]     = hw_assembly.uid_mainboard;
     doc["uid_light_sensor1"] = hw_assembly.uid_light_sensor1;  // AS7341 sensor
     doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;  // TSL2591 sensor
@@ -129,7 +129,7 @@ void create_assembly_file() {
 void assembly_load(Assembly& hw_assembly_local) {
     File file_c = SD.open(kAssemblyFilename);
     if (file_c) {
-        StaticJsonDocument<1024> doc;
+        StaticJsonDocument<512> doc;
         DeserializationError error = deserializeJson(doc, file_c);
         if (error) {
             LOG_ERROR("JSON parse error: %s", error.c_str());
@@ -197,7 +197,7 @@ bool assembly_save(const Assembly& hw_assembly) {
         return false;
     }
 
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<512> doc;
     doc["uid_mainboard"]     = hw_assembly.uid_mainboard;
     doc["uid_light_sensor1"] = hw_assembly.uid_light_sensor1;
     doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;
