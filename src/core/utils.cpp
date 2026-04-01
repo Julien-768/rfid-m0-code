@@ -25,6 +25,37 @@ uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "Wire.h"
+#include "log.h"
+
+bool scanI2CBus() {
+    uint8_t count = 0;
+
+    LOG_DEBUG("Scanning I2C bus...");
+
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        uint8_t error = Wire.endTransmission();
+        char addrStr[5];  // "0xXX" + '\0'
+
+        snprintf(addrStr, sizeof(addrStr), "%02X", addr);
+
+        if (error == 0) {
+            LOG_DEBUG("I2C device found at 0x%S", addrStr);
+            count++;
+        } else if (error == 4) {
+            LOG_DEBUG("Unknown error at 0x%S", addrStr);
+        }
+    }
+
+    if (count == 0) {
+        LOG_DEBUG("No I2C devices found");
+        return false;
+    } else {
+        LOG_DEBUG("Scan complete. %s device(s) found.", count);
+        return true;
+    }
+}
 
 bool check_and_create_new_daily_file(const DateTime& now) {
     if (now.day() != rtc_state().last_log_day) {
@@ -161,14 +192,13 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
 /**
  * @brief Write the firmware compilation timestamp in ISO8601 to @p out.
  *
- * Uses the C macros `__DATE__` (e.g., "Jul 23 2025") and `__TIME__` ("HH:MM:SS"),
- * and converts them to `"YYYY-MM-DDTHH:MM:SS"`.
+ * "Jul 23 2025" ;  "14:30:00"
+ * Convert to format like "2025-07-23T14:30:00"
  *
  * @param out Output buffer.
  * @param len Size of @p out. (Recommend at least 20 bytes)
  */
+// TODO should take a DateTime as arg instead of using __DATE__ and __TIME__
 void convertDateToISO8601(char* out, size_t len) {
     snprintf(out, len, "20%.*sT%.*s:00", 6, __DATE__ + 7, 5, __TIME__);
-    // __DATE__ → "Jul 23 2025" ; __TIME__ → "14:30:00"
-    // Convert to format like "2025-07-23T14:30:00"
 }

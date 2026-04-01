@@ -13,6 +13,8 @@
 #include <RTClib.h>
 #include "rtc.h"
 
+bool scanI2CBus();
+
 /**
  * @brief Check and create the daily log file on SD card
  *
@@ -93,9 +95,7 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
 
 /**
  * @brief Writes the compile date and time in ISO8601 format to a buffer.
- *
- * Uses the compiler macros `__DATE__` and `__TIME__` to generate a
- * timestamp string in ISO8601 format (e.g., `"2025-07-23T14:30:00"`).
+ * (e.g., `"2025-07-23T14:30:00"`).
  *
  * @param out Output buffer for the resulting string.
  * @param len Size of the output buffer in bytes.
