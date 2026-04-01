@@ -30,7 +30,7 @@
  *     schedules next wake-up, initializes sensors, and transitions to DEPLOY.
  * - **SET_IDENTITY** (factory)
  *   - Programs the factory identity into **SAMD21 internal flash**
- *     via @ref loggerIdentity_program.
+ *     via @ref device_id_program.
  *
  * ## Factory identity storage
  * Factory identity (manufacturer / logger type / fabrication date / serial number)
@@ -74,14 +74,14 @@
  *
  * ### Factory identity programming
  * - On **SET_IDENTITY**, the function builds a @ref LoggerIdentityFlash record
- *   from the received JSON payload and calls @ref loggerIdentity_program.
+ *   from the received JSON payload and calls @ref device_id_program.
  * - On failure, a JSON error is returned.
  *
  * @param[in,out] state Current system state reference. May be updated to
  *                      @ref STATE_DEPLOY when SET_CONFIG is accepted.
  *
  * @see device_id_get
- * @see loggerIdentity_program
+ * @see device_id_program
  * @see rtc_applyExternalTime
  * @see rtc_scheduleNextWake
  */
@@ -177,9 +177,8 @@ void runConnectedMode(SystemState& state) {
         case CommandType::SET_IDENTITY: {
             LOG_INFO("Factory SET_IDENTITY command received");
 
-            loggerIdentity_applyFromFields(parsed.identity.manufacturer,
-                                           parsed.identity.logger_type, parsed.identity.date_fab,
-                                           parsed.identity.logger_sn);
+            device_id_applyFromFields(parsed.identity.manufacturer, parsed.identity.logger_type,
+                                      parsed.identity.date_fab, parsed.identity.logger_sn);
 
             Serial1.println("{\"identity\":\"ACK\"}");
             break;
