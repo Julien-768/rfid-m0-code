@@ -66,6 +66,8 @@
 #include "signal.h"
 
 SystemState currentState = STATE_INIT;
+bool i2c_ok              = false;
+bool rtc_available       = false;
 
 /**
  * @brief IR PWM driver instance
@@ -85,7 +87,7 @@ ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
  *   until time is confirmed when connected to a GUI.
  * - Perform a battery diagnostic and enforce @ref STATE_ENDOFLIFE if voltage is critical.
  * - Load assembly metadata from the SD card.
- * - Load the factory identity from MCU flash via @ref loggerIdentity_init().
+ * - Load the factory identity from MCU flash via @ref device_id_init().
  * - Initialize system identifiers (Feather UID, RTC UID, sensor UIDs).
  *
  * ### Behavior Summary
@@ -107,11 +109,13 @@ ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
  * @see rtc_bootRecover()
  * @see check_and_create_new_daily_file()
  * @see batteryBootDiagnostic()
- * @see loggerIdentity_init()
+ * @see device_id_init()
  */
 static SystemState runBootSequence() {
-    String buildDateTime = "Build" + String(F(__DATE__)) + " " + String(F(__TIME__));
-    String board         = "Board:" + String(__PIO_BOARD_NAME__);
+    delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
+
+    String buildDateTime = "Build " + String(F(__DATE__)) + " " + String(F(__TIME__));
+    String board         = "Board: " + String(__PIO_BOARD_NAME__);
     String string_widget = "------------------------------------------------------------";
 
     LOG_INFO(string_widget.c_str());
@@ -135,13 +139,14 @@ static SystemState runBootSequence() {
 
     // --- Load existing assembly.cfg ---
     assembly_load(hw_assembly);
-    LOG_INFO("Assembly information loaded from assembly.cfg");
+    LOG_INFO("Assembly information loaded from file");
+    // initialize RTC for logging file creation and timestamping
 
     /*
     RTC initialization and sanity check
      */
-    if (hw_assembly.rtc_type == "ds3231") {
-        LOG_INFO("RTC type: DS3231");
+    if (hw_assembly.rtc_type == "ds3231" and i2c_ok == true) {
+        LOG_INFO("RTC used\tDS3231");
         // Register RTC ISR callback
         rtc_set_alarm_callback(nullptr);
         // Initialize RTC
@@ -151,27 +156,72 @@ static SystemState runBootSequence() {
         }
         // Boot-time sanity check
         rtc_boot_recover();
+        rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
     }
 
-    DateTime now = rtc().now();
+    if (rtc_available) {
+        /*
+        Check and create the daily log file on SD card
+        */
+        DateTime now = rtc().now();
+        if (!check_and_create_new_daily_file(now)) {
+            LOG_ERROR("Failed to create daily log file at boot");
+            return STATE_ENDOFLIFE;
+        }
+    } else {
+        LOG_WARN("Skipping daily log file creation: no RTC available");
+    }
+
     /*
-    Check and create the daily log file on SD card
-     */
-    if (!check_and_create_new_daily_file(now)) {
-        LOG_ERROR("Failed to create daily log file at boot");
-        return STATE_ENDOFLIFE;
+    Load hardware assembly information (UIDs, etc.) and sync with SD card.
+    */
+
+    // Read all hardware UIDs (in RAM only) ---
+    if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
+        hw_assembly.uid_mainboard = mcu_uid_read();
+    }
+    // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
+    //     {
+    //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
+    // }
+    // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
+    //     {
+    //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
+    // }
+
+    LOG_DEBUG("Hardware assembly information:");
+    LOG_DEBUG("\tMainboard UID: %s", hw_assembly.uid_mainboard.c_str());
+    LOG_DEBUG("\tLight sensor 1 UID: %s", hw_assembly.uid_light_sensor1.c_str());
+    LOG_DEBUG("\tLight sensor 2 UID: %s", hw_assembly.uid_light_sensor2.c_str());
+    LOG_DEBUG("\tSoftware UID: %s", hw_assembly.uid_software.c_str());
+    LOG_DEBUG("\tExperiment UID: %s", hw_assembly.uid_experiment.c_str());
+    LOG_DEBUG("\tBattery type: %s", hw_assembly.battery_type.c_str());
+
+    // --- Sync Serial Number ---
+    LOG_DEBUG("Synchronize SN from factory identity to assembly configuration");
+    assembly_sync_sn(hw_assembly);
+
+    if (!assembly_save(hw_assembly)) {
+        LOG_WARN("Failed to synchronize SN to assembly configuration file");
     }
 
     /*
     Load configuration from SD card
     */
-    if (load_configuration(config)) {
-        LOG_INFO("Configuration loaded from SD");
-    } else {
+    if (!load_configuration(config)) {
         LOG_WARN("Using default compiled configuration");
     }
+
+    // --- Load factory identity from flash ---
+    device_id_init();
+    const auto& idFlash = device_id_get();
+    LOG_INFO("Factory identity loaded from flash");
+    LOG_INFO("Manufacturer: %s", idFlash.manufacturer);
+    LOG_INFO("Logger type: %s", idFlash.logger_type);
+    LOG_INFO("Date of fabrication: %s", idFlash.date_fab);
+    LOG_INFO("Serial number: %s", idFlash.serial_number);
 
     /*
      Battery initialization
@@ -215,32 +265,6 @@ static SystemState runBootSequence() {
         LOG_WARN("Initial battery reading failed");
     }
 
-    loggerIdentity_init();
-    const auto& idFlash = device_id_get();
-
-    LOG_INFO("Factory identity: %s / %s / %s / %s", idFlash.manufacturer, idFlash.logger_type,
-             idFlash.date_fab, idFlash.serial_number);
-
-    // Read all hardware UIDs (in RAM only) ---
-    if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
-        hw_assembly.uid_mainboard = mcu_uid_read();
-    }
-    // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
-    //     {
-    //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
-    // }
-    // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
-    //     {
-    //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
-    // }
-
-    // --- Sync SD assembly with factory identity (SN, etc.) ---
-    assembly_sync_sn(hw_assembly);
-
-    if (!assembly_save(hw_assembly)) {
-        LOG_WARN("Failed to save assembly configuration; continuing with RAM state only");
-    }
-
     // --- Initialize IR PWM module ---
 
     // Enable both sensors and provide the ISR callback
@@ -263,14 +287,16 @@ static SystemState runBootSequence() {
  */
 
 void setup() {
+    // TODO add serial choice on logger configuration
     Serial1.begin(115200);
-    delay(100);
-
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW);
+    delay(1000);
+    Serial1.println("Serial1 initialized");
+    // pinMode(LED_BUILTIN, OUTPUT);
+    // digitalWrite(LED_BUILTIN, LOW);
 
     // Initialize I²C for RTC and sensors
     Wire.begin();
+    i2c_ok = scanI2CBus();
 
     DET_EXT_Init();
     currentState = runBootSequence();
@@ -332,9 +358,8 @@ void loop() {
 
         case STATE_ENDOFLIFE:
             // @todo Factorize shutdown steps into a dedicated shutdown function.
-            LOG_DEBUG("Entering END OF LIFE mode: shutting down sensors and SD card.");
+            LOG_ERROR("Entering END OF LIFE mode");
             SD.end();
-            LOG_INFO("All peripherals powered off");
             led_start_blink_isr(1, blink_mode::slow);
             led_start_blink_isr(10, blink_mode::fast);
             LOG_DEBUG("Entering infinite sleep.");
