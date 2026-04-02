@@ -76,16 +76,17 @@ bool check_and_create_new_daily_file(const DateTime& now) {
  * @param include_ms If true, milliseconds are included; otherwise only full seconds are shown.
  * @return Formatted timestamp string.
  */
-String isoformat(const DateTime& t, int ms, const String& separator, bool include_ms) {
-    char buffer[48];  // plus grand pour inclure option ms
-    if (include_ms) {
-        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d.%03d%s", t.year(),
-                 t.month(), t.day(), separator.c_str(), t.hour(), t.minute(), t.second(), ms,
-                 separator.c_str());
+String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
+    char buffer[48];
+
+    if (opts.include_ms) {
+        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d.%03d", t.year(), t.month(),
+                 t.day(), opts.separator, t.hour(), t.minute(), t.second(), opts.ms);
     } else {
-        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d%s", t.year(), t.month(),
-                 t.day(), separator.c_str(), t.hour(), t.minute(), t.second(), separator.c_str());
+        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d", t.year(), t.month(),
+                 t.day(), opts.separator, t.hour(), t.minute(), t.second());
     }
+
     return String(buffer);
 }
 

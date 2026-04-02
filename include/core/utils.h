@@ -13,6 +13,12 @@
 #include <RTClib.h>
 #include "rtc.h"
 
+struct IsoFormatOptions {
+    int ms                = 0;
+    const char* separator = "T";
+    bool include_ms       = false;
+};
+
 bool scanI2CBus();
 
 /**
@@ -35,7 +41,7 @@ bool check_and_create_new_daily_file(const DateTime& now);
  * @param t DateTime instance representing the current date.
  * @return String with the date formatted as "YY_MM_DD".
  */
-String isoformat_date(DateTime t);
+//TODO
 
 /**
  * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}{sep}"
@@ -48,7 +54,7 @@ String isoformat_date(DateTime t);
  * @param include_ms If true, includes milliseconds; if false, omits them.
  * @return Formatted timestamp string.
  */
-String isoformat(DateTime t, int ms, const String& separator, bool include_ms = true);
+String isoformat(const DateTime& t, const IsoFormatOptions& opts);
 
 // /**
 //  * @brief Returns a millisecond counter synchronized with the RTC.

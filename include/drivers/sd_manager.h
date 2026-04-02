@@ -137,3 +137,5 @@ bool daily_data_file(char* filename, const DateTime& now);
  */
 u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit,
                         bool use_buffer = false);
+
+void log_event(const char* message);

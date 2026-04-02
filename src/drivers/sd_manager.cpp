@@ -31,6 +31,7 @@
 #include "log.h"
 #include "error_handler.h"
 #include "hardware.h"
+#include "utils.h"
 
 // Define the global filename buffer for daily log file
 char filename_data[16] = {0};  // e.g., "20251124.TXT"
@@ -58,7 +59,7 @@ CircularBuffer& get_sdBuffer() {
  * @return `true` if SD initialized successfully, `false` if not detected.
  *
  * @note This function must be called once during @ref STATE_BOOT.
- * @see error_signal(), logSystemEvent(), ERR_SD_NOT_FOUND
+ * @see error_signal(), log_event(), ERR_SD_NOT_FOUND
  */
 bool sd_initialization(uint8_t pin_cs) {
 
@@ -111,7 +112,7 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
  *
  * @param cb Pointer to the @ref CircularBuffer to flush.
  *
- * @see error_signal(), logSystemEvent(), daily_data_file()
+ * @see error_signal(), log_event(), daily_data_file()
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb) {
     size_t buffered =
@@ -198,11 +199,10 @@ bool daily_data_file(char* filename, const DateTime& now) {
  */
 u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit,
                         bool use_buffer) {
-    char timestamp[25];
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(),
-             now.day(), now.hour(), now.minute(), now.second());
-
-    String line = String(timestamp) + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
+    IsoFormatOptions opts;
+    opts.separator    = " ";
+    String now_string = isoformat(now, {opts});
+    String line       = now_string + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
 
     if (use_buffer) {
         addToCircularBuffer(&sdBuffer, line.c_str());
@@ -223,6 +223,49 @@ u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, co
         return -1;
     }
     return 0;
+}
+
+/**
+ * @brief Writes a fully formatted log message to the SD card.
+ *
+ * This is the final stage of the logging pipeline. It prepends a timestamp
+ * from the RTC and writes the line to the current daily log file.
+ *
+ * The final on-disk format is:
+ * @code
+ * YYYY-MM-DD HH:MM:SS;SYSTEM;<message>
+ * @endcode
+ *
+ * If the daily file name is not yet available (very early at boot), the last
+ * message is buffered in RAM and written once the filename is assigned.
+ *
+ * @param message User-formatted log payload (without timestamp).
+ */
+void log_event(const char* message) {
+    static char pending[256] = {0};
+    static bool hasPending   = false;
+
+    if (get_filename()[0] == '\0') {
+        snprintf(pending, sizeof(pending), "%s", message);
+        hasPending = true;
+        return;
+    }
+
+    File log = SD.open(get_filename(), FILE_WRITE);
+    if (!log) {
+        snprintf(pending, sizeof(pending), "%s", message);
+        hasPending = true;
+        return;
+    }
+
+    if (hasPending) {
+        log.println(pending);
+        hasPending = false;
+        pending[0] = '\0';
+    }
+
+    log.println(message);
+    log.close();
 }
 
 /** @} */  // end of SD_Manager group

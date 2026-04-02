@@ -42,6 +42,7 @@
 #include "error_handler.h"
 #include "log.h"
 #include "hardware.h"
+#include "utils.h"
 
 /**
  * @brief Global DS3231 instance (RTClib).
@@ -301,32 +302,26 @@ bool rtc_boot_recover() {
     int offset = isDST(build_time.year(), build_time.month(), build_time.day()) ? 2 : 1;
     DateTime build_time_utc = build_time - TimeSpan(0, offset, 0, 0);
     const DateTime now      = rtc.now();
+    IsoFormatOptions opts;
+    opts.separator           = " ";
+    String now_string        = isoformat(now, {opts});
+    String build_time_string = isoformat(build_time_utc, {opts});
 
     // TODO should use a format converter from 'utils.cpp' instead of individual field accessors
-    LOG_DEBUG(
-        "RTC boot check: rtc=%04d-%02d-%02d %02d:%02d:%02d, "
-        "build utc=%04d-%02d-%02d %02d:%02d:%02d, lostPower=%s",
-        now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second(),
-        build_time_utc.year(), build_time_utc.month(), build_time_utc.day(), build_time_utc.hour(),
-        build_time_utc.minute(), build_time_utc.second(), rtc.lostPower() ? "YES" : "NO");
+    LOG_DEBUG("RTC boot check: rtc=%s, build=%s, lostPower=%s", now_string.c_str(),
+              build_time_string.c_str(), rtc.lostPower() ? "YES" : "NO");
 
     const bool time_in_range = rtc_sanity_ok(now, build_time_utc);
 
     rtc_state.time_checked           = !rtc.lostPower() && time_in_range;
     rtc_state.time_in_connected_mode = 0;
-
     if (rtc_state.time_checked) {
-        LOG_INFO("RTC time accepted as valid at boot: %04d-%02d-%02d %02d:%02d:%02d", now.year(),
-                 now.month(), now.day(), now.hour(), now.minute(), now.second());
+        LOG_INFO("RTC time accepted as valid at boot: %s", now_string.c_str());
     } else {
         rtc.adjust(build_time_utc);
         rtc_state.time_checked = true;
-
-        LOG_WARN(
-            "RTC time invalid at boot, setting to build time fallback: %04d-%02d-%02d "
-            "%02d:%02d:%02d",
-            build_time_utc.year(), build_time_utc.month(), build_time_utc.day(),
-            build_time_utc.hour(), build_time_utc.minute(), build_time_utc.second());
+        LOG_WARN("RTC time invalid at boot, setting to build time fallback: %s",
+                 build_time_string.c_str());
     }
 
     return true;
