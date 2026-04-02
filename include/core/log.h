@@ -31,7 +31,6 @@
 #define LOG_FORMAT "%T - %L - %M"
 #endif
 
-void logSystemEvent(const char* message);
 void logPrintf(uint8_t level, const char* fmt, ...);
 
 #define LOG_ERROR(...)                                                             \

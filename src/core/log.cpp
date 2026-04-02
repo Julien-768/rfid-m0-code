@@ -11,11 +11,7 @@
 #include <SD.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <string.h>    // for strcpy, strlen
-#include "assembly.h"  // for hw_assembly.rtc_type
-
-// TODO remove dependency on rtc
-// TODO remove dependency on hw_assembly
+#include <string.h>  // for strcpy, strlen
 
 // ---------------------------------------------------------------------------
 // Map numeric log level to printable tag string
@@ -97,7 +93,7 @@ static void formatLogLine(char* out, size_t size, const char* format, const char
  * @endcode
  *
  * The resulting line is:
- * 1. Sent to @ref logSystemEvent() for timestamping and SD card storage.
+ * 1. Sent to @ref log_event() for timestamping and SD card storage.
  * 2. Optionally duplicated to Serial1 (debug output), depending on
  *    LOG_ENABLE_SERIAL1 and LOG_SERIAL1_MIN_LEVEL.
  *
@@ -128,7 +124,8 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
         snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(),
                  now.month(), now.day(), now.hour(), now.minute(), now.second());
     } else {
-        snprintf(timestamp, sizeof(timestamp), "NO_RTC");
+        uint32_t uptime_ms = millis();
+        snprintf(timestamp, sizeof(timestamp), "UPTIME_%lu", uptime_ms);
     }
 
     // Build final formatted line
@@ -137,7 +134,7 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
                   "SYSTEM");
 
     // Dispatch to SD
-    logSystemEvent(final);
+    log_event(final);
 
     // Optional mirroring on Serial1
 #if LOG_ENABLE_SERIAL1
@@ -145,50 +142,4 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
         Serial1.println(final);
     }
 #endif
-}
-
-// ---------------------------------------------------------------------------
-// Final SD writer with timestamp
-// ---------------------------------------------------------------------------
-/**
- * @brief Writes a fully formatted log message to the SD card.
- *
- * This is the final stage of the logging pipeline. It prepends a timestamp
- * from the RTC and writes the line to the current daily log file.
- *
- * The final on-disk format is:
- * @code
- * YYYY-MM-DD HH:MM:SS;SYSTEM;<message>
- * @endcode
- *
- * If the daily file name is not yet available (very early at boot), the last
- * message is buffered in RAM and written once the filename is assigned.
- *
- * @param message User-formatted log payload (without timestamp).
- */
-void logSystemEvent(const char* message) {
-    static char pending[256] = {0};
-    static bool hasPending   = false;
-
-    if (get_filename()[0] == '\0') {
-        snprintf(pending, sizeof(pending), "%s", message);
-        hasPending = true;
-        return;
-    }
-
-    File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log) {
-        snprintf(pending, sizeof(pending), "%s", message);
-        hasPending = true;
-        return;
-    }
-
-    if (hasPending) {
-        log.println(pending);
-        hasPending = false;
-        pending[0] = '\0';
-    }
-
-    log.println(message);
-    log.close();
 }
