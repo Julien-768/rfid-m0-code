@@ -369,6 +369,7 @@ void loop() {
         case STATE_ENDOFLIFE:
             // @todo Factorize shutdown steps into a dedicated shutdown function.
             LOG_ERROR("Entering END OF LIFE mode");
+            deploy_exit(ir_driver);
             SD.end();
             led_start_blink_isr(1, blink_mode::slow);
             led_start_blink_isr(10, blink_mode::fast);

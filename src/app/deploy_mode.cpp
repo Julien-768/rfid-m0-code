@@ -22,15 +22,12 @@
 #include "sensors_internal.h"
 #include "sd_manager.h"
 #include "rtc.h"
-#include "battery.h"
 #include "battery_service.h"
 #include "config.h"
 #include "log.h"
 #include "error_handler.h"
 #include <ArduinoLowPower.h>
 #include "utils.h"
-#include "assembly.h"
-#include "hardware.h"
 
 // Event flags for DEPLOY state
 enum deploy_event : uint8_t {
@@ -44,9 +41,6 @@ enum deploy_event : uint8_t {
 
 // Global event flags set by ISRs and checked in the main loop.
 static volatile uint8_t g_deploy_events = DEPLOY_EVT_NONE;
-
-// Global counter for RTC wake events
-static volatile uint32_t g_rtc_wake_count = 0;
 
 // IR event counters
 static volatile uint32_t g_ir1_count = 0;
@@ -70,7 +64,6 @@ static uint32_t rtc_period   = 0;
 
 static void callback_rtc() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
-    g_rtc_wake_count++;
 }
 
 static void callback_ir1(uint8_t /*state*/) {
@@ -114,12 +107,11 @@ void deploy_enter(ir_pwm& ir_driver) {
     noInterrupts();
 
     // Reset event flags and counters (ISR-related)
-    g_deploy_events  = DEPLOY_EVT_NONE;
-    g_rtc_wake_count = 0;
-    g_ir1_count      = 0;
-    g_ir2_count      = 0;
-    g_ir1_last_ts    = 0;
-    g_ir2_last_ts    = 0;
+    g_deploy_events = DEPLOY_EVT_NONE;
+    g_ir1_count     = 0;
+    g_ir2_count     = 0;
+    g_ir1_last_ts   = 0;
+    g_ir2_last_ts   = 0;
 
     interrupts();
 
@@ -145,12 +137,11 @@ void deploy_exit(ir_pwm& ir_driver) {
     noInterrupts();
 
     // Reset event flags and counters (ISR-related)
-    g_deploy_events  = DEPLOY_EVT_NONE;
-    g_rtc_wake_count = 0;
-    g_ir1_count      = 0;
-    g_ir2_count      = 0;
-    g_ir1_last_ts    = 0;
-    g_ir2_last_ts    = 0;
+    g_deploy_events = DEPLOY_EVT_NONE;
+    g_ir1_count     = 0;
+    g_ir2_count     = 0;
+    g_ir1_last_ts   = 0;
+    g_ir2_last_ts   = 0;
 
     interrupts();
 
@@ -174,12 +165,11 @@ void deploy_exit(ir_pwm& ir_driver) {
  * @param ir_driver Reference to the IR PWM driver.
  */
 void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
-    uint8_t events          = DEPLOY_EVT_NONE;
-    uint32_t rtc_wake_count = 0;
-    uint32_t ir1_count      = 0;
-    uint32_t ir2_count      = 0;
-    int32_t vbat_mv         = 0;
-    bool changed            = false;
+    uint8_t events     = DEPLOY_EVT_NONE;
+    uint32_t ir1_count = 0;
+    uint32_t ir2_count = 0;
+    int32_t vbat_mv    = 0;
+    bool changed       = false;
     DateTime now;
 
     // Enter low-power sleep; RTC alarm or sensor interrupt will wake the MCU.
@@ -188,9 +178,6 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     noInterrupts();
     events          = g_deploy_events;
     g_deploy_events = DEPLOY_EVT_NONE;
-
-    rtc_wake_count   = g_rtc_wake_count;
-    g_rtc_wake_count = 0;
 
     ir1_count   = g_ir1_count;
     g_ir1_count = 0;
@@ -206,7 +193,6 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     now = rtc().now();
     if (!check_and_create_new_daily_file(now)) {
         state = STATE_ENDOFLIFE;
-        deploy_exit(ir_driver);
         return;
     }
 
@@ -222,7 +208,7 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
         logSensorFrame(now, frame);
 
         if (config.enable_vbat && batt_available) {
-            vbat_counter += rtc_wake_count;
+            vbat_counter++;
 
             // Perform battery check every 10 RTC wakes.
             if (vbat_counter >= VBAT_CHECK_INTERVAL) {
@@ -233,7 +219,7 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
                     // Handle decision failure
                     error_signal(ERR_BATTERY_CRITICAL);
                     state = STATE_ENDOFLIFE;
-                    deploy_exit(ir_driver);
+
                     return;
                 }
             }
@@ -243,11 +229,11 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     // ===== Event-driven partial acquisition =====
 
     if (events & DEPLOY_EVT_SENSOR_AS7341) {
-        // TODO: implement partial AS7341 acquisition on interrupt wake-up.
+        // For future use: implement partial AS7341 acquisition on interrupt wake-up.
     }
 
     if (events & DEPLOY_EVT_SENSOR_TSL2591) {
-        // TODO: implement partial TSL2591 acquisition on interrupt wake-up.
+        // For future use: implement partial TSL2591 acquisition on interrupt wake-up.
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
