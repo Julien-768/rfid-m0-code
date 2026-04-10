@@ -58,6 +58,8 @@
 #include "utils.h"
 #include "battery_service.h"
 
+bool batt_available;
+
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
  *
@@ -132,12 +134,19 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_VBAT: {
-            // One-shot battery measurement for GUI request (not used in DEPLOY loop)
-            int32_t vbat_mv;
-            bool changed;
-            battery_service_read_vbat_filtered_mv(vbat_mv, changed);  // volts in mV (e.g. 3700)
-            const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-            Serial1.println(json);
+            if (!batt_available) {
+                Serial1.println("{\"error\":\"Battery measurement not available\"}");
+                break;
+            } else {
+                int32_t vbat_mv;
+                bool changed;
+                if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+                    Serial1.println("{\"error\":\"Failed to read battery voltage\"}");
+                    break;
+                }
+                const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
+                Serial1.println(json);
+            }
             break;
         }
 

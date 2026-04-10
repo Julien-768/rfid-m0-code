@@ -373,7 +373,6 @@ void loop() {
             SD.end();
             led_start_blink_isr(1, blink_mode::slow);
             led_start_blink_isr(10, blink_mode::fast);
-            LOG_DEBUG("Entering infinite sleep.");
             delay(2000);
 
             while (true) {

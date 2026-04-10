@@ -42,6 +42,8 @@ enum deploy_event : uint8_t {
     DEPLOY_EVT_SENSOR_IR2     = 1 << 4,
 };
 
+bool batt_available;
+
 // Global event flags set by ISRs and checked in the main loop.
 static volatile uint8_t g_deploy_events = DEPLOY_EVT_NONE;
 
@@ -199,7 +201,7 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
         // Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
         logSensorFrame(now, frame);
 
-        if (config.enable_vbat) {
+        if (config.enable_vbat and batt_available) {
             vbat_counter += rtc_wake_count;
 
             // Perform battery check every 10 RTC wakes.
