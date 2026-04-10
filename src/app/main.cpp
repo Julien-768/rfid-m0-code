@@ -65,8 +65,10 @@
 #include "ir_pwm.h"
 #include "signal.h"
 
+extern bool batt_available = false;
+
 SystemState currentState = STATE_INIT;
-bool i2c_ok              = false;
+static bool i2c_ok       = false;
 bool rtc_available       = false;
 
 /**
@@ -114,7 +116,7 @@ ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
 static SystemState runBootSequence() {
     delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
 
-    String buildDateTime = "Build " + String(F(__DATE__)) + " " + String(F(__TIME__));
+    String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
     String board         = "Board: " + String(__PIO_BOARD_NAME__);
     String string_widget = "------------------------------------------------------------";
 
@@ -179,34 +181,41 @@ static SystemState runBootSequence() {
     */
 
     // Read all hardware UIDs (in RAM only) ---
+    bool uid_updated = false;
     if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
         hw_assembly.uid_mainboard = mcu_uid_read();
+        uid_updated               = true;
     }
     // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
     //     {
     //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
+    // uid_updated               = true;
     // }
     // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
     //     {
     //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
+    // uid_updated               = true;
     // }
 
-    LOG_DEBUG("Hardware assembly information:");
-    LOG_DEBUG("\tMainboard UID: %s", hw_assembly.uid_mainboard.c_str());
-    LOG_DEBUG("\tLight sensor 1 UID: %s", hw_assembly.uid_light_sensor1.c_str());
-    LOG_DEBUG("\tLight sensor 2 UID: %s", hw_assembly.uid_light_sensor2.c_str());
-    LOG_DEBUG("\tSoftware UID: %s", hw_assembly.uid_software.c_str());
-    LOG_DEBUG("\tExperiment UID: %s", hw_assembly.uid_experiment.c_str());
-    LOG_DEBUG("\tBattery type: %s", hw_assembly.battery_type.c_str());
-
-    // --- Sync Serial Number ---
-    LOG_DEBUG("Synchronize SN from factory identity to assembly configuration");
-    assembly_sync_sn(hw_assembly);
-
-    if (!assembly_save(hw_assembly)) {
-        LOG_WARN("Failed to synchronize SN to assembly configuration file");
+    if (uid_updated) {
+        LOG_INFO("Hardware UIDs updated by software at boot");
+        LOG_DEBUG("\tMainboard UID: %s", hw_assembly.uid_mainboard.c_str());
+        LOG_DEBUG("Hardware assembly information:");
+        LOG_DEBUG("\tLight sensor 1 UID: %s", hw_assembly.uid_light_sensor1.c_str());
+        LOG_DEBUG("\tLight sensor 2 UID: %s", hw_assembly.uid_light_sensor2.c_str());
+        LOG_DEBUG("\tSoftware UID: %s", hw_assembly.uid_software.c_str());
+        LOG_DEBUG("\tExperiment UID: %s", hw_assembly.uid_experiment.c_str());
+        LOG_DEBUG("\tBattery type: %s", hw_assembly.battery_type.c_str());
     }
 
+    // --- Sync Serial Number ---
+    LOG_DEBUG("Trying to synchronize SN from factory identity to assembly configuration");
+    if (assembly_sync_sn(hw_assembly) or uid_updated) {
+
+        if (!assembly_save(hw_assembly)) {
+            LOG_WARN("Failed to synchronize SN to assembly configuration file");
+        }
+    }
     /*
     Load configuration from SD card
     */
@@ -218,10 +227,10 @@ static SystemState runBootSequence() {
     device_id_init();
     const auto& idFlash = device_id_get();
     LOG_INFO("Factory identity loaded from flash");
-    LOG_INFO("Manufacturer: %s", idFlash.manufacturer);
-    LOG_INFO("Logger type: %s", idFlash.logger_type);
-    LOG_INFO("Date of fabrication: %s", idFlash.date_fab);
-    LOG_INFO("Serial number: %s", idFlash.serial_number);
+    LOG_INFO("\tManufacturer: %s", idFlash.manufacturer);
+    LOG_INFO("\tLogger type: %s", idFlash.logger_type);
+    LOG_INFO("\tDate of fabrication: %s", idFlash.date_fab);
+    LOG_INFO("\tSerial number: %s", idFlash.serial_number);
 
     /*
      Battery initialization
@@ -256,6 +265,7 @@ static SystemState runBootSequence() {
     int32_t vbat_mv = 0;
     bool changed    = false;
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+        batt_available = true;
         if (!battery_service_decision("Boot", vbat_mv)) {
             // Log and blink error led
             error_signal(ERR_BATTERY_CRITICAL);
@@ -263,6 +273,7 @@ static SystemState runBootSequence() {
         }
     } else {
         LOG_WARN("Initial battery reading failed");
+        batt_available = false;
     }
 
     // --- Initialize IR PWM module ---

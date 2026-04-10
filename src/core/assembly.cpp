@@ -135,14 +135,14 @@ void assembly_load(Assembly& hw_assembly_local) {
             LOG_ERROR("JSON parse error: %s", error.c_str());
         } else {
             Assembly tmp          = hw_assembly_local;
-            tmp.uid_mainboard     = doc["uid_mainboard"] | String("");
-            tmp.uid_light_sensor1 = doc["uid_light_sensor1"] | String("");
-            tmp.uid_light_sensor2 = doc["uid_light_sensor2"] | String("");
-            tmp.uid_software      = doc["uid_software"] | String("");
-            tmp.uid_experiment    = doc["uid_experiment"] | String("");
-            tmp.sn_logger         = doc["sn_logger"] | String("");
-            tmp.battery_type      = doc["battery_type"] | String("");
-            tmp.rtc_type          = doc["rtc_type"] | String("");
+            tmp.uid_mainboard     = doc["uid_mainboard"] | String("$uid_mainboard$");
+            tmp.uid_light_sensor1 = doc["uid_light_sensor1"] | String("$uid_light_sensor1$");
+            tmp.uid_light_sensor2 = doc["uid_light_sensor2"] | String("$uid_light_sensor2$");
+            tmp.uid_software      = doc["uid_software"] | String("$uid_software$");
+            tmp.uid_experiment    = doc["uid_experiment"] | String("$uid_experiment$");
+            tmp.sn_logger         = doc["sn_logger"] | String("$sn_logger$");
+            tmp.battery_type      = doc["battery_type"] | String("$battery_type$");
+            tmp.rtc_type          = doc["rtc_type"] | String("$rtc_type$");
             LOG_DEBUG("Assembly loaded from %s:", kAssemblyFilename);
             LOG_DEBUG("\tuid_mainboard: %s", tmp.uid_mainboard.c_str());
             LOG_DEBUG("\tuid_light_sensor1: %s", tmp.uid_light_sensor1.c_str());

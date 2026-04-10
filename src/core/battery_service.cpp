@@ -2,7 +2,7 @@
  * @file battery_service.cpp
  * @defgroup BatteryService Battery Service
  * @ingroup SystemModules
- * @brief Battery orchestration layer for Moonraker (tick/logs/actions).
+ * @brief Battery orchestration layer (tick/logs/actions).
  *
  * This module implements the **battery policy orchestration** of the firmware.
  * It sits above the reusable battery driver (`drivers/battery.*`) and is
@@ -229,7 +229,7 @@ bool battery_service_init(const battery_service_config_t& cfg) {
 
     batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
-    LOG_DEBUG(" battery_hw_cfg: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u", batt_hw_cfg.pin,
+    LOG_DEBUG("Battery_hw_cfg: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u", batt_hw_cfg.pin,
               batt_hw_cfg.adc_cfg.ratio, batt_hw_cfg.adc_cfg.adc_ref_mv,
               batt_hw_cfg.adc_cfg.adc_max);
 
@@ -258,14 +258,15 @@ bool battery_service_init(const battery_service_config_t& cfg) {
  */
 battery_thresholds_t battery_service_apply_type_string(const String& battery_type) {
     const char* req = battery_type.length() ? battery_type.c_str() : "lipo_1s";
+    LOG_DEBUG("Applying battery type from string: '%s'", req);
 
     const battery_type_t type = battery_type_from_string(req);
     batt_thresholds_active    = battery_thresholds_default(type);
 
     LOG_DEBUG("Battery model details: type=%d", static_cast<int>(type));
-    LOG_DEBUG("Battery model thresholds: low_warn=%umV", batt_thresholds_active.low_warn_mv);
-    LOG_DEBUG("Battery model thresholds: low_crit=%umV", batt_thresholds_active.low_crit_mv);
-    LOG_DEBUG("Battery model thresholds: high_crit=%umV", batt_thresholds_active.high_crit_mv);
+    LOG_DEBUG("\tBattery model thresholds: low_warn=%umV", batt_thresholds_active.low_warn_mv);
+    LOG_DEBUG("\tBattery model thresholds: low_crit=%umV", batt_thresholds_active.low_crit_mv);
+    LOG_DEBUG("\tBattery model thresholds: high_crit=%umV", batt_thresholds_active.high_crit_mv);
 
     return batt_thresholds_active;
 }

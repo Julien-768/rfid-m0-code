@@ -193,11 +193,11 @@ bool device_id_init() {
         g_identity = r.id;
         sanitize(g_identity);
         g_identity_valid = true;
-        LOG_INFO("Factory identity loaded from FLASH: SN=%s", g_identity.serial_number);
+        LOG_INFO("Factory serial number loaded from FLASH: SN=%s", g_identity.serial_number);
         return true;
     }
 
-    LOG_WARN("Factory identity not valid in FLASH — writing defaults.");
+    LOG_WARN("Factory identity not valid in FLASH — using defaults.");
     fillDefaults(g_identity);
 
     const IdentityRecord wr = makeRecord(g_identity);
