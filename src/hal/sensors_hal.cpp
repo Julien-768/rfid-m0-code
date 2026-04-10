@@ -7,7 +7,7 @@
  * - Initialize a list of sensors described by @ref SensorSpec.
  * - Read data from all active sensors into an application-defined context.
  *
- * The HAL remains completely generic: it does not depend on any Moonraker code,
+ * The HAL remains completely generic: it does not depend on any code,
  * drivers, or data structures. All behaviors come from user-provided callbacks
  * in the SensorSpec table.
  *

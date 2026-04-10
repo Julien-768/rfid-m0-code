@@ -1,6 +1,6 @@
 /**
  * @file deploy_mode.cpp
- * @brief Implementation of the DEPLOY runtime state for the Moonraker logger.
+ * @brief Implementation of the DEPLOY runtime state for the logger.
  *
  * This module implements the main low-power acquisition loop used during
  * deployment. In DEPLOY mode, the logger:

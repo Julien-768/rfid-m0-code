@@ -2,10 +2,10 @@
  * @file sd_manager.cpp
  * @defgroup SD_Manager SD Manager
  * @ingroup SystemModules
- * @brief SD card management and buffered data logging for the Moonraker Logger.
+ * @brief SD card management and buffered data logging for the Logger.
  *
  * The **SD Manager** module handles initialization, daily file management, and
- * buffered writing for the Moonraker low-power data logger. It ensures
+ * buffered writing for the Logger. It ensures
  * reliable, power-efficient logging even under intermittent storage access
  * or during long deployments.
  *

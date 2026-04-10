@@ -2,9 +2,9 @@
  * @file connected_mode.cpp
  * @defgroup Connected_Mode Connected Mode
  * @ingroup SystemModules
- * @brief UART JSON command handling for Moonraker (CONNECTED mode).
+ * @brief UART JSON command handling for (CONNECTED mode).
  *
- * This module implements the **CONNECTED** state logic of the Moonraker logger.
+ * This module implements the **CONNECTED** state logic of the logger.
  * In this mode, the device communicates with an external GUI/tool over UART
  * (`Serial1`) using a line-based JSON protocol.
  *
@@ -108,6 +108,7 @@ void runConnectedMode(SystemState& state) {
     switch (parsed.type) {
         case CommandType::GET_INFO: {
             // Firmware version / compile date
+            // TODO
             const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
             Serial1.println(json);
             break;

@@ -2,7 +2,7 @@
  * @file battery_service.h
  * @defgroup BatteryService Battery Service
  * @ingroup SystemModules
- * @brief Battery orchestration layer for Moonraker (tick/logs/actions).
+ * @brief Battery orchestration layer (tick/logs/actions).
  *
  * This module sits above the reusable battery driver (`drivers/battery.*`) and
  * is responsible for:

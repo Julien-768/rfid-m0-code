@@ -4,7 +4,7 @@
  *
  * This header declares initialization, data acquisition, and CSV formatting
  * functions for the Adafruit TSL2591 ambient light sensor.
- * It is designed to integrate seamlessly with the Moonraker logger architecture
+ * It is designed to integrate seamlessly with the logger architecture
  * (similar to the AS7341 sensor module).
  *
  * The TSL2591 provides high dynamic range ambient light measurement using

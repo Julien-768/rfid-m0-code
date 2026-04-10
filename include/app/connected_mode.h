@@ -1,6 +1,6 @@
 /**
  * @file connected_mode.h
- * @brief Interface for the UART/JSON connected mode handler in Moonraker.
+ * @brief Interface for the UART/JSON connected mode handler.
  *
  * Connected mode allows the logger to communicate with a host application
  * (e.g., LoggerApp) via UART using JSON messages. This mode is typically used

@@ -1,8 +1,8 @@
 /**
  * @file sensors_internal.h
- * @brief Internal Moonraker sensor table (g_sensors) declaration.
+ * @brief Internal sensor table (g_sensors) declaration.
  *
- * This header is *internal* to the Moonraker firmware.
+ * This header is *internal* to the firmware.
  * It exposes the concrete SensorSpec table used by the logger so that
  * high-level application code can explicitly pass it to:
  *
@@ -16,7 +16,7 @@
 
 #include "sensors_hal.h"  // for SensorSpec
 
-/// Moonraker sensor table (defined in sensors.cpp).
+/// Logger sensor table (defined in sensors.cpp).
 extern SensorSpec g_sensors[];
 
 /// Number of entries in @ref g_sensors.

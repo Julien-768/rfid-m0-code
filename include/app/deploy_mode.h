@@ -1,6 +1,6 @@
 /**
  * @file deploy_mode.h
- * @brief High-level DEPLOY mode handler for Moonraker.
+ * @brief High-level DEPLOY mode handler.
  *
  * This module encapsulates the runtime behavior of the DEPLOY state:
  * - Periodic wake-up on RTC alarm

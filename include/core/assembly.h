@@ -3,7 +3,7 @@
  * @brief Declarations for managing system hardware/software identification (hw_assembly.cfg).
  *
  * This header defines the @ref Assembly structure and related functions used
- * to manage persistent metadata describing the Moonraker logger system.
+ * to manage persistent metadata describing the logger system.
  *
  * ## Overview
  * The Assembly structure centralizes unique identifiers (UIDs) for:
@@ -28,7 +28,7 @@
  * @brief Holds unique identifiers for all major hardware and software components.
  *
  * The Assembly structure encapsulates all persistent identifiers associated
- * with a Moonraker logger unit. Each field corresponds to a subsystem:
+ * with a logger unit. Each field corresponds to a subsystem:
  * - Feather M0 UID (mainboard MCU)
  * - Sensor UIDs (spectral and light)
  * - Software and experiment identifiers

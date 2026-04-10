@@ -1,6 +1,6 @@
 /**
  * @file config.cpp
- * @brief Runtime configuration handling for the Moonraker logger.
+ * @brief Runtime configuration handling for the logger.
  *
  * This module defines the global configuration structures and provides helpers
  * to load runtime options from the SD card, and to apply configuration received
@@ -118,11 +118,11 @@ bool load_configuration(Config& config_var) {
 
     // Compact summary log of effective configuration
     LOG_INFO("Configuration loaded:");
-    LOG_INFO(config_var.use_buffer ? "%tuse_buffer: true" : "%tuse_buffer: false");
-    LOG_INFO(config_var.enable_light1 ? "%tlight1: true" : "%tlight1: false");
-    LOG_INFO(config_var.enable_light2 ? "%tlight2: true" : "%tlight2: false");
-    LOG_INFO(config_var.enable_vbat ? "%tvbat: true" : "%tvbat: false");
-    LOG_INFO("%tinterval: %u s", config_var.acquisition_interval_s);
+    LOG_INFO(config_var.use_buffer ? "\tuse_buffer: true" : "\tuse_buffer: false");
+    LOG_INFO(config_var.enable_light1 ? "\tlight1: true" : "\tlight1: false");
+    LOG_INFO(config_var.enable_light2 ? "\tlight2: true" : "\tlight2: false");
+    LOG_INFO(config_var.enable_vbat ? "\tvbat: true" : "\tvbat: false");
+    LOG_INFO("\tinterval: %u s", config_var.acquisition_interval_s);
 
     return true;
 }

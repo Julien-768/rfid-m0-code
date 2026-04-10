@@ -1,6 +1,6 @@
 /**
  * @file JsonProtocol.h
- * @brief JSON protocol helper for the Moonraker logger over UART.
+ * @brief JSON protocol helper for the logger over UART.
  *
  * This module is responsible ONLY for:
  *  - Parsing incoming JSON into a high-level command structure.

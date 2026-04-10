@@ -1,8 +1,8 @@
 /**
  * @file system_state.h
- * @brief Global state machine definitions for Moonraker.
+ * @brief Global state machine definitions.
  *
- * Defines all operational states used by the Moonraker main application loop.
+ * Defines all operational states used by the logger main application loop.
  *
  * ## State overview
  *
@@ -29,7 +29,7 @@
 #include <stdint.h>
 
 /**
- * @brief Global runtime states of the Moonraker logger.
+ * @brief Global runtime states of the logger.
  */
 enum SystemState : uint8_t {
     STATE_INIT,       ///< Runtime initialization and mode selection

@@ -1,6 +1,6 @@
 /**
  * @file sd_manager.h
- * @brief SD card logging manager for the Moonraker low-power data logger.
+ * @brief SD card logging manager for the low-power data logger.
  *
  * This module provides all SD card management utilities, including:
  * - SD initialization

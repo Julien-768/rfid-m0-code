@@ -1,6 +1,6 @@
 /**
  * @file config.h
- * @brief Runtime configuration model for the Moonraker logger.
+ * @brief Runtime configuration model for the logger.
  *
  * This module defines the configuration structures used across the system
  * to enable/disable hardware sensors, adjust acquisition timing, and exchange

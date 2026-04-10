@@ -1,6 +1,6 @@
 /**
  * @file JsonProtocol.cpp
- * @brief Implementation of JSON protocol helpers for Moonraker.
+ * @brief Implementation of JSON protocol helpers for the logger.
  *
  * Supported command formats (RX side):
  *
@@ -201,7 +201,7 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
             JsonObject ident = cmdObj["identity"];
 
             const char* manufacturer = ident["manufacturer"] | "UNKNOWN";
-            const char* logger_type  = ident["logger_type"] | "Moonraker";
+            const char* logger_type  = ident["logger_type"] | "UNKNOWN";
             const char* date_fab     = ident["date_fab"] | "2025-01-01";
             const char* logger_sn    = ident["logger_sn"] | "UNKNOWN";
 
@@ -257,7 +257,7 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     convertDateToISO8601(dateCompil, sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
-    obj["version"]          = version ? version : "Moonraker";
+    obj["version"]          = version ? version : "TODO";
     obj["compilation_date"] = dateCompil;
 
     serializeJson(doc, buffer);
@@ -303,7 +303,7 @@ const char* JsonProtocol::buildIdJSON(const SetIdentityPayload& payload) {
     obj["uid_mcu"]      = payload.UID[0] ? payload.UID : "UNKNOWN";
     obj["manufacturer"] = payload.manufacturer[0] ? payload.manufacturer : "UNKNOWN";
     obj["date_fab"]     = payload.date_fab[0] ? payload.date_fab : "";
-    obj["logger_type"]  = payload.logger_type[0] ? payload.logger_type : "Moonraker";
+    obj["logger_type"]  = payload.logger_type[0] ? payload.logger_type : "UNKNOWN";
     obj["logger_sn"]    = payload.logger_sn[0] ? payload.logger_sn : "";
 
     serializeJson(doc, buffer);
