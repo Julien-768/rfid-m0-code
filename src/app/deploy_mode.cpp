@@ -42,8 +42,6 @@ enum deploy_event : uint8_t {
     DEPLOY_EVT_SENSOR_IR2     = 1 << 4,
 };
 
-bool batt_available;
-
 // Global event flags set by ISRs and checked in the main loop.
 static volatile uint8_t g_deploy_events = DEPLOY_EVT_NONE;
 
@@ -63,6 +61,10 @@ constexpr uint32_t IR_DEBOUNCE_US = 50000;
 
 // Counter for periodic battery checks
 constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
+
+// Runtime state
+static uint32_t vbat_counter = 0;
+static uint32_t rtc_period   = 0;
 
 // ===== Interrupt Service Routines =====
 
@@ -101,17 +103,14 @@ static void callback_tsl2591() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
 
-static bool init_step        = false;
-static uint32_t vbat_counter = 0;
-static uint32_t rtc_period   = 0;
-
 /**
- * @brief Reset internal state of DEPLOY mode.
+ * @brief Initialize DEPLOY mode runtime and callbacks.
  *
- * Must be called when leaving DEPLOY state or before re-entering it,
- * to ensure proper re-initialization of callbacks and counters.
+ * Must be called once when entering DEPLOY state.
+ *
+ * @param ir_driver Reference to the IR PWM driver.
  */
-static void deploy_state_reset(ir_pwm& ir_driver) {
+void deploy_enter(ir_pwm& ir_driver) {
     noInterrupts();
 
     // Reset event flags and counters (ISR-related)
@@ -119,9 +118,40 @@ static void deploy_state_reset(ir_pwm& ir_driver) {
     g_rtc_wake_count = 0;
     g_ir1_count      = 0;
     g_ir2_count      = 0;
+    g_ir1_last_ts    = 0;
+    g_ir2_last_ts    = 0;
 
-    g_ir1_last_ts = 0;
-    g_ir2_last_ts = 0;
+    interrupts();
+
+    // Reset runtime state
+    vbat_counter = 0;
+    rtc_period   = config.acquisition_interval_s;
+
+    // Register driver interrupt callbacks
+    ir_driver.set_callback_sensor_1(callback_ir1);
+    ir_driver.set_callback_sensor_2(callback_ir2);
+    rtc_set_alarm_callback(callback_rtc);
+    rtc_clear_and_set_alarm(rtc().now(), rtc_period);
+}
+
+/**
+ * @brief Cleanup DEPLOY mode runtime and callbacks.
+ *
+ * Must be called when leaving DEPLOY state.
+ *
+ * @param ir_driver Reference to the IR PWM driver.
+ */
+void deploy_exit(ir_pwm& ir_driver) {
+    noInterrupts();
+
+    // Reset event flags and counters (ISR-related)
+    g_deploy_events  = DEPLOY_EVT_NONE;
+    g_rtc_wake_count = 0;
+    g_ir1_count      = 0;
+    g_ir2_count      = 0;
+    g_ir1_last_ts    = 0;
+    g_ir2_last_ts    = 0;
+
     interrupts();
 
     ir_driver.set_callback_sensor_1(nullptr);
@@ -130,7 +160,6 @@ static void deploy_state_reset(ir_pwm& ir_driver) {
     rtc_set_alarm_callback(nullptr);
 
     // Reset runtime state
-    init_step    = false;
     vbat_counter = 0;
     rtc_period   = 0;
 }
@@ -142,18 +171,9 @@ static void deploy_state_reset(ir_pwm& ir_driver) {
  *
  * @param state Reference to the current system state. May be set to
  * @ref STATE_ENDOFLIFE by the battery check or other subsystems.
+ * @param ir_driver Reference to the IR PWM driver.
  */
 void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
-    if (!init_step) {
-        rtc_period = config.acquisition_interval_s;
-        // Register driver interrupt callbacks
-        ir_driver.set_callback_sensor_1(callback_ir1);
-        ir_driver.set_callback_sensor_2(callback_ir2);
-        rtc_set_alarm_callback(callback_rtc);
-        rtc_clear_and_set_alarm(rtc().now(), rtc_period);
-        init_step = true;
-    }
-
     uint8_t events          = DEPLOY_EVT_NONE;
     uint32_t rtc_wake_count = 0;
     uint32_t ir1_count      = 0;
@@ -186,7 +206,7 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
     now = rtc().now();
     if (!check_and_create_new_daily_file(now)) {
         state = STATE_ENDOFLIFE;
-        deploy_state_reset(ir_driver);
+        deploy_exit(ir_driver);
         return;
     }
 
@@ -201,7 +221,7 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
         // Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
         logSensorFrame(now, frame);
 
-        if (config.enable_vbat and batt_available) {
+        if (config.enable_vbat && batt_available) {
             vbat_counter += rtc_wake_count;
 
             // Perform battery check every 10 RTC wakes.
@@ -213,7 +233,7 @@ void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
                     // Handle decision failure
                     error_signal(ERR_BATTERY_CRITICAL);
                     state = STATE_ENDOFLIFE;
-                    deploy_state_reset(ir_driver);
+                    deploy_exit(ir_driver);
                     return;
                 }
             }

@@ -58,8 +58,6 @@
 #include "utils.h"
 #include "battery_service.h"
 
-bool batt_available;
-
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
  *

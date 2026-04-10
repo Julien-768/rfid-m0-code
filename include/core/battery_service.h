@@ -36,6 +36,7 @@
 #include <Arduino.h>
 #include "battery.h"
 
+extern bool batt_available;
 /**
  * @brief Configuration of the battery signal filtering stage.
  *

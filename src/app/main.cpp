@@ -65,8 +65,6 @@
 #include "ir_pwm.h"
 #include "signal.h"
 
-extern bool batt_available = false;
-
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
 bool rtc_available       = false;
@@ -338,16 +336,17 @@ void loop() {
 
     switch (currentState) {
         case STATE_INIT:
-            // Load configuration from SD card
             if (load_configuration(config)) {
                 LOG_INFO("Configuration loaded from SD");
             } else {
                 LOG_WARN("Using default compiled configuration");
             }
 
-            // Initialize sensors once before entering DEPLOY
             LOG_INFO("Initializing sensors for DEPLOY mode");
             Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
+
+            deploy_enter(ir_driver);
+
             LOG_DEBUG("Entering DEPLOY mode");
             currentState = STATE_DEPLOY;
             break;
