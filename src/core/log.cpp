@@ -120,12 +120,29 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
     char timestamp[32];
 
     if (rtc_available) {
-        DateTime now = rtc().now();
-        snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(),
-                 now.month(), now.day(), now.hour(), now.minute(), now.second());
+        DateTime now                = rtc().now();
+        static uint32_t last_millis = millis();
+        uint32_t current_millis     = millis();
+        uint16_t ms                 = current_millis % 1000;
+
+        // Gestion du débordement (optionnel)
+        if (current_millis < last_millis) {
+            ms = current_millis % 1000;
+        }
+        last_millis = current_millis;
+
+        snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d.%03u", now.year(),
+                 now.month(), now.day(), now.hour(), now.minute(), now.second(), ms);
     } else {
         uint32_t uptime_ms = millis();
-        snprintf(timestamp, sizeof(timestamp), "UPTIME_%lu", uptime_ms);
+        uint32_t seconds   = uptime_ms / 1000;
+        uint8_t hours      = seconds / 3600;
+        uint8_t minutes    = (seconds % 3600) / 60;
+        uint8_t secs       = seconds % 60;
+        uint16_t ms        = uptime_ms % 1000;
+
+        snprintf(timestamp, sizeof(timestamp), "UPTIME %02u:%02u:%02u.%03u", hours, minutes, secs,
+                 ms);
     }
 
     // Build final formatted line

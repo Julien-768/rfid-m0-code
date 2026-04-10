@@ -7,7 +7,7 @@
  * @file rtc.h
  * @defgroup RTC_Manager RTC Manager
  * @ingroup SystemModules
- * @brief RTC DS3231 management (time, alarms, wake scheduling) for Moonraker.
+ * @brief RTC DS3231 management (time, alarms, wake scheduling).
  *
  * This module exposes:
  * - RTC initialization and presence check (I2C)
@@ -21,8 +21,10 @@
  * @{
  */
 
+extern bool rtc_available;
+
 /**
- * @brief Compact BCD date/time structure used by Moonraker (years since 2000).
+ * @brief Compact BCD date/time structure used by the logger (years since 2000).
  *
  * Each field is stored in BCD format:
  * - year: 00..99 (for 2000..2099)
