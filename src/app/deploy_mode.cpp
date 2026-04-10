@@ -19,7 +19,7 @@
 
 #include "deploy_mode.h"
 #include "sensors.h"
-#include "sensors_internal.h"
+#include "sensors_internal.h"  // G_SENSOR_COUNT, g_sensors
 #include "sd_manager.h"
 #include "rtc.h"
 #include "battery_service.h"
@@ -27,7 +27,7 @@
 #include "log.h"
 #include "error_handler.h"
 #include <ArduinoLowPower.h>
-#include "utils.h"
+#include "utils.h"  // check_and_create_new_daily_file
 
 // Event flags for DEPLOY state
 enum deploy_event : uint8_t {
@@ -207,7 +207,7 @@ void run_deploy_state(SystemState& state) {
         // Log all sensor readings (AS7341, TSL2591, VBAT, etc.).
         logSensorFrame(now, frame);
 
-        if (config.enable_vbat && batt_available) {
+        if (config.enable_vbat && battery_is_available()) {
             vbat_counter++;
 
             // Perform battery check every 10 RTC wakes.

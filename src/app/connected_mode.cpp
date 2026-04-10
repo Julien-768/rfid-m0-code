@@ -132,7 +132,7 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_VBAT: {
-            if (!batt_available) {
+            if (!battery_is_available()) {
                 Serial1.println("{\"error\":\"Battery measurement not available\"}");
                 break;
             } else {

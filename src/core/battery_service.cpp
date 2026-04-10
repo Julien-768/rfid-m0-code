@@ -38,12 +38,20 @@
 
 extern battery_service_config_t batt_serv_cfg{};
 
-bool batt_available = false;
-
 static battery_hw_config_t batt_hw_cfg{};
 static battery_policy_config_t batt_policy_cfg{};
 static battery_filter_config_t batt_filter_cfg{};
 static battery_filter_state_t batt_filter_state{};
+
+static bool batt_available = false;
+
+bool battery_is_available() {
+    return batt_available;
+}
+
+void battery_set_available(bool available) {
+    batt_available = available;
+}
 
 // -----------------------------------------------------------------------------
 // Internal state

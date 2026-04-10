@@ -263,7 +263,7 @@ static SystemState runBootSequence() {
     int32_t vbat_mv = 0;
     bool changed    = false;
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-        batt_available = true;
+        battery_set_available(true);
         if (!battery_service_decision("Boot", vbat_mv)) {
             // Log and blink error led
             error_signal(ERR_BATTERY_CRITICAL);
@@ -271,7 +271,7 @@ static SystemState runBootSequence() {
         }
     } else {
         LOG_WARN("Initial battery reading failed");
-        batt_available = false;
+        battery_set_available(false);
     }
 
     // --- Initialize IR PWM module ---

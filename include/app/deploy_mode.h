@@ -17,7 +17,6 @@
 #include "stdint.h"
 #include "ir_pwm.h"
 
-extern bool batt_available;
 /**
  * @brief Initialize the DEPLOY state runtime context.
  *
