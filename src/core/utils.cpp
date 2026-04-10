@@ -36,15 +36,12 @@ bool scanI2CBus() {
     for (uint8_t addr = 1; addr < 127; addr++) {
         Wire.beginTransmission(addr);
         uint8_t error = Wire.endTransmission();
-        char addrStr[5];  // "0xXX" + '\0'
-
-        snprintf(addrStr, sizeof(addrStr), "%02X", addr);
 
         if (error == 0) {
-            LOG_DEBUG("I2C device found at 0x%S", addrStr);
+            LOG_DEBUG("I2C device found at 0x%02X", addr);
             count++;
         } else if (error == 4) {
-            LOG_DEBUG("Unknown error at 0x%S", addrStr);
+            LOG_DEBUG("Unknown error at 0x%02X", addr);
         }
     }
 
@@ -52,7 +49,7 @@ bool scanI2CBus() {
         LOG_DEBUG("No I2C devices found");
         return false;
     } else {
-        LOG_DEBUG("Scan complete. %s device(s) found.", count);
+        LOG_DEBUG("Scan complete. %d device(s) found.", count);
         return true;
     }
 }
