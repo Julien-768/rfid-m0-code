@@ -164,7 +164,7 @@ void deploy_exit(ir_pwm& ir_driver) {
  * @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  * @param ir_driver Reference to the IR PWM driver.
  */
-void run_deploy_state(SystemState& state, ir_pwm& ir_driver) {
+void run_deploy_state(SystemState& state) {
     uint8_t events     = DEPLOY_EVT_NONE;
     uint32_t ir1_count = 0;
     uint32_t ir2_count = 0;

@@ -357,7 +357,7 @@ void loop() {
 
         case STATE_DEPLOY:
 
-            run_deploy_state(currentState, ir_driver);
+            run_deploy_state(currentState);
             break;
 
         case STATE_STOCK:

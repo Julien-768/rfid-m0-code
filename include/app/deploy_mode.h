@@ -46,7 +46,7 @@ void deploy_enter(ir_pwm& ir_driver);
  * @param state Reference to the current system state variable.
  * @param ir_driver Reference to the IR PWM driver.
  */
-void run_deploy_state(SystemState& state, ir_pwm& ir_driver);
+void run_deploy_state(SystemState& state);
 
 /**
  * @brief Cleanup the DEPLOY state runtime context.
