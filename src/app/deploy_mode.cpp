@@ -26,6 +26,7 @@
 #include "config.h"
 #include "log.h"
 #include "error_handler.h"
+#include "rfid_driver.h"
 #include <ArduinoLowPower.h>
 #include "utils.h"  // check_and_create_new_daily_file
 
@@ -37,6 +38,7 @@ enum deploy_event : uint8_t {
     DEPLOY_EVT_SENSOR_TSL2591 = 1 << 2,
     DEPLOY_EVT_SENSOR_IR1     = 1 << 3,
     DEPLOY_EVT_SENSOR_IR2     = 1 << 4,
+    DEPLOY_EVT_SENSOR_RFID    = 1 << 5,
 };
 
 // Global event flags set by ISRs and checked in the main loop.
@@ -59,6 +61,14 @@ constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
 // Runtime state
 static uint32_t vbat_counter = 0;
 static uint32_t rtc_period   = 0;
+
+// RFID runtime state
+static tag_info_t g_last_rfid_tag = {{0}, 0};
+static bool g_has_last_rfid_tag   = false;
+
+// RFID timing
+constexpr uint32_t RFID_ACTIVE_WINDOW_MS = 80;
+constexpr uint32_t RFID_DEBOUNCE_MS      = 1000;
 
 // ===== Interrupt Service Routines =====
 
@@ -96,14 +106,39 @@ static void callback_tsl2591() {
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
 
+static void callback_rfid() {
+    g_deploy_events |= DEPLOY_EVT_SENSOR_RFID;
+}
+
+static void rfid_driver_force_poll(rfid_driver_t* drv) {
+    if (!drv || !drv->port) return;
+
+    switch (drv->type) {
+        case TAG_TYPE_FDX:
+            drv->port->print("@rq\r");
+            break;
+        case TAG_TYPE_HDX:
+            drv->port->print("@todo\r");
+            break;
+        case TAG_TYPE_EM4102:
+            drv->port->print("@ru\r");
+            break;
+        default:
+            break;
+    }
+}
+
 /**
  * @brief Initialize DEPLOY mode runtime and callbacks.
  *
  * Must be called once when entering DEPLOY state.
  *
  * @param ir_driver Reference to the IR PWM driver.
+ * @param rfid Reference to the RFID driver.
  */
-void deploy_enter(ir_pwm& ir_driver) {
+void deploy_enter(ir_pwm& ir_driver, rfid_driver_t& rfid) {
+    LOG_DEBUG("Entering DEPLOY mode: setting up callbacks and initial state");
+    log_flush();  // Before noInterrupts to ensure all logs are flushed before potential sleep
     noInterrupts();
 
     // Reset event flags and counters (ISR-related)
@@ -116,8 +151,10 @@ void deploy_enter(ir_pwm& ir_driver) {
     interrupts();
 
     // Reset runtime state
-    vbat_counter = 0;
-    rtc_period   = config.acquisition_interval_s;
+    vbat_counter        = 0;
+    rtc_period          = config.acquisition_interval_s;
+    g_last_rfid_tag     = {{0}, 0};
+    g_has_last_rfid_tag = false;
 
     // Register driver interrupt callbacks
     ir_driver.set_callback_sensor_1(callback_ir1);
@@ -132,8 +169,11 @@ void deploy_enter(ir_pwm& ir_driver) {
  * Must be called when leaving DEPLOY state.
  *
  * @param ir_driver Reference to the IR PWM driver.
+ * @param rfid Reference to the RFID driver.
  */
-void deploy_exit(ir_pwm& ir_driver) {
+void deploy_exit(ir_pwm& ir_driver, rfid_driver_t& rfid) {
+    LOG_DEBUG("Exiting DEPLOY mode: clearing callbacks and state");
+    log_flush();
     noInterrupts();
 
     // Reset event flags and counters (ISR-related)
@@ -151,8 +191,10 @@ void deploy_exit(ir_pwm& ir_driver) {
     rtc_set_alarm_callback(nullptr);
 
     // Reset runtime state
-    vbat_counter = 0;
-    rtc_period   = 0;
+    vbat_counter        = 0;
+    rtc_period          = 0;
+    g_last_rfid_tag     = {{0}, 0};
+    g_has_last_rfid_tag = false;
 }
 
 /**
@@ -163,8 +205,9 @@ void deploy_exit(ir_pwm& ir_driver) {
  * @param state Reference to the current system state. May be set to
  * @ref STATE_ENDOFLIFE by the battery check or other subsystems.
  * @param ir_driver Reference to the IR PWM driver.
+ * @param rfid Reference to the RFID driver.
  */
-void run_deploy_state(SystemState& state) {
+void run_deploy_state(SystemState& state, rfid_driver_t& rfid) {
     uint8_t events     = DEPLOY_EVT_NONE;
     uint32_t ir1_count = 0;
     uint32_t ir2_count = 0;
@@ -175,6 +218,7 @@ void run_deploy_state(SystemState& state) {
     // Enter low-power sleep; RTC alarm or sensor interrupt will wake the MCU.
     LowPower.sleep();
 
+    log_flush();  // Flush any pending logs before processing events
     noInterrupts();
     events          = g_deploy_events;
     g_deploy_events = DEPLOY_EVT_NONE;
@@ -191,6 +235,7 @@ void run_deploy_state(SystemState& state) {
 
     // Common post-wake handling
     now = rtc().now();
+    // LOG_DEBUG("Woke up from sleep with events: 0x%02X", events);
     if (!check_and_create_new_daily_file(now)) {
         state = STATE_ENDOFLIFE;
         return;
@@ -200,6 +245,8 @@ void run_deploy_state(SystemState& state) {
     if (events & DEPLOY_EVT_RTC_WAKE) {
         // Clear alarm and program next wake-up.
         rtc_clear_and_set_alarm(now, rtc_period);
+
+        LOG_DEBUG("RTC wake-up event. Scheduled next wake-up in %d seconds", rtc_period);
 
         // Read all active sensors.
         SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
@@ -213,16 +260,52 @@ void run_deploy_state(SystemState& state) {
             // Perform battery check every 10 RTC wakes.
             if (vbat_counter >= VBAT_CHECK_INTERVAL) {
                 vbat_counter = 0;
-                battery_service_read_vbat_filtered_mv(vbat_mv, changed);
-                logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
+                if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+                    LOG_ERROR("Failed to read filtered VBAT value");
+                    state = STATE_ENDOFLIFE;
+                    return;
+                } else if (changed) {
+                    logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
+                }
                 if (!battery_service_decision("Deployment", vbat_mv)) {
                     // Handle decision failure
                     error_signal(ERR_BATTERY_CRITICAL);
                     state = STATE_ENDOFLIFE;
-
                     return;
                 }
             }
+        }
+    }
+    // Handle RFID events
+
+    if (config.enable_rfid) {
+        rfid_driver_force_poll(&rfid);
+
+        const uint32_t t0 = millis();
+        while ((uint32_t)(millis() - t0) < RFID_ACTIVE_WINDOW_MS) {
+            rfid_driver_tick(&rfid);
+
+            tag_info_t tag;
+            while (rfid_driver_get_tag(&rfid, &tag)) {
+                bool should_log = true;
+
+                if (g_has_last_rfid_tag) {
+                    should_log = rfid_should_record_tag(&g_last_rfid_tag, &tag, RFID_DEBOUNCE_MS);
+                }
+
+                if (should_log) {
+                    LOG_INFO("RFID tag detected: %s", tag.tag);
+
+                    // selon ton système de log:
+                    logMeasurement(now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer);
+                    // ou mieux: fonction dédiée texte
+                    // logText(now, "RFID_TAG", tag.tag, config.use_buffer);
+
+                    g_last_rfid_tag     = tag;
+                    g_has_last_rfid_tag = true;
+                }
+            }
+            delay(2);
         }
     }
 

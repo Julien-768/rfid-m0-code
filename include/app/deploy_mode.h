@@ -16,6 +16,7 @@
 #include "system_state.h"
 #include "stdint.h"
 #include "ir_pwm.h"
+#include "rfid_driver.h"
 
 /**
  * @brief Initialize the DEPLOY state runtime context.
@@ -27,8 +28,9 @@
  * - Arms the first RTC wake-up alarm
  *
  * @param ir_driver Reference to the IR PWM driver used to bind sensor callbacks.
+ * @param rfid_driver Reference to the RFID driver used to bind RFID callbacks.
  */
-void deploy_enter(ir_pwm& ir_driver);
+void deploy_enter(ir_pwm&, rfid_driver_t&);
 
 /**
  * @brief Execute one iteration of the DEPLOY state.
@@ -44,8 +46,9 @@ void deploy_enter(ir_pwm& ir_driver);
  *
  * @param state Reference to the current system state variable.
  * @param ir_driver Reference to the IR PWM driver.
+ * @param rfid_driver Reference to the RFID driver.
  */
-void run_deploy_state(SystemState& state);
+void run_deploy_state(SystemState& state, rfid_driver_t& rfid);
 
 /**
  * @brief Cleanup the DEPLOY state runtime context.
@@ -57,5 +60,7 @@ void run_deploy_state(SystemState& state);
  * - Resets internal counters and runtime state
  *
  * @param ir_driver Reference to the IR PWM driver used to unbind sensor callbacks.
+ * @param rfid_driver Reference to the RFID driver used to unbind RFID callbacks.
+
  */
-void deploy_exit(ir_pwm& ir_driver);
+void deploy_exit(ir_pwm& ir_driver, rfid_driver_t& rfid);
