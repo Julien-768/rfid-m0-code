@@ -22,17 +22,6 @@ struct IsoFormatOptions {
 bool scanI2CBus();
 
 /**
- * @brief Check and create the daily log file on SD card
- *
- * Compares the day of the month in `now` with the last logged day stored
- * in `rtc_state`. If they differ, it generates a new daily log filename
- * and updates `rtc_state.last_log_day`.
- *
- * @param now Current DateTime instance.
- */
-bool check_and_create_new_daily_file(const DateTime& now);
-
-/**
  * @brief Formats a DateTime as a filename-friendly date string.
  *
  * Produces a string in the format "YY_MM_DD", for example "24_06_30",

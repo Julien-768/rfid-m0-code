@@ -54,16 +54,6 @@ bool scanI2CBus() {
     }
 }
 
-bool check_and_create_new_daily_file(const DateTime& now) {
-    if (now.day() != rtc_state().last_log_day) {
-        char file_name[16];
-        strcpy(file_name, get_filename());
-        rtc_state().last_log_day = now.day();
-        return daily_data_file(file_name, now);
-    }
-    return true;
-}
-
 /**
  * @brief Formats a `DateTime` object as `"YYYY-MM-DD{sep}HH:MM:SS[.ms]{sep}"`.
  *

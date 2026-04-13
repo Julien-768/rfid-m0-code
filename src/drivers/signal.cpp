@@ -19,6 +19,7 @@
 
 #include "signal.h"
 #include "wiring_private.h"
+#include "log.h"
 
 /**
  * @brief Global LED channel state instance.
@@ -141,6 +142,7 @@ void signal_engine_init(uint32_t led_pin, uint32_t buzzer_pin) {
     signal_channel_state_t& led_channel    = get_led_channel();
     signal_channel_state_t& buzzer_channel = get_buzzer_channel();
 
+    log_flush();
     noInterrupts();
 
     led_channel.pin = led_pin;
@@ -168,6 +170,7 @@ void signal_engine_init(uint32_t led_pin, uint32_t buzzer_pin) {
 void led_start_blink_isr(uint8_t count, blink_mode speed) {
     signal_channel_state_t& led_channel = get_led_channel();
 
+    log_flush();
     noInterrupts();
 
     if (count == 0) {
@@ -196,6 +199,7 @@ void led_start_blink_isr(uint8_t count, blink_mode speed) {
 void led_stop_isr() {
     signal_channel_state_t& led_channel = get_led_channel();
 
+    log_flush();
     noInterrupts();
     digitalWrite(led_channel.pin, LOW);
     reset_channel(led_channel);
@@ -208,6 +212,7 @@ void led_stop_isr() {
 void buzzer_beep_isr(uint16_t duration_ms) {
     signal_channel_state_t& buzzer_channel = get_buzzer_channel();
 
+    log_flush();
     noInterrupts();
 
     if (duration_ms == 0) {
@@ -236,6 +241,7 @@ void buzzer_beep_isr(uint16_t duration_ms) {
 void buzzer_stop_isr() {
     signal_channel_state_t& buzzer_channel = get_buzzer_channel();
 
+    log_flush();
     noInterrupts();
     digitalWrite(buzzer_channel.pin, LOW);
     reset_channel(buzzer_channel);

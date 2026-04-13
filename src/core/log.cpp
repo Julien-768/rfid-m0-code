@@ -160,3 +160,15 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
     }
 #endif
 }
+
+/**
+ * @brief Flush pending log outputs.
+ *
+ * Ensures that all pending serial log data has been transmitted.
+ * Useful before entering critical sections (noInterrupts, sleep, reset, etc.).
+ */
+void log_flush() {
+#if LOG_ENABLE_SERIAL1
+    Serial1.flush();
+#endif
+}

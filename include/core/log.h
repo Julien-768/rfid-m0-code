@@ -52,3 +52,5 @@ void logPrintf(uint8_t level, const char* fmt, ...);
     do {                                                                           \
         if (LOG_LEVEL <= LOG_LEVEL_DEBUG) logPrintf(LOG_LEVEL_DEBUG, __VA_ARGS__); \
     } while (0)
+
+void log_flush();

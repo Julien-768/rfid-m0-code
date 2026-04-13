@@ -157,15 +157,21 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
  * If the file cannot be created or opened, signals @ref ERR_SD_WRITE_FAIL
  * and transitions to @ref STATE_ENDOFLIFE.
  *
- * @param filename Output buffer (char[13]) for the generated filename.
+
  * @param now      Current date/time used for naming.
  *
  * @see rtc().now(), error()
  */
-bool daily_data_file(char* filename, const DateTime& now) {
-    snprintf(filename, 16, "%04d%02d%02d.TXT", now.year(), now.month(), now.day());
+bool daily_data_file(const DateTime& now) {
+    snprintf(filename_data, sizeof(filename_data), "%04d%02d%02d.TXT", now.year(), now.month(),
+             now.day());
 
-    File logfile = SD.open(filename, FILE_WRITE);
+    if (SD.exists(filename_data)) {
+        LOG_INFO("Daily file already exists: %s", filename_data);
+        return true;  // Pas besoin de le recréer
+    }
+
+    File logfile = SD.open(filename_data, FILE_WRITE);
     if (!logfile) {
         error_signal(ERR_SD_WRITE_FAIL);
         return false;
@@ -173,7 +179,21 @@ bool daily_data_file(char* filename, const DateTime& now) {
 
     logfile.close();
 
-    LOG_INFO("Daily log file ready: %s", filename);
+    LOG_INFO("Daily log file created: %s", filename_data);
+    return true;
+}
+
+bool check_and_create_new_daily_file(const DateTime& now) {
+    if (now.day() == rtc_state().last_log_day) {
+        return true;
+    }
+
+    if (!daily_data_file(now)) {
+        return false;
+    }
+
+    rtc_state().last_log_day = now.day();
+    LOG_DEBUG("Initialization or day change detected. New daily file: %s", get_filename());
     return true;
 }
 
@@ -209,6 +229,7 @@ u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, co
         return 0;
     }
 
+    // LOG_DEBUG("logging on %s", get_filename());  // Ensure filename is up-to-date
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log) {
         error_signal(ERR_SD_WRITE_FAIL);

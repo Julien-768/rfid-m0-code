@@ -120,7 +120,18 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb);
  * @param filename Output buffer where the filename (8.3 format) is stored.
  * @param now      Current timestamp used to generate the filename.
  */
-bool daily_data_file(char* filename, const DateTime& now);
+bool daily_data_file(const DateTime& now);
+
+/**
+ * @brief Check and create the daily log file on SD card
+ *
+ * Compares the day of the month in `now` with the last logged day stored
+ * in `rtc_state`. If they differ, it generates a new daily log filename
+ * and updates `rtc_state.last_log_day`.
+ *
+ * @param now Current DateTime instance.
+ */
+bool check_and_create_new_daily_file(const DateTime& now);
 
 /**
  * @brief Log a single measurement in semicolon-delimited format.
