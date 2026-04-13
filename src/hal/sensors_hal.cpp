@@ -54,7 +54,7 @@ void SensorsHAL_InitForDeploy(SensorSpec* specs, size_t count) {
 
         // ---- No init function (optional sensors or virtual sensors) ---------
         if (!s.initFn) {
-            LOG_INFO((String(s.name) + " has no init function, skipping init").c_str());
+            LOG_WARN((String(s.name) + " has no init function, skipping init").c_str());
             continue;
         }
 

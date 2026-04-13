@@ -155,6 +155,7 @@ bool rtc_alarm_fired() {
  *       the correct EXTINT line using `g_APinDescription[pin].ulExtInt`.
  */
 void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)()) {
+    LOG_DEBUG("Configuring RTC interrupt on pin %d", interrupt_pin);
     pinMode(interrupt_pin, INPUT_PULLUP);
     LowPower.attachInterruptWakeup(interrupt_pin, isr, FALLING);
 }
@@ -196,7 +197,7 @@ bool rtc_initialization(uint32_t interrupt_pin) {
     // Attach the internal ISR used by this module.
     rtc_configure_interrupt(static_cast<uint8_t>(interrupt_pin), rtc_alarm_isr);
 
-    LOG_INFO("RTC initialized successfully");
+    LOG_INFO("RTC initialized");
     return true;
 }
 

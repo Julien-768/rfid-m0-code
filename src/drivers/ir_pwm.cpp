@@ -1,6 +1,7 @@
 #include "ir_pwm.h"
 #include "wiring_private.h"
 #include "ArduinoLowPower.h"
+#include "log.h"
 
 /**
  * @brief Static instance used by ISR wrappers.
@@ -29,6 +30,10 @@ ir_pwm::ir_pwm(uint8_t pwm_pin, uint8_t sensor1_pin, uint8_t sensor2_pin)
  */
 void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t callback_sensor_1,
                    ir_isr_callback_t callback_sensor_2) {
+
+    LOG_DEBUG("ir_pwm::begin - Pin Output pwm=%d Pin Input PR1=%d Pin Input PR2=%d", _pwm_pin,
+              _sensor1_pin, _sensor2_pin);
+
     _enable_sensor_1 = enable_sensor_1;
     _enable_sensor_2 = enable_sensor_2;
 
@@ -39,17 +44,21 @@ void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t
     digitalWrite(_pwm_pin, LOW);
 
     if (_enable_sensor_1) {
+        LOG_DEBUG("Sensor 1 enabled on pin %d", _sensor1_pin);
         pinMode(_sensor1_pin, INPUT);
     }
 
     if (_enable_sensor_2) {
+        LOG_DEBUG("Sensor 2 enabled on pin %d", _sensor2_pin);
         pinMode(_sensor2_pin, INPUT);
     }
 
+    LOG_DEBUG("Setting up PWM and interrupts");
     setup_pwm();
     setup_interrupts();
 
     if (_enable_sensor_1 || _enable_sensor_2) {
+        LOG_DEBUG("Starting PWM carrier");
         start_pwm();
     }
 }
@@ -58,16 +67,42 @@ void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t
  * @brief Enable PWM carrier.
  */
 void ir_pwm::start_pwm() {
+    LOG_DEBUG("PWM start");
+
+    // Before modifying the CC register, ensure any previous update has completed by checking SYNCBUSY.
+    while (TCC0->SYNCBUSY.reg) {}
+
     TCC0->CC[3].reg = 666;
-    while (TCC0->SYNCBUSY.bit.CC3) {}
+
+    uint32_t t0 = millis();
+    while (TCC0->SYNCBUSY.bit.CC3) {
+        if (millis() - t0 > 100) {
+            LOG_ERROR("start_pwm timeout on CC3 sync");
+            break;
+        }
+    }
+
+    LOG_DEBUG("PWM carrier started");
 }
 
 /**
  * @brief Disable PWM carrier.
  */
 void ir_pwm::stop_pwm() {
+    LOG_DEBUG("PWM stop");
+
+    // Before modifying the CC register, ensure any previous update has completed by checking SYNCBUSY.
+    while (TCC0->SYNCBUSY.reg) {}
+
     TCC0->CC[3].reg = 0;
-    while (TCC0->SYNCBUSY.bit.CC3) {}
+
+    uint32_t timeout = millis();
+    while (TCC0->SYNCBUSY.bit.CC3) {
+        if (millis() - timeout > 100) {
+            LOG_ERROR("Timeout waiting for TCC0 CC3 sync in stop_pwm");
+            break;
+        }
+    }
 }
 
 /**
@@ -77,6 +112,8 @@ void ir_pwm::stop_pwm() {
  *       The PWM pin must match this hardware mapping.
  */
 void ir_pwm::setup_pwm() {
+    LOG_DEBUG("Configuring PWM (TCC0)");
+
     pinPeripheral(_pwm_pin, PIO_TIMER);
 
     PM->APBCMASK.reg |= PM_APBCMASK_TCC0;
@@ -106,6 +143,8 @@ void ir_pwm::setup_pwm() {
 
     TCC0->CTRLA.reg = TCC_CTRLA_PRESCALER_DIV1 | TCC_CTRLA_ENABLE;
     while (TCC0->SYNCBUSY.bit.ENABLE) {}
+
+    LOG_DEBUG("PWM configured: freq≈36kHz duty=50%%");
 }
 
 /**
@@ -116,10 +155,12 @@ void ir_pwm::setup_pwm() {
  */
 void ir_pwm::setup_interrupts() {
     if (_enable_sensor_1) {
+        LOG_DEBUG("Attach interrupt sensor 1");
         LowPower.attachInterruptWakeup(_sensor1_pin, ir_pwm::isr_sensor_1, CHANGE);
     }
 
     if (_enable_sensor_2) {
+        LOG_DEBUG("Attach interrupt sensor 2");
         LowPower.attachInterruptWakeup(_sensor2_pin, ir_pwm::isr_sensor_2, CHANGE);
     }
 }
@@ -154,6 +195,10 @@ void ir_pwm::handle_interrupt_sensor_1() {
     }
 
     uint8_t state = digitalRead(_sensor1_pin);
+
+    // ⚠️ Avoid heavy logging in ISR
+    // LOG_DEBUG("ISR S1 state=%d", state);
+
     _callback_sensor_1(state);
 }
 
@@ -169,6 +214,10 @@ void ir_pwm::handle_interrupt_sensor_2() {
     }
 
     uint8_t state = digitalRead(_sensor2_pin);
+
+    // ⚠️ Avoid heavy logging in ISR
+    // LOG_DEBUG("ISR S2 state=%d", state);
+
     _callback_sensor_2(state);
 }
 
@@ -178,6 +227,7 @@ void ir_pwm::handle_interrupt_sensor_2() {
  * @param callback New callback for sensor 1.
  */
 void ir_pwm::set_callback_sensor_1(ir_isr_callback_t callback) {
+    LOG_DEBUG("Set ir_pwm callback sensor 1");
     _callback_sensor_1 = callback;
 }
 
@@ -187,5 +237,6 @@ void ir_pwm::set_callback_sensor_1(ir_isr_callback_t callback) {
  * @param callback New callback for sensor 2.
  */
 void ir_pwm::set_callback_sensor_2(ir_isr_callback_t callback) {
+    LOG_DEBUG("Set ir_pwm callback sensor 2");
     _callback_sensor_2 = callback;
 }
