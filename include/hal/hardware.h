@@ -35,6 +35,7 @@
 #define PIN_SERVO 11     // output pwm for signal servo pin
 #define PIN_PW_SERVO A1  // output for power relay of servomotor
 #define PIN_TEMP_CS 12   // input for RTD sensor
+#define PIN_DET_EXT 5    // input for FTDI detection
 #endif
 
 #ifdef feather_m0_adalogger
@@ -59,6 +60,7 @@
 #define PIN_SERVO 11     // output pwm for signal servo pin
 #define PIN_PW_SERVO A1  // output for power relay of servomotor
 #define PIN_TEMP_CS 12   // input for RTD sensor
+#define PIN_DET_EXT 5    // input for FTDI detection
 #endif
 
 /**

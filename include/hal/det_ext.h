@@ -1,7 +1,11 @@
 #pragma once
 #include <Arduino.h>
+#include "hardware.h"
+#include "log.h"
 
-#define PIN_DET_EXT 5  ///< GPIO D5 used to detect if FTDI/Serial1 is connected
+#ifndef PIN_DET_EXT
+#define PIN_DET_EXT 5
+#endif
 
 /**
  * @brief Initialize the DET_EXT pin.
@@ -21,5 +25,11 @@ inline void DET_EXT_Init() {
  * @return false if not connected (pin HIGH).
  */
 inline bool DET_EXT_Connected() {
-    return (digitalRead(PIN_DET_EXT) == LOW);
+    bool isConnected = (digitalRead(PIN_DET_EXT) == LOW);
+    if (isConnected) {
+        LOG_DEBUG("DET_EXT: FTDI detected (pin %d LOW)", PIN_DET_EXT);
+    } else {
+        LOG_DEBUG("DET_EXT: No FTDI detected (pin %d HIGH)", PIN_DET_EXT);
+    }
+    return isConnected;
 }
