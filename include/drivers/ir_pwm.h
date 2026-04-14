@@ -1,82 +1,68 @@
-#pragma once
+#ifndef IR_PWM_H
+#define IR_PWM_H
 
 #include <Arduino.h>
 
 /**
- * @brief Callback type used for IR sensor interrupts.
+ * @brief ISR callback type for IR sensors.
  *
- * @param state Current digital state read on the sensor pin.
- *
- * @note This callback is executed in interrupt context.
- *       Keep it short and non-blocking.
+ * The callback receives the current logic state read on the sensor pin.
  */
 typedef void (*ir_isr_callback_t)(uint8_t state);
 
 /**
- * @brief IR PWM driver for Feather M0 / SAMD21.
+ * @brief IR PWM driver for SAMD21 using ocrdu TurboPWM.
  *
- * This driver:
- * - generates a hardware PWM carrier for IR emission
- * - optionally enables interrupt wake-up on two sensor pins
- * - dispatches sensor interrupts to two independent callbacks
+ * Features:
+ * - Hardware PWM carrier for an IR emitter
+ * - Approx. 36 kHz carrier frequency
+ * - Approx. 50% duty cycle
+ * - Optional interrupt handling for up to 2 sensors
+ * - Runtime start/stop of the carrier
  *
- * Sensor callbacks are optional and can be updated later.
+ * Notes:
+ * - This implementation targets Adafruit Feather M0 / ATSAMD21G18.
+ * - For this board, pin 11 uses timer 2 in the ocrdu library.
  */
 class ir_pwm {
    public:
-    /**
-     * @brief Construct a new ir_pwm object.
-     *
-     * @param pwm_pin GPIO pin used for PWM output.
-     * @param sensor1_pin GPIO pin used for sensor 1 input.
-     * @param sensor2_pin GPIO pin used for sensor 2 input.
-     *
-     * @note The PWM pin must be compatible with TCC0 WO[3]
-     *       for this implementation to work as-is.
-     */
+    static constexpr uint32_t PWM_FREQUENCY_HZ = 36000;
+
+    // ocrdu TurboPWM uses duty values in the range [0..1000].
+    static constexpr uint16_t PWM_DUTY_ON  = 500;  // ~50%
+    static constexpr uint16_t PWM_DUTY_OFF = 0;
+
+    // Feather M0 mapping for pin 11: timer 2
+    static constexpr uint8_t PWM_TIMER = 2;
+
+    // Timer configuration chosen for ~36 kHz:
+    // f ≈ 48 MHz / (prescaler * steps)
+    static constexpr uint8_t PWM_PRESCALER = 1;
+    static constexpr uint16_t PWM_STEPS    = 1333;
+
     ir_pwm(uint8_t pwm_pin, uint8_t sensor1_pin, uint8_t sensor2_pin);
 
-    /**
-     * @brief Initialize the driver.
-     *
-     * @param enable_sensor_1 Enable interrupt handling for sensor 1.
-     * @param enable_sensor_2 Enable interrupt handling for sensor 2.
-     * @param callback_sensor_1 Callback called on sensor 1 interrupt.
-     * @param callback_sensor_2 Callback called on sensor 2 interrupt.
-     */
-    void begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t callback_sensor_1,
-               ir_isr_callback_t callback_sensor_2);
+    void begin(bool enable_sensor_1, bool enable_sensor_2,
+               ir_isr_callback_t callback_sensor_1 = nullptr,
+               ir_isr_callback_t callback_sensor_2 = nullptr);
 
-    /**
-     * @brief Start the IR PWM carrier.
-     */
     void start_pwm();
-
-    /**
-     * @brief Stop the IR PWM carrier.
-     */
     void stop_pwm();
 
-    /**
-     * @brief Update the callback used for sensor 1.
-     *
-     * @param callback New callback for sensor 1.
-     */
     void set_callback_sensor_1(ir_isr_callback_t callback);
-
-    /**
-     * @brief Update the callback used for sensor 2.
-     *
-     * @param callback New callback for sensor 2.
-     */
     void set_callback_sensor_2(ir_isr_callback_t callback);
 
    private:
-    /**
-     * @brief Singleton instance used by static ISR wrappers.
-     */
-    static ir_pwm* instance;
+    void setup_pwm();
+    void setup_interrupts();
 
+    void handle_interrupt_sensor_1();
+    void handle_interrupt_sensor_2();
+
+    static void isr_sensor_1();
+    static void isr_sensor_2();
+
+   private:
     uint8_t _pwm_pin;
     uint8_t _sensor1_pin;
     uint8_t _sensor2_pin;
@@ -87,33 +73,7 @@ class ir_pwm {
     ir_isr_callback_t _callback_sensor_1 = nullptr;
     ir_isr_callback_t _callback_sensor_2 = nullptr;
 
-    /**
-     * @brief Configure the hardware PWM peripheral.
-     */
-    void setup_pwm();
-
-    /**
-     * @brief Configure GPIO interrupts for enabled sensors.
-     */
-    void setup_interrupts();
-
-    /**
-     * @brief Static ISR wrapper for sensor 1.
-     */
-    static void isr_sensor_1();
-
-    /**
-     * @brief Static ISR wrapper for sensor 2.
-     */
-    static void isr_sensor_2();
-
-    /**
-     * @brief Handle interrupt from sensor 1.
-     */
-    void handle_interrupt_sensor_1();
-
-    /**
-     * @brief Handle interrupt from sensor 2.
-     */
-    void handle_interrupt_sensor_2();
+    static ir_pwm* instance;
 };
+
+#endif

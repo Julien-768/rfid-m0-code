@@ -43,5 +43,5 @@ inline uint8_t blink_count(ErrorCode code) {
  */
 void error_signal(ErrorCode code) {
     LOG_ERROR("Error code %d", static_cast<int>(code));
-    led_start_blink_isr(blink_count(code), blink_mode::fast);
+    // led_start_blink_isr(blink_count(code), blink_mode::fast);
 }

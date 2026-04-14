@@ -133,12 +133,13 @@ static SystemState runBootSequence() {
     /*
     Initialize the built-in LED for visual feedback during boot.
     */
-    signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
-    led_start_blink_isr(3, blink_mode::fast);
+    // signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
+    // led_start_blink_isr(3, blink_mode::fast);
 
     /*
     Initialize SD card
      */
+    LOG_INFO("Initializing SD card");
     if (!sd_initialization(PIN_SD_CS)) {
         return STATE_ENDOFLIFE;
     }
@@ -290,7 +291,7 @@ static SystemState runBootSequence() {
 
     rfid_driver_init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
 
-    led_start_blink_isr(3, blink_mode::fast);
+    // led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
     if (DET_EXT_Connected()) {
         LOG_INFO("Entering CONNECTED mode");
@@ -382,8 +383,8 @@ void loop() {
             LOG_ERROR("Entering END OF LIFE mode");
             deploy_exit(ir_driver, rfid_driver);
             SD.end();
-            led_start_blink_isr(1, blink_mode::slow);
-            led_start_blink_isr(10, blink_mode::fast);
+            // led_start_blink_isr(1, blink_mode::slow);
+            // led_start_blink_isr(10, blink_mode::fast);
             delay(2000);
 
             while (true) {
