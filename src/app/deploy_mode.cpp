@@ -67,7 +67,7 @@ static volatile uint32_t g_ir1_last_ts = 0;
 static volatile uint32_t g_ir2_last_ts = 0;
 
 // Minimum delay between two valid events (us)
-constexpr uint32_t IR_DEBOUNCE_US = 50000;
+constexpr uint32_t IR_DEBOUNCE_US = 200000;
 
 // Counter for periodic battery checks
 constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
