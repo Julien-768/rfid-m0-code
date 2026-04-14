@@ -30,9 +30,9 @@
 
 #define PIN_ENABLED LOW    // Logic level to activate transistor
 #define PIN_DISABLED HIGH  // Logic level to disactivate transistor
-#define PWM_TIMER 1        // Timer associated to PWM pin 9
+// #define PWM_TIMER 1        // Timer associated to PWM pin 9
 
-#define PIN_SERVO 11     // output pwm for signal servo pin
+// #define PIN_SERVO 11     // output pwm for signal servo pin
 #define PIN_PW_SERVO A1  // output for power relay of servomotor
 #define PIN_TEMP_CS 12   // input for RTD sensor
 #define PIN_DET_EXT 5    // input for FTDI detection
@@ -42,9 +42,9 @@
 #define PIN_VBAT A2        // analog input for battery voltage measurement
 #define PIN_BUZZER_LED 13  // output for buzzer or led
 
-#define PIN_PR_1 5     // input for IR receiver 1
-#define PIN_PR_2 6     // input for IR receiver 2
-#define PIN_IR_SEND 9  // output pwm 36kHz for IR sensor
+#define PIN_PR_1 5      // input for IR receiver 1
+#define PIN_PR_2 6      // input for IR receiver 2
+#define PIN_IR_SEND 11  // output pwm 36kHz for IR sensor
 
 #define PIN_ERROR LED_BUILTIN  // output for error signaling (LED)
 
@@ -55,9 +55,9 @@
 
 #define PIN_ENABLED LOW    // Logic level to activate transistor
 #define PIN_DISABLED HIGH  // Logic level to disactivate transistor
-#define PWM_TIMER 1        // Timer associated to PWM pin 9
+// #define PWM_TIMER 1        // Timer associated to PWM pin 9
 
-#define PIN_SERVO 11     // output pwm for signal servo pin
+// #define PIN_SERVO 11     // output pwm for signal servo pin
 #define PIN_PW_SERVO A1  // output for power relay of servomotor
 #define PIN_TEMP_CS 12   // input for RTD sensor
 #define PIN_DET_EXT 5    // input for FTDI detection

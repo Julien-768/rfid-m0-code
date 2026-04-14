@@ -3,15 +3,15 @@
  * @brief JSON protocol helper for the logger over UART.
  *
  * This module is responsible ONLY for:
- *  - Parsing incoming JSON into a high-level command structure.
- *  - Building JSON responses (info, id, vbat, config).
+ * - parsing incoming JSON into a high-level command structure
+ * - building JSON responses (info, id, vbat, config)
  *
  * It does NOT:
- *  - Modify the RTC.
- *  - Change the system state.
- *  - Initialize sensors or hardware.
+ * - modify the RTC
+ * - change the system state
+ * - initialize sensors or hardware
  *
- * Those responsibilities remain in connected_mode / HAL layers.
+ * Those responsibilities remain in the application / HAL layers.
  */
 
 #pragma once
@@ -21,16 +21,15 @@
 /**
  * @brief Supported communication commands for the JSON protocol.
  */
-
 enum class CommandType : uint8_t {
     NONE,           ///< No command / parsing failed.
     GET_INFO,       ///< Request firmware version and compilation date.
     GET_ID,         ///< Request logger identification data.
     GET_VBAT,       ///< Request battery voltage.
     GET_CONFIG,     ///< Request current configuration.
-    SET_CONFIG,     ///< Send a new configuration (date, period, sensor flags).
-    SET_RUN_START,  ///< Reserved for future use (start acquisition).
-    SET_STORAGE,    ///< Reserved for future use (change storage mode).
+    SET_CONFIG,     ///< Send a new runtime configuration and current date/time.
+    SET_RUN_START,  ///< Reserved for future use.
+    SET_STORAGE,    ///< Reserved for future use.
     SET_IDENTITY    ///< Factory-only: program identity (parsed here, not flashed).
 };
 
@@ -38,25 +37,28 @@ enum class CommandType : uint8_t {
  * @brief Payload for a SET_CONFIG command.
  *
  * All fields are parsed from JSON and stored as simple types.
- * The date is kept as an ISO8601 string, conversion to RTC types is done elsewhere.
+ * The date/time is kept as an ISO8601 string; conversion to RTC-specific
+ * types is handled elsewhere.
  */
 struct SetConfigPayload {
     char dateCurrentIso[32];          ///< ISO8601 date/time string, e.g. "2025-08-04T10:30:00".
     uint16_t acquisition_interval_s;  ///< Logging period in seconds.
     bool enable_light1;               ///< Enable or disable light sensor 1.
     bool enable_light2;               ///< Enable or disable light sensor 2.
+    bool enable_rfid;                 ///< Enable or disable the RFID reader.
+    uint8_t rfid_mode;                ///< RFID mode (0=OFF, 1=CONTINUOUS, 2=ON_IR_EVENT).
     bool enable_vbat;                 ///< Enable or disable battery voltage logging.
 };
 
 /**
  * @brief Payload for a SET_IDENTITY command (factory tool only).
  *
- * These are just fixed-size string buffers.
- * JsonProtocol does not know how the identity is stored in MCU flash.
- * The mapping to @c LoggerIdentityFlash is done in higher-level code.
+ * These are fixed-size string buffers.
+ * JsonProtocol does not define how identity is stored in MCU flash.
+ * That mapping is handled in higher-level code.
  */
 struct SetIdentityPayload {
-    char UID[32];           ///< MCU unique ID string (e.g. "ABCDEF1234567890").
+    char UID[32];           ///< MCU unique ID string, e.g. "ABCDEF1234567890".
     char manufacturer[16];  ///< Manufacturer name, e.g. "CNRS".
     char logger_type[16];   ///< Logger type, e.g. "Moonraker".
     char date_fab[16];      ///< Fabrication date, e.g. "2025-01-01".
@@ -67,7 +69,7 @@ struct SetIdentityPayload {
  * @brief Parsed command structure returned by JsonProtocol::parseCommand().
  *
  * - For GET_* commands, only @ref type is meaningful.
- * - For SET_CONFIG, @ref cfg contains the new configuration payload.
+ * - For SET_CONFIG, @ref cfg contains the new runtime configuration payload.
  * - For SET_IDENTITY, @ref identity contains the factory identity payload.
  */
 struct ParsedCommand {
@@ -99,6 +101,8 @@ namespace JsonProtocol {
  *       "acquisition_interval_s": 120,
  *       "enable_light1": true,
  *       "enable_light2": false,
+ *       "enable_rfid": true,
+ *       "rfid_mode": 2,
  *       "enable_vbat": true
  *     }
  *   }
@@ -120,9 +124,9 @@ namespace JsonProtocol {
  * @endcode
  *
  * @param json_string Null-terminated input JSON string.
- * @param out         Output structure filled with the parsed command.
- * @param errorBuf    Buffer where a small JSON error string may be written,
- *                    e.g. @code {"Error":"...'command' is missing"} @endcode.
+ * @param out Output structure filled with the parsed command.
+ * @param errorBuf Buffer where a small JSON error string may be written,
+ *                 e.g. @code {"Error":"...'command' is missing"} @endcode.
  * @param errorBufLen Size of @p errorBuf in bytes.
  *
  * @return @c true if parsing succeeded and @p out.type != CommandType::NONE,
@@ -147,9 +151,7 @@ bool parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, s
  * }
  * @endcode
  *
- * @param version Null-terminated firmware version string
- *                (e.g. "Moonraker v1.0").
- *
+ * @param version Null-terminated firmware version string.
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
 const char* buildInfoJSON(const char* version);
@@ -170,18 +172,13 @@ const char* buildInfoJSON(const char* version);
  * }
  * @endcode
  *
- * @param UID          MCU unique ID string (may be @c nullptr).
- * @param manufacturer Manufacturer string (may be @c nullptr).
- * @param date         Fabrication date string (may be @c nullptr).
- * @param logger_type  Logger type string (may be @c nullptr).
- * @param logger_sn    Human-readable serial number (may be @c nullptr).
- *
+ * @param payload Identity payload structure.
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
 const char* buildIdJSON(const SetIdentityPayload& payload);
 
 /**
- * @brief Build JSON with battery voltage (in millivolts).
+ * @brief Build JSON with battery voltage in millivolts.
  *
  * Example:
  * @code
@@ -193,15 +190,16 @@ const char* buildIdJSON(const SetIdentityPayload& payload);
  * @endcode
  *
  * @param voltage_mV Battery voltage in millivolts.
- *
  * @return Pointer to a static internal buffer (overwritten at each call).
- **/
+ */
 const char* buildVbatJSON(unsigned int voltage_mV);
 
 /**
- * @brief Build JSON snapshot of the current configuration.
+ * @brief Build a JSON snapshot of the current configuration.
  *
- * Uses Cfg_rb for the current date/time and @c config for runtime flags.
+ * Uses:
+ * - @c gui_time_sync_rb for the current date/time
+ * - @c config for runtime configuration values
  *
  * Example:
  * @code
@@ -211,6 +209,8 @@ const char* buildVbatJSON(unsigned int voltage_mV);
  *     "acquisition_interval_s": 120,
  *     "enable_light1":          true,
  *     "enable_light2":          false,
+ *     "enable_rfid":            true,
+ *     "rfid_mode":              2,
  *     "enable_vbat":            true
  *   }
  * }

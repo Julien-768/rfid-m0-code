@@ -4,42 +4,44 @@
  *
  * Supported command formats (RX side):
  *
- *  - Simple commands:
- *    @code
- *    { "command": "GET_INFO"   }
- *    { "command": "GET_ID"     }
- *    { "command": "GET_VBAT"   }
- *    { "command": "GET_CONFIG" }
- *    @endcode
+ * - Simple commands:
+ *   @code
+ *   { "command": "GET_INFO"   }
+ *   { "command": "GET_ID"     }
+ *   { "command": "GET_VBAT"   }
+ *   { "command": "GET_CONFIG" }
+ *   @endcode
  *
- *  - Configuration command (SET_CONFIG):
- *    @code
- *    {
- *      "command": {
- *        "config": {
- *          "date_current": "2025-12-08T14:30:00",
- *          "acquisition_interval_s": 60,
- *          "enable_light1": true,
- *          "enable_light2": false,
- *          "enable_vbat": true
- *        }
- *      }
- *    }
- *    @endcode
+ * - Configuration command (SET_CONFIG):
+ *   @code
+ *   {
+ *     "command": {
+ *       "config": {
+ *         "date_current": "2025-12-08T14:30:00",
+ *         "acquisition_interval_s": 60,
+ *         "enable_light1": true,
+ *         "enable_light2": false,
+ *         "enable_rfid": true,
+ *         "rfid_mode": 2,
+ *         "enable_vbat": true
+ *       }
+ *     }
+ *   }
+ *   @endcode
  *
- *  - Factory identity command (SET_IDENTITY, factory tool only):
- *    @code
- *    {
- *      "command": {
- *        "identity": {
- *          "manufacturer": "CNRS",
- *          "logger_type":  "Moonraker",
- *          "date_fab":     "2025-01-01",
- *          "logger_sn":    "MRK-0001"
- *        }
- *      }
- *    }
- *    @endcode
+ * - Factory identity command (SET_IDENTITY, factory tool only):
+ *   @code
+ *   {
+ *     "command": {
+ *       "identity": {
+ *         "manufacturer": "CNRS",
+ *         "logger_type":  "Moonraker",
+ *         "date_fab":     "2025-01-01",
+ *         "logger_sn":    "MRK-0001"
+ *       }
+ *     }
+ *   }
+ *   @endcode
  */
 
 #include <ArduinoJson.h>
@@ -55,7 +57,7 @@
 
 namespace {
 /**
- * @brief Helper to format a small JSON error string.
+ * @brief Format a small JSON error string.
  *
  * Writes a JSON object of the form:
  * @code
@@ -64,12 +66,11 @@ namespace {
  *
  * @param buf Output buffer for the JSON string.
  * @param len Size of the output buffer in bytes.
- * @param msg Null-terminated error message string (may be nullptr).
+ * @param msg Null-terminated error message string, may be nullptr.
  */
 void writeErrorJson(char* buf, size_t len, const char* msg) {
     if (!buf || len == 0) return;
 
-    // Simple format: {"Error":"..."}
     snprintf(buf, len, "{\"Error\":\"%s\"}", msg ? msg : "Unknown error");
 }
 }  // namespace
@@ -90,16 +91,15 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
  *    - "GET_CONFIG"
  *
  * 2. Object commands:
- *    - `{ "config":   { ... } }`  → SET_CONFIG
- *    - `{ "identity": { ... } }` → SET_IDENTITY (factory-only)
+ *    - `{ "config": { ... } }`   -> SET_CONFIG
+ *    - `{ "identity": { ... } }` -> SET_IDENTITY
  *
  * On success, @p out.type is set to the appropriate @ref CommandType and the
- * corresponding payload (cfg / identity) is filled if relevant.
+ * corresponding payload is filled when relevant.
  *
  * @param json_string Null-terminated JSON input string.
- * @param out         Output structure with parsed command and payload.
- * @param errorBuf    Output buffer for a small JSON error message
- *                    (e.g. {"Error":"...'command' is missing"}) or empty string.
+ * @param out Output structure with parsed command and payload.
+ * @param errorBuf Output buffer for a small JSON error message.
  * @param errorBufLen Size of @p errorBuf in bytes.
  *
  * @return @c true if parsing succeeded and @p out.type != CommandType::NONE,
@@ -128,7 +128,7 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
         return false;
     }
 
-    // --- CASE 1 : "command" = "GET_XXX" ---
+    // Case 1: "command" is a simple string
     if (command.is<const char*>()) {
         const char* cmd = command.as<const char*>();
 
@@ -149,11 +149,11 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
         return true;
     }
 
-    // --- CASE 2 : "command" is an object → SET_CONFIG or SET_IDENTITY ---
+    // Case 2: "command" is an object
     if (command.is<JsonObject>()) {
         JsonObject cmdObj = command.as<JsonObject>();
 
-        // a) SET_CONFIG
+        // SET_CONFIG
         if (cmdObj.containsKey("config")) {
             JsonObject jsonConfig = cmdObj["config"];
 
@@ -168,7 +168,6 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
                 return false;
             }
 
-            // Reset payload and copy fields
             memset(&out.cfg, 0, sizeof(out.cfg));
 
             strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
@@ -187,6 +186,13 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
                                         ? jsonConfig["enable_light2"].as<bool>()
                                         : false;
 
+            out.cfg.enable_rfid = jsonConfig.containsKey("enable_rfid")
+                                      ? jsonConfig["enable_rfid"].as<bool>()
+                                      : false;
+
+            out.cfg.rfid_mode =
+                jsonConfig.containsKey("rfid_mode") ? jsonConfig["rfid_mode"].as<uint8_t>() : 0;
+
             out.cfg.enable_vbat = jsonConfig.containsKey("enable_vbat")
                                       ? jsonConfig["enable_vbat"].as<bool>()
                                       : false;
@@ -196,7 +202,7 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
             return true;
         }
 
-        // b) SET_IDENTITY (factory)
+        // SET_IDENTITY
         if (cmdObj.containsKey("identity")) {
             JsonObject ident = cmdObj["identity"];
 
@@ -234,18 +240,7 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
  *
  * Uses @ref convertDateToISO8601() to generate the compilation timestamp.
  *
- * Example:
- * @code
- * {
- *   "info": {
- *     "version": "Moonraker v1.0",
- *     "compilation_date": "2025-08-04T10:22:15"
- *   }
- * }
- * @endcode
- *
- * @param version Firmware version string (e.g. "Moonraker v1.0").
- *
+ * @param version Firmware version string.
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
 const char* JsonProtocol::buildInfoJSON(const char* version) {
@@ -253,7 +248,6 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     StaticJsonDocument<128> doc;
 
     char dateCompil[23];
-    // Utility function: converts build date/time into ISO8601
     convertDateToISO8601(dateCompil, sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
@@ -267,33 +261,8 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
 /**
  * @brief Build JSON with logger identification details.
  *
- * The identity fields are provided through a @ref SetIdentityPayload structure,
- * typically filled either from factory-programmed data (flash) or from a parsed
- * SET_IDENTITY command.
- *
- * Example:
- * @code
- * {
- *   "id": {
- *     "uid_mcu":      "ABCDEF1234567890",
- *     "manufacturer": "CNRS",
- *     "date_fab":     "2025-07-23",
- *     "logger_type":  "Moonraker",
- *     "logger_sn":    "MRK-0001"
- *   }
- * }
- * @endcode
- *
- * @param payload Reference to a @ref SetIdentityPayload structure containing
- *                the logger identity fields:
- *                - UID          : MCU unique identifier string.
- *                - manufacturer : Manufacturer name.
- *                - logger_type  : Logger model/type.
- *                - date_fab     : Fabrication date (ISO8601 date string).
- *                - logger_sn    : Human-readable serial number.
- *
+ * @param payload Reference to a @ref SetIdentityPayload structure.
  * @return Pointer to a static internal buffer containing the serialized JSON.
- *         The buffer is overwritten at each call.
  */
 const char* JsonProtocol::buildIdJSON(const SetIdentityPayload& payload) {
     static char buffer[192];
@@ -313,17 +282,7 @@ const char* JsonProtocol::buildIdJSON(const SetIdentityPayload& payload) {
 /**
  * @brief Build JSON with battery voltage in millivolts.
  *
- * Example:
- * @code
- * {
- *   "vbat": {
- *     "vbat_mV": 3770
- *   }
- * }
- * @endcode
- *
  * @param voltage_mV Battery voltage in millivolts.
- *
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
 const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
@@ -338,24 +297,11 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
 }
 
 /**
- * @brief Build JSON snapshot of the current configuration.
+ * @brief Build a JSON snapshot of the current configuration.
  *
  * Uses:
- *  - @c Cfg_rb.dateCurrent as the current date/time (BCD format converted to ISO8601).
- *  - @c config as the runtime configuration for interval and sensor enable flags.
- *
- * Example:
- * @code
- * {
- *   "config": {
- *     "date_current":           "2025-08-04T10:25:00",
- *     "acquisition_interval_s": 120,
- *     "enable_light1":          true,
- *     "enable_light2":          false,
- *     "enable_vbat":            true
- *   }
- * }
- * @endcode
+ * - @c gui_time_sync_rb.dateCurrent as the current date/time
+ * - @c config as the runtime configuration
  *
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
@@ -363,15 +309,16 @@ const char* JsonProtocol::buildConfigJSON() {
     static char buffer[256];
     StaticJsonDocument<256> doc;
 
-    // Cfg_rb contains the current date/time (in BCD format)
     char dateCurrentStr[23];
-    convertBcdDateToISO8601(&Cfg_rb.dateCurrent, dateCurrentStr, sizeof(dateCurrentStr));
+    convertBcdDateToISO8601(&gui_time_sync_rb.dateCurrent, dateCurrentStr, sizeof(dateCurrentStr));
 
     JsonObject obj                = doc.createNestedObject("config");
     obj["date_current"]           = dateCurrentStr;
     obj["acquisition_interval_s"] = config.acquisition_interval_s;
     obj["enable_light1"]          = config.enable_light1;
     obj["enable_light2"]          = config.enable_light2;
+    obj["enable_rfid"]            = config.enable_rfid;
+    obj["rfid_mode"]              = config.rfid_mode;
     obj["enable_vbat"]            = config.enable_vbat;
 
     serializeJson(doc, buffer);
