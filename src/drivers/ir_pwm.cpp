@@ -56,7 +56,7 @@ void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t
     }
 
     setup_pwm();
-    setup_interrupts();
+    enable_sensor_wakeups();
 
     if (_enable_sensor_1 || _enable_sensor_2) {
         start_pwm();
@@ -108,13 +108,38 @@ void ir_pwm::setup_pwm() {
 /**
  * @brief Configure interrupts for sensors.
  */
-void ir_pwm::setup_interrupts() {
+void ir_pwm::enable_sensor_wakeups() {
     if (_enable_sensor_1) {
         LowPower.attachInterruptWakeup(_sensor1_pin, ir_pwm::isr_sensor_1, CHANGE);
     }
 
     if (_enable_sensor_2) {
         LowPower.attachInterruptWakeup(_sensor2_pin, ir_pwm::isr_sensor_2, CHANGE);
+    }
+}
+
+/**
+ * @brief Disable interrupts for sensors.
+ *
+ * Must be called before stopping the PWM carrier to avoid spurious wake-ups.
+ */
+void ir_pwm::disable_sensor_wakeups() {
+    if (_enable_sensor_1) {
+        detachInterrupt(digitalPinToInterrupt(_sensor1_pin));
+
+        EExt_Interrupts in1 = g_APinDescription[_sensor1_pin].ulExtInt;
+        if (in1 != NOT_AN_INTERRUPT && in1 != EXTERNAL_INT_NMI) {
+            EIC->WAKEUP.reg &= ~(1 << in1);
+        }
+    }
+
+    if (_enable_sensor_2) {
+        detachInterrupt(digitalPinToInterrupt(_sensor2_pin));
+
+        EExt_Interrupts in2 = g_APinDescription[_sensor2_pin].ulExtInt;
+        if (in2 != NOT_AN_INTERRUPT && in2 != EXTERNAL_INT_NMI) {
+            EIC->WAKEUP.reg &= ~(1 << in2);
+        }
     }
 }
 
