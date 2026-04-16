@@ -14,6 +14,9 @@
  * - Optionally activates RFID for a short time after IR events.
  */
 
+//TODO: add a watchdog timer to ensure we never get stuck in this loop due to a bug or unexpected condition.
+// adafruit/Adafruit SleepyDog Library@^1.8.4
+
 #include "deploy_mode.h"
 #include "sensors.h"
 #include "sensors_internal.h"
@@ -26,6 +29,7 @@
 #include "rfid_driver.h"
 #include <ArduinoLowPower.h>
 #include "utils.h"
+#include "schedule_manager.h"
 
 // Optional power control hooks.
 // Replace with your actual module names if needed.
@@ -75,7 +79,6 @@ static uint32_t rtc_period  = 0;
 // RFID runtime state
 static tag_info_t g_last_rfid_tag  = {{0}, 0};
 static bool g_has_last_rfid_tag    = false;
-static bool g_rfid_active          = false;
 static bool g_rfid_tag_detected    = false;
 static uint32_t g_rfid_start_ms    = 0;
 static uint32_t g_rfid_deadline_ms = 0;
@@ -91,6 +94,11 @@ constexpr uint32_t RFID_MAX_ACTIVE_MS        = 5000;
 // Track whether external sensor wakeups are currently enabled.
 static bool g_sensor_wakeups_enabled = false;
 
+// Example schedule: active from 08:00 to 18:30 daily.
+static ScheduleManager g_schedule({
+    8, 0,   // start 08:00
+    18, 30  // end 18:30
+});
 // ===== Interrupt Service Routines =====
 
 static void callback_rtc() {
@@ -118,46 +126,30 @@ static void callback_ir2(uint8_t /*state*/) {
 }
 
 static void callback_as7341() {
+    // Reserved for future use
     g_deploy_events |= DEPLOY_EVT_SENSOR_AS7341;
 }
 
 static void callback_tsl2591() {
+    // Reserved for future use
     g_deploy_events |= DEPLOY_EVT_SENSOR_TSL2591;
 }
 
 static void callback_rfid() {
+    // Reserved for future use
     g_deploy_events |= DEPLOY_EVT_SENSOR_RFID;
 }
 
-static void rfid_driver_force_poll(rfid_driver_t* drv) {
-    if (!drv || !drv->port) return;
-
-    switch (drv->type) {
-        case TAG_TYPE_FDX:
-            drv->port->print("@rq\r");
-            break;
-        case TAG_TYPE_HDX:
-            drv->port->print("@todo\r");
-            break;
-        case TAG_TYPE_EM4102:
-            drv->port->print("@ru\r");
-            break;
-        default:
-            break;
+static void set_next_deploy_alarm(const DateTime& now, bool active_window) {
+    if (active_window) {
+        rtc_set_alarm_at(now + TimeSpan(rtc_period));
+        LOG_DEBUG("Scheduled next wake-up in %lu seconds", (unsigned long)rtc_period);
+    } else {
+        DateTime next = g_schedule.nextStart(now);
+        rtc_set_alarm_at(next);
+        LOG_DEBUG("Scheduled next wake-up at %04d-%02d-%02d %02d:%02d:00", next.year(),
+                  next.month(), next.day(), next.hour(), next.minute());
     }
-}
-
-/**
- * @brief Return true if the current time is inside the active deploy window.
- *
- * Replace this implementation with your real schedule helper if you already
- * have one elsewhere in the project.
- */
-static bool deploy_is_in_active_window(const DateTime& now) {
-    // Example: always active.
-    // TODO: replace with real schedule logic.
-    (void)now;
-    return true;
 }
 
 /**
@@ -179,7 +171,7 @@ static void deploy_enter_active_window(ir_pwm& ir_driver, rfid_runtime_mode rfid
     }
 
     if (rfid_rt_mode == RFID_RT_CONTINUOUS) {
-        g_rfid_active = pwr_manager::rfid_pwr_on(rfid_rt_mode);
+        pwr_manager::rfid_pwr_on(rfid_rt_mode);
     }
 }
 
@@ -192,8 +184,7 @@ static void deploy_enter_active_window(ir_pwm& ir_driver, rfid_runtime_mode rfid
  * - 5V rail OFF
  */
 static void deploy_leave_active_window(ir_pwm& ir_driver) {
-    pwr_manager::rfid_pwr_off(RFID_RT_DISABLED);
-    g_rfid_active = false;
+    pwr_manager::rfid_pwr_off(RFID_RT_DISABLED);  // Ensure RFID is off regardless of mode.
 
     ir_driver.stop_pwm();
 
@@ -208,7 +199,7 @@ static void deploy_leave_active_window(ir_pwm& ir_driver) {
 static void deploy_apply_schedule_policy(ir_pwm& ir_driver, const DateTime& now,
                                          bool& in_active_window,
                                          rfid_runtime_mode rfid_rt_mode = g_rfid_mode) {
-    const bool new_active_window = deploy_is_in_active_window(now);
+    const bool new_active_window = g_schedule.isActive(now);
 
     if (new_active_window && !in_active_window) {
         deploy_enter_active_window(ir_driver, rfid_rt_mode);
@@ -222,8 +213,13 @@ static void deploy_apply_schedule_policy(ir_pwm& ir_driver, const DateTime& now,
 /**
  * @brief Initialize DEPLOY mode runtime and callbacks.
  */
-void deploy_enter(ir_pwm& ir_driver, rfid_driver_t& rfid_driver) {
+void deploy_enter(ir_pwm& ir_driver) {
     LOG_DEBUG("Entering DEPLOY mode: setting up callbacks and initial state");
+
+    g_schedule.setWindow({8, 0, 18, 0});  // temporary, should come from config
+
+    // {config.deploy_start_hour, config.deploy_start_minute, config.deploy_end_hour,
+    //  config.deploy_end_minute}
 
     log_flush();
     noInterrupts();
@@ -240,22 +236,21 @@ void deploy_enter(ir_pwm& ir_driver, rfid_driver_t& rfid_driver) {
     rtc_period               = config.acquisition_interval_s;
     g_last_rfid_tag          = {{0}, 0};
     g_has_last_rfid_tag      = false;
-    g_rfid_active            = false;
     g_rfid_tag_detected      = false;
     g_rfid_start_ms          = 0;
     g_rfid_deadline_ms       = 0;
     g_sensor_wakeups_enabled = false;
+    g_rfid_mode              = (rfid_runtime_mode)config.rfid_mode;
+    in_active_window         = false;
 
     ir_driver.set_callback_sensor_1(callback_ir1);
     ir_driver.set_callback_sensor_2(callback_ir2);
 
     rtc_set_alarm_callback(callback_rtc);
-    rtc_clear_and_set_alarm(rtc().now(), rtc_period);
+    DateTime now = rtc().now();
+    deploy_apply_schedule_policy(ir_driver, now, in_active_window, g_rfid_mode);
 
-    g_rfid_mode = config.rfid_mode;
-
-    // Apply initial schedule policy immediately.
-    deploy_apply_schedule_policy(ir_driver, rtc().now(), in_active_window, g_rfid_mode);
+    set_next_deploy_alarm(now, in_active_window);
 }
 
 /**
@@ -275,20 +270,22 @@ void deploy_exit(ir_pwm& ir_driver) {
     interrupts();
 
     deploy_leave_active_window(ir_driver);
-    ir_driver.set_callback_sensor_1(nullptr);  // needed ?
-    ir_driver.set_callback_sensor_2(nullptr);  // needed ?
+    ir_driver.set_callback_sensor_1(nullptr);
+    ir_driver.set_callback_sensor_2(nullptr);
 
     rtc_clear_alarm_flag();
-    rtc_set_alarm_callback(nullptr);  // needed ?
+    rtc_set_alarm_callback(nullptr);
 
-    vbat_counter        = 0;
-    rtc_period          = 0;
-    g_last_rfid_tag     = {{0}, 0};
-    g_has_last_rfid_tag = false;
-    g_rfid_active       = false;
-    g_rfid_tag_detected = false;
-    g_rfid_start_ms     = 0;
-    g_rfid_deadline_ms  = 0;
+    vbat_counter             = 0;
+    rtc_period               = 0;
+    g_last_rfid_tag          = {{0}, 0};
+    g_has_last_rfid_tag      = false;
+    g_rfid_tag_detected      = false;
+    g_rfid_start_ms          = 0;
+    g_rfid_deadline_ms       = 0;
+    in_active_window         = false;
+    g_sensor_wakeups_enabled = false;
+    g_rfid_mode              = RFID_RT_DISABLED;
 }
 
 /**
@@ -322,8 +319,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     log_flush();
     noInterrupts();
 
-    events          = g_deploy_events;
-    g_deploy_events = DEPLOY_EVT_NONE;
+    events = g_deploy_events;
+    g_deploy_events &= ~events;
 
     ir1_count   = g_ir1_count;
     g_ir1_count = 0;
@@ -337,6 +334,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     now = rtc().now();
     deploy_apply_schedule_policy(ir_driver, now, in_active_window, g_rfid_mode);
 
+    // If we woke up outside the active window due to a non-RTC event, ignore it and go back to sleep.
     if (!in_active_window) {
         if (!(events & DEPLOY_EVT_RTC_WAKE)) {
             return;
@@ -348,8 +346,6 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         return;
     }
 
-    now = rtc().now();
-
     // Common post-wake handling
     if ((events != DEPLOY_EVT_NONE) || (g_rfid_mode == RFID_RT_CONTINUOUS)) {
         if (!check_and_create_new_daily_file(now)) {
@@ -359,13 +355,16 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     }
 
     // ===== Periodic full acquisition (RTC driven) =====
+
+    // If we woke up due to RTC, perform a full periodic acquisition and log.
     if (events & DEPLOY_EVT_RTC_WAKE) {
-        rtc_clear_and_set_alarm(now, rtc_period);
 
-        LOG_DEBUG("RTC wake-up event. Scheduled next wake-up in %d seconds", rtc_period);
+        set_next_deploy_alarm(now, in_active_window);
+        // LOG_DEBUG("RTC wake-up event. Performing periodic acquisition.");
 
-        SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
-        logSensorFrame(now, frame);
+        // Reserved for future use: read all sensors and log a full SensorFrame.
+        // SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
+        // logSensorFrame(now, frame);
 
         if (config.enable_vbat && battery_is_available()) {
             vbat_counter++;
@@ -378,6 +377,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
                     state = STATE_ENDOFLIFE;
                     return;
                 } else if (changed) {
+                    LOG_INFO("VBAT changed: %d mV", vbat_mv);
                     logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
                 }
 
@@ -393,11 +393,11 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     // ===== Event-driven partial acquisition =====
 
     if (events & DEPLOY_EVT_SENSOR_AS7341) {
-        // For future use.
+        // Reserved for future use.
     }
 
     if (events & DEPLOY_EVT_SENSOR_TSL2591) {
-        // For future use.
+        // Reserved for future use.
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
@@ -412,37 +412,34 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     // ===== RFID trigger handling =====
 
-    if (g_rfid_mode == RFID_RT_ON_IR_EVENT) {
-        if ((events & DEPLOY_EVT_SENSOR_IR1) || (events & DEPLOY_EVT_SENSOR_IR2)) {
-            rfid_trigger = true;
-        }
-    }
-    if (g_rfid_mode == RFID_RT_CONTINUOUS) {
-        rfid_trigger = true;
-    }
+    const bool rfid_continuous  = (g_rfid_mode == RFID_RT_CONTINUOUS);
+    const bool rfid_on_ir_event = (g_rfid_mode == RFID_RT_ON_IR_EVENT);
+    const bool ir_event = (events & DEPLOY_EVT_SENSOR_IR1) || (events & DEPLOY_EVT_SENSOR_IR2);
 
-    // Switch on RFID not already active
-    if (rfid_trigger && !g_rfid_active) {
+    rfid_trigger = rfid_continuous || (rfid_on_ir_event && ir_event);
 
-        g_rfid_active       = pwr_manager::rfid_pwr_on(g_rfid_mode);
+    // Switch on RFID if needed.
+    if (rfid_trigger && !pwr_manager::rfid_is_on()) {
+        pwr_manager::rfid_pwr_on(g_rfid_mode);
         g_rfid_tag_detected = false;
         g_rfid_start_ms     = millis();
         g_rfid_deadline_ms  = g_rfid_start_ms + RFID_MAX_ACTIVE_MS;
 
-        rfid_driver_force_poll(&rfid_driver);
-        // TODO: do not sleep during the active window if RFID is ON_IR_EVENT to avoid missing tags, or implement a more robust wake-up strategy for RFID events (e.g. dedicated RFID wake-up pin or interrupt from RFID driver)
+        rfid_driver::poll_now(&rfid_driver);
     }
 
-    if (g_rfid_active) {
-        rfid_driver_tick(&rfid_driver);
+    if (pwr_manager::rfid_is_on()) {
+        // Poll RFID driver and process and queue tags.
+        rfid_driver::tick(&rfid_driver);
 
         tag_info_t tag;
-        while (rfid_driver_get_tag(&rfid_driver, &tag)) {
-            bool should_log = true;
-
-            if (g_has_last_rfid_tag) {
-                should_log = rfid_should_record_tag(&g_last_rfid_tag, &tag, RFID_DEBOUNCE_MS);
-            }
+        // Process all available tags in the FIFO.
+        while (rfid_driver::get_tag(&rfid_driver, &tag)) {
+            LOG_DEBUG("Received RFID tag: %s (time since poll: %d ms)", tag.tag,
+                      millis() - tag.time_ms);
+            bool should_log =
+                !g_has_last_rfid_tag ||
+                rfid_driver::should_record_tag(&g_last_rfid_tag, &tag, RFID_DEBOUNCE_MS);
 
             if (should_log) {
                 LOG_INFO("RFID tag detected: %s", tag.tag);
@@ -455,27 +452,18 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
             }
         }
 
-        uint32_t now_ms  = millis();
-        uint32_t elapsed = now_ms - g_rfid_start_ms;
+        if (!rfid_continuous) {
+            const uint32_t now_ms  = millis();
+            const uint32_t elapsed = now_ms - g_rfid_start_ms;
 
-        if (elapsed >= RFID_MIN_ACTIVE_MS) {
-            if (g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms) {
-
-                if (g_rfid_mode != RFID_RT_CONTINUOUS) {
-                    pwr_manager::rfid_pwr_off(g_rfid_mode);
-                    g_rfid_active = false;
-                }
+            if (elapsed >= RFID_MIN_ACTIVE_MS &&
+                (g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms)) {
+                pwr_manager::rfid_pwr_off(g_rfid_mode);
 
                 g_rfid_tag_detected = false;
                 g_rfid_start_ms     = 0;
                 g_rfid_deadline_ms  = 0;
-                if (g_rfid_mode != RFID_RT_CONTINUOUS) {
-                    rfid_trigger = false;
-                }
             }
         }
-    } else if (g_rfid_active && g_rfid_mode != RFID_RT_CONTINUOUS) {
-        pwr_manager::rfid_pwr_off(g_rfid_mode);
-        g_rfid_active = false;
     }
 }

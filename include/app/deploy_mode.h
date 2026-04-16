@@ -30,7 +30,7 @@
  * @param ir_driver Reference to the IR PWM driver used to bind sensor callbacks.
  * @param rfid_driver Reference to the RFID driver used to bind RFID callbacks.
  */
-void deploy_enter(ir_pwm&, rfid_driver_t&);
+void deploy_enter(ir_pwm&);
 
 /**
  * @brief Execute one iteration of the DEPLOY state.
@@ -48,7 +48,7 @@ void deploy_enter(ir_pwm&, rfid_driver_t&);
  * @param ir_driver Reference to the IR PWM driver.
  * @param rfid_driver Reference to the RFID driver.
  */
-void run_deploy_state(SystemState& state, rfid_driver_t& rfid);
+void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir_driver);
 
 /**
  * @brief Cleanup the DEPLOY state runtime context.
@@ -63,4 +63,4 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid);
  * @param rfid_driver Reference to the RFID driver used to unbind RFID callbacks.
 
  */
-void deploy_exit(ir_pwm& ir_driver, rfid_driver_t& rfid);
+void deploy_exit(ir_pwm& ir_driver);
