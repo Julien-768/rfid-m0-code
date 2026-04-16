@@ -174,7 +174,6 @@ DateTime applyGuiConfigAndBuildDateTime(const SetConfigPayload& src) {
     config.acquisition_interval_s = src.acquisition_interval_s;
     config.enable_light1          = src.enable_light1;
     config.enable_light2          = src.enable_light2;
-    config.enable_rfid            = src.enable_rfid;
     config.rfid_mode              = src.rfid_mode;
     config.enable_vbat            = src.enable_vbat;
 
@@ -182,7 +181,7 @@ DateTime applyGuiConfigAndBuildDateTime(const SetConfigPayload& src) {
     LOG_DEBUG("Updated configuration from GUI:");
     LOG_DEBUG(config.enable_light1 ? "  light1: enabled" : "  light1: disabled");
     LOG_DEBUG(config.enable_light2 ? "  light2: enabled" : "  light2: disabled");
-    LOG_DEBUG(config.enable_rfid ? "  rfid: enabled" : "  rfid: disabled");
+
     LOG_DEBUG("  rfid_mode: %u", config.rfid_mode);
     LOG_DEBUG(config.enable_vbat ? "  vbat: enabled" : "  vbat: disabled");
     LOG_DEBUG("  interval (s): %u", config.acquisition_interval_s);

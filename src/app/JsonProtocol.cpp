@@ -317,7 +317,6 @@ const char* JsonProtocol::buildConfigJSON() {
     obj["acquisition_interval_s"] = config.acquisition_interval_s;
     obj["enable_light1"]          = config.enable_light1;
     obj["enable_light2"]          = config.enable_light2;
-    obj["enable_rfid"]            = config.enable_rfid;
     obj["rfid_mode"]              = config.rfid_mode;
     obj["enable_vbat"]            = config.enable_vbat;
 
