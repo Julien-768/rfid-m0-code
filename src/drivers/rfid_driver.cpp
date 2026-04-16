@@ -1,10 +1,11 @@
 /**
- * @file rfid_reader.cpp
- * @brief Robust RFID driver implementation for SAMD21 (Feather M0).
+ * @file rfid_driver.cpp
+ * @brief Robust non-blocking RFID driver implementation for SAMD21.
  *
  * This module implements a non-blocking RFID driver supporting FDX, HDX,
  * and EM4102 tag types. It features:
  *  - Periodic polling of the reader
+ *  - Explicit immediate polling on demand
  *  - Robust CR-terminated line parsing with overflow protection
  *  - Input sanitization and HEX validation
  *  - Optional FDX decoding to NIC format
@@ -26,10 +27,9 @@
 
 #include "rfid_driver.h"
 
-#include <string.h>
 #include <ctype.h>
+#include <string.h>
 
-// Your existing decoder lives here:
 #include "utils_rfid.h"  // provides: rfid_tag_hex_to_nic(...), RFID_FDX_HEX_LEN, etc.
 
 /* ------------------------ Small safe string helpers ------------------------ */
@@ -37,12 +37,11 @@
 /**
  * @brief Safely copy a string into a fixed-size buffer.
  *
- * Always guarantees NUL-termination (if dst_sz > 0).
- * Acts as a replacement for strlcpy.
+ * Always guarantees NUL-termination if dst_sz > 0.
  *
  * @param dst Destination buffer.
  * @param dst_sz Size of destination buffer.
- * @param src Source string (can be NULL).
+ * @param src Source string, may be null.
  */
 static void safe_strcpy(char* dst, size_t dst_sz, const char* src) {
     if (!dst || dst_sz == 0) return;
@@ -74,7 +73,7 @@ static void line_reader_init(line_reader_t* lr) {
  * Non-blocking. Returns true if a full line is ready.
  *
  * @param lr Line reader instance.
- * @param s  Arduino Stream source.
+ * @param s Arduino Stream source.
  * @return true if a complete line is available.
  */
 static bool line_reader_poll(line_reader_t* lr, Stream* s) {
@@ -103,7 +102,6 @@ static bool line_reader_poll(line_reader_t* lr, Stream* s) {
         if (lr->len < sizeof(lr->buf) - 1) {
             lr->buf[lr->len++] = c;
         } else {
-            // overflow -> discard until CR
             lr->discarding = true;
             lr->len        = 0;
         }
@@ -139,14 +137,11 @@ static bool line_reader_get(line_reader_t* lr, char* out, size_t out_sz) {
 static void trim_inplace(char* s) {
     if (!s) return;
 
-    // Skip leading whitespace (spaces and tabs)
     char* p = s;
     while (*p == ' ' || *p == '\t') p++;
 
-    // If we found leading whitespace, shift the string left to remove it
     if (p != s) memmove(s, p, strlen(p) + 1);
 
-    // Remove trailing whitespace (spaces and tabs)
     size_t n = strlen(s);
     while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t')) {
         s[n - 1] = '\0';
@@ -199,7 +194,7 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
  * @brief Check whether a character is a valid hexadecimal digit.
  *
  * @param c Character to test.
- * @return true if valid HEX digit.
+ * @return true if valid hexadecimal digit.
  */
 static bool is_hex_char(char c) {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
@@ -214,7 +209,7 @@ typedef struct {
  * @brief Validate a string as hexadecimal with optional length constraints.
  *
  * @param s Input string.
- * @param constraints Length constraints (min_len, exact_len).
+ * @param constraints Length constraints.
  * @return true if valid.
  */
 static bool is_valid_hex(const char* s, HexLengthConstraints constraints) {
@@ -231,13 +226,13 @@ static bool is_valid_hex(const char* s, HexLengthConstraints constraints) {
     return true;
 }
 
-/* ------------------------ Driver instance + FIFO queue ------------------------ */
+/* ------------------------ Driver helpers ------------------------ */
 
 /**
  * @brief Get the poll command string for a given tag type.
  *
  * @param t Tag type.
- * @return Command string to send to reader.
+ * @return Command string to send to the reader, or null if unsupported.
  */
 static const char* cmd_for(tag_type_t t) {
     switch (t) {
@@ -261,12 +256,12 @@ static const char* cmd_for(tag_type_t t) {
  * @param t Tag info to push.
  */
 static void queue_push(rfid_driver_t* d, const tag_info_t* t) {
-    if (d->count == rfid_driver::QSIZE) {
-        d->head = (uint8_t)((d->head + 1) % rfid_driver::QSIZE);
+    if (d->count == rfid_driver_t::QSIZE) {
+        d->head = (uint8_t)((d->head + 1) % rfid_driver_t::QSIZE);
         d->count--;
     }
     d->q[d->tail] = *t;
-    d->tail       = (uint8_t)((d->tail + 1) % rfid_driver::QSIZE);
+    d->tail       = (uint8_t)((d->tail + 1) % rfid_driver_t::QSIZE);
     d->count++;
 }
 
@@ -280,7 +275,7 @@ static void queue_push(rfid_driver_t* d, const tag_info_t* t) {
 static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
     if (d->count == 0) return false;
     *out    = d->q[d->head];
-    d->head = (uint8_t)((d->head + 1) % rfid_driver::QSIZE);
+    d->head = (uint8_t)((d->head + 1) % rfid_driver_t::QSIZE);
     d->count--;
     return true;
 }
@@ -295,8 +290,8 @@ static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
  * @param type Tag type.
  * @param poll_interval_ms Polling interval in milliseconds.
  */
-void rfid_driver_init(rfid_driver_t* drv, Stream* port, tag_type_t type,
-                      uint32_t poll_interval_ms) {
+void rfid_driver::init(rfid_driver_t* drv, Stream* port, tag_type_t type,
+                       uint32_t poll_interval_ms) {
     if (!drv) return;
 
     drv->port = port;
@@ -313,21 +308,58 @@ void rfid_driver_init(rfid_driver_t* drv, Stream* port, tag_type_t type,
 }
 
 /**
- * @brief Periodic non-blocking driver update function.
+ * @brief Send a poll command immediately.
  *
- * Must be called regularly from the main loop.
- * Handles polling, line parsing, validation, decoding, and queueing.
+ * This function writes directly to the configured serial stream and does not
+ * wait for the periodic polling interval.
  *
  * @param drv Driver instance.
  */
-void rfid_driver_tick(rfid_driver_t* drv) {
+void rfid_driver::poll_now(rfid_driver_t* drv) {
+    if (!drv || !drv->port) return;
+
+    const char* cmd = cmd_for(drv->type);
+    if (!cmd) return;
+
+    drv->port->print(cmd);
+}
+
+/**
+ * @brief Non-blocking RFID driver update function.
+ *
+ * This function implements the full RFID acquisition pipeline and must be
+ * called regularly from the main loop. It does NOT block and processes only
+ * a limited amount of work per call.
+ *
+ * Behavior:
+ *  1. Periodically sends a poll command to the RFID reader based on
+ *     poll_interval_ms.
+ *  2. Reads incoming serial data character-by-character from the reader.
+ *  3. Reconstructs CR-terminated lines using an internal line reader.
+ *  4. Sanitizes each line (removes protocol artifacts such as "+ ", "rq", "ru").
+ *  5. Validates the cleaned data as a proper hexadecimal tag.
+ *  6. Decodes the tag if required (e.g., FDX to NIC format).
+ *  7. Pushes valid tags into an internal FIFO queue.
+ *
+ * Notes:
+ *  - The function is non-blocking: it only processes available data and returns immediately.
+ *  - A small fixed number of lines are processed per call to ensure real-time behavior.
+ *  - Tag retrieval must be done separately using rfid_driver::get_tag().
+ *  - This function acts as a background processing engine and does not return tags directly.
+ *
+ * @param drv Driver instance (must be initialized).
+ */
+void rfid_driver::tick(rfid_driver_t* drv) {
     if (!drv || !drv->port) return;
 
     const uint32_t now = millis();
 
     if ((uint32_t)(now - drv->last_poll) >= drv->poll_interval_ms) {
-        drv->last_poll = now;
-        drv->port->print(cmd_for(drv->type));
+        drv->last_poll  = now;
+        const char* cmd = cmd_for(drv->type);
+        if (cmd) {
+            drv->port->print(cmd);
+        }
     }
 
     uint8_t max_lines = 2;
@@ -368,7 +400,7 @@ void rfid_driver_tick(rfid_driver_t* drv) {
  * @param out Output tag structure.
  * @return true if a tag was available.
  */
-bool rfid_driver_get_tag(rfid_driver_t* drv, tag_info_t* out) {
+bool rfid_driver::get_tag(rfid_driver_t* drv, tag_info_t* out) {
     if (!drv || !out) return false;
     return queue_pop(drv, out);
 }
@@ -383,8 +415,8 @@ bool rfid_driver_get_tag(rfid_driver_t* drv, tag_info_t* out) {
  * @param delay_ms Minimum delay between identical tags.
  * @return true if the tag should be recorded.
  */
-bool rfid_should_record_tag(const tag_info_t* previous, const tag_info_t* current,
-                            uint32_t delay_ms) {
+bool rfid_driver::should_record_tag(const tag_info_t* previous, const tag_info_t* current,
+                                    uint32_t delay_ms) {
     if (!previous || !current) return false;
 
     if (strcmp(previous->tag, current->tag) == 0) {
