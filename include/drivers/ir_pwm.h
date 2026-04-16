@@ -2,6 +2,11 @@
 #define IR_PWM_H
 
 #include <Arduino.h>
+#include "hardware.h"
+
+#ifndef PWM_TIMER
+#error "PWM_TIMER must be defined in hardware.h"
+#endif
 
 /**
  * @brief ISR callback type for IR sensors.
@@ -22,7 +27,8 @@ typedef void (*ir_isr_callback_t)(uint8_t state);
  *
  * Notes:
  * - This implementation targets Adafruit Feather M0 / ATSAMD21G18.
- * - For this board, pin 11 uses timer 2 in the ocrdu library.
+ * - Pin 11 uses timer 2 in the ocrdu library.
+ * - Pin 9 uses timer 1 in the ocrdu library.
  */
 class ir_pwm {
    public:
@@ -33,7 +39,7 @@ class ir_pwm {
     static constexpr uint16_t PWM_DUTY_OFF = 0;
 
     // Feather M0 mapping for pin 11: timer 2
-    static constexpr uint8_t PWM_TIMER = 2;
+    // static constexpr uint8_t PWM_TIMER = 2;
 
     // Timer configuration chosen for ~36 kHz:
     // f ≈ 48 MHz / (prescaler * steps)
@@ -51,11 +57,11 @@ class ir_pwm {
 
     void set_callback_sensor_1(ir_isr_callback_t callback);
     void set_callback_sensor_2(ir_isr_callback_t callback);
+    void enable_sensor_wakeups();
+    void disable_sensor_wakeups();
 
    private:
     void setup_pwm();
-    void enable_sensor_wakeups();
-    void disable_sensor_wakeups();
 
     void handle_interrupt_sensor_1();
     void handle_interrupt_sensor_2();

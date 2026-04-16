@@ -289,7 +289,7 @@ static SystemState runBootSequence() {
 
     // --- Initialize RFID driver ---
 
-    rfid_driver_init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
+    rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
 
     // led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
@@ -357,7 +357,7 @@ void loop() {
             Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
             LOG_DEBUG("Initializing DEPLOY mode");
-            deploy_enter(ir_driver, rfid_driver);
+            deploy_enter(ir_driver);
 
             LOG_DEBUG("Entering DEPLOY mode");
             currentState = STATE_DEPLOY;
@@ -369,7 +369,7 @@ void loop() {
 
         case STATE_DEPLOY:
 
-            run_deploy_state(currentState, rfid_driver);
+            run_deploy_state(currentState, rfid_driver, ir_driver);
             break;
 
         case STATE_STOCK:
@@ -381,7 +381,7 @@ void loop() {
         case STATE_ENDOFLIFE:
             // @todo Factorize shutdown steps into a dedicated shutdown function.
             LOG_ERROR("Entering END OF LIFE mode");
-            deploy_exit(ir_driver, rfid_driver);
+            deploy_exit(ir_driver);
             SD.end();
             // led_start_blink_isr(1, blink_mode::slow);
             // led_start_blink_isr(10, blink_mode::fast);
