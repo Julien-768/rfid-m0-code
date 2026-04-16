@@ -56,7 +56,6 @@ class ir_pwm {
     void setup_pwm();
     void enable_sensor_wakeups();
     void disable_sensor_wakeups();
-    void setup_interrupts();
 
     void handle_interrupt_sensor_1();
     void handle_interrupt_sensor_2();
