@@ -257,6 +257,30 @@ void rtc_clear_and_set_alarm(const DateTime& now, uint32_t interval_s) {
     rtc.setAlarm1(wakeup, DS3231_A1_Minute);
 }
 
+/**
+ * @brief Program Alarm1 to trigger at an absolute DateTime.
+ *
+ * This function sets DS3231 Alarm1 to fire at the specified time.
+ * Seconds are ignored because DS3231_A1_Minute mode is used.
+ *
+ * @param when Absolute time for the next wake-up.
+ */
+void rtc_set_alarm_at(const DateTime& when) {
+    RTC_DS3231& rtc = get_rtc();
+
+    // IMPORTANT:
+    // Ton code actuel utilise DS3231_A1_Minute → résolution à la minute.
+    // Donc on force les secondes à 0 pour cohérence.
+    DateTime aligned(when.year(), when.month(), when.day(), when.hour(), when.minute(), 0);
+
+    rtc.clearAlarm(DS3231_ALARM_1);
+    rtc.setAlarm1(aligned, DS3231_A1_Minute);
+
+    // Optionnel mais fortement recommandé pour debug terrain
+    LOG_DEBUG("RTC alarm set at %04d-%02d-%02d %02d:%02d:00", aligned.year(), aligned.month(),
+              aligned.day(), aligned.hour(), aligned.minute());
+}
+
 // -----------------------------------------------------------------------------
 // RTC sanity / boot recovery
 // -----------------------------------------------------------------------------

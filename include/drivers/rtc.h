@@ -156,6 +156,16 @@ void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)());
 void rtc_clear_and_set_alarm(const DateTime& now, uint32_t interval_s);
 
 /**
+ * @brief Set the next wake-up time using RTC Alarm1.
+ *
+ * @param when Absolute time for the next wake-up.
+ *
+ * @note This function uses `DS3231_A1_Minute` alarm mode, which matches on
+ *       minute boundaries. Seconds are ignored and effectively set to 0.
+ */
+void rtc_set_alarm_at(const DateTime& when);
+
+/**
  * @brief Set or replace the optional user callback executed by the RTC ISR.
  *
  * The internal RTC ISR always sets the module alarm flag. If a user callback is
