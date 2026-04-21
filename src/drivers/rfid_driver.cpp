@@ -15,10 +15,11 @@
  */
 
 /**
- * Platform: Adafruit Feather M0 (ATSAMD21G18)
- * MCU: ARM Cortex-M0+ @ 48 MHz
- * Framework: Arduino (SAMD core)
- * Logic level: 3.3V
+ * @section platform_info Platform Information
+ * - Platform: Adafruit Feather M0 (ATSAMD21G18)
+ * - MCU: ARM Cortex-M0+ @ 48 MHz
+ * - Framework: Arduino (SAMD core)
+ * - Logic Level: 3.3V
  */
 
 #ifndef ARDUINO_ARCH_SAMD
