@@ -14,12 +14,24 @@
 #define LOG_LEVEL LOG_LEVEL_DEBUG
 #endif
 
-#ifndef LOG_ENABLE_SERIAL1
-#define LOG_ENABLE_SERIAL1 0
+// ---------------------------------------------------------------------------
+// Serial output configuration
+// ---------------------------------------------------------------------------
+// Available modes:
+//   LOG_SERIAL_NONE   : no serial output
+//   LOG_SERIAL1       : output to Serial1
+//   LOG_ALT_SERIAL    : output to SerialAlt (SERCOM on pins 22/23)
+
+#define LOG_SERIAL_NONE 0
+#define LOG_SERIAL1 1
+#define LOG_ALT_SERIAL 2
+
+#ifndef LOG_SERIAL_OUTPUT
+#define LOG_SERIAL_OUTPUT LOG_SERIAL_NONE
 #endif
 
-#ifndef LOG_SERIAL1_LEVEL
-#define LOG_SERIAL1_LEVEL LOG_LEVEL_DEBUG
+#ifndef LOG_SERIAL_LEVEL
+#define LOG_SERIAL_LEVEL LOG_LEVEL_DEBUG
 #endif
 
 // %T → timestamp
