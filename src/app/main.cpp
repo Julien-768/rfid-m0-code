@@ -65,6 +65,7 @@
 #include "ir_pwm.h"
 #include "signal.h"
 #include "rfid_driver.h"
+#include "pwr_manager.h"
 
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
@@ -83,41 +84,9 @@ rfid_driver_t rfid_driver;
 /**
  * @brief Execute the full hardware initialization sequence at startup.
  *
- * This function is called once from @ref setup(). It performs all critical
- * hardware checks and prepares the logging environment.
- *
- * ### Responsibilities
- * - Initialize SD card storage via @ref sd_initialization().
- * - Initialize RTC (DS3231), validate time, and perform recovery via @ref rtc_bootRecover().
- * - Create the daily log file if the RTC time is trusted, or delay file creation
- *   until time is confirmed when connected to a GUI.
- * - Perform a battery diagnostic and enforce @ref STATE_ENDOFLIFE if voltage is critical.
- * - Load assembly metadata from the SD card.
- * - Load the factory identity from MCU flash via @ref device_id_init().
- * - Initialize system identifiers (Feather UID, RTC UID, sensor UIDs).
- *
- * ### Behavior Summary
- * - If SD or RTC initialization fails → transitions to @ref STATE_ENDOFLIFE.
- * - If RTC time is invalid and a GUI is connected → waits for GUI-provided time
- *   before creating the daily log file.
- * - On success → returns the initial runtime state
- * @ref STATE_CONNECTED if GUI is detected, otherwise @ref STATE_INIT.
- *
- * @note This function interacts heavily with the logging system. If no daily file
- *       exists yet, logging may be buffered in RAM and flushed once the daily file
- *       is created.
- *
- * @warning If RTC time remains unverified and no GUI time is provided, the system
- *          may fall back to firmware build time (see @ref STATE_CONNECTED handling).
- *
- * @see sd_initialization()
- * @see initRTC()
- * @see rtc_bootRecover()
- * @see check_and_create_new_daily_file()
- * @see batteryBootDiagnostic()
- * @see device_id_init()
- */
+ **/
 static SystemState runBootSequence() {
+    static bool ir_enabled = true;
     delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
 
     String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
@@ -129,6 +98,7 @@ static SystemState runBootSequence() {
     LOG_INFO(buildDateTime.c_str());
     LOG_INFO(board.c_str());
     LOG_INFO(string_widget.c_str());
+    log_flush();
 
     /*
     Initialize the built-in LED for visual feedback during boot.
@@ -283,9 +253,12 @@ static SystemState runBootSequence() {
 
     // --- Initialize IR PWM module ---
 
-    // Enable both sensors and provide the ISR callback
-    ir_driver.begin(true, true, nullptr, nullptr);
-    LOG_INFO("IR PWM driver initialized");
+    if (ir_enabled) {
+
+        // Enable both sensors and provide the ISR callback
+        ir_driver.begin(true, true, nullptr, nullptr);
+        LOG_INFO("IR PWM driver initialized");
+    }
 
     // --- Initialize RFID driver ---
 
@@ -307,10 +280,25 @@ static SystemState runBootSequence() {
  */
 
 void setup() {
-    // TODO add serial choice on logger configuration
+// TODO add serial choice on logger configuration
+#if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
     Serial1.begin(115200);
     delay(1000);
     Serial1.println("Serial1 initialized");
+    Serial1.println("LOG_SERIAL_OUTPUT = LOG_SERIAL1");
+    Serial1.print("LOG_SERIAL_LEVEL = ");
+    Serial1.println(LOG_SERIAL_LEVEL);
+#elif (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    pinPeripheral(12, PIO_SERCOM);
+    pinPeripheral(6, PIO_SERCOM);
+    SerialAlt.begin(115200);
+    delay(1000);
+    SerialAlt.println("SerialAlt initialized");
+    SerialAlt.println("LOG_SERIAL_OUTPUT = LOG_ALT_SERIAL");
+    SerialAlt.print("LOG_SERIAL_LEVEL = ");
+    SerialAlt.println(LOG_SERIAL_LEVEL);
+#endif
+
     // pinMode(LED_BUILTIN, OUTPUT);
     // digitalWrite(LED_BUILTIN, LOW);
 
@@ -318,6 +306,7 @@ void setup() {
     Wire.begin();
     i2c_ok = scanI2CBus();
 
+    pwr_manager::begin();
     DET_EXT_Init();
     currentState = runBootSequence();
 }
@@ -345,6 +334,8 @@ void setup() {
 
 void loop() {
 
+    pwr_manager::update();
+
     switch (currentState) {
         case STATE_INIT:
             if (load_configuration(config)) {
@@ -353,13 +344,13 @@ void loop() {
                 LOG_WARN("Using default compiled configuration");
             }
 
-            LOG_INFO("Initializing sensors for DEPLOY mode");
+            LOG_DEBUG("Initializing sensors for DEPLOY mode");
             Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
             LOG_DEBUG("Initializing DEPLOY mode");
             deploy_enter(ir_driver);
 
-            LOG_DEBUG("Entering DEPLOY mode");
+            LOG_INFO("Entering DEPLOY mode");
             currentState = STATE_DEPLOY;
             break;
 
@@ -368,7 +359,6 @@ void loop() {
             break;
 
         case STATE_DEPLOY:
-
             run_deploy_state(currentState, rfid_driver, ir_driver);
             break;
 
@@ -385,6 +375,7 @@ void loop() {
             SD.end();
             // led_start_blink_isr(1, blink_mode::slow);
             // led_start_blink_isr(10, blink_mode::fast);
+            pwr_manager::request_shutdown();
             delay(2000);
 
             while (true) {
