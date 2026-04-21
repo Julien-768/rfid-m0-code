@@ -254,7 +254,7 @@ void rtc_clear_and_set_alarm(const DateTime& now, uint32_t interval_s) {
     DateTime wakeup = rounded + TimeSpan(interval_s);
 
     rtc.clearAlarm(DS3231_ALARM_1);
-    rtc.setAlarm1(wakeup, DS3231_A1_Minute);
+    rtc.setAlarm1(wakeup, DS3231_A1_Second);
 }
 
 /**
@@ -274,7 +274,7 @@ void rtc_set_alarm_at(const DateTime& when) {
     DateTime aligned(when.year(), when.month(), when.day(), when.hour(), when.minute(), 0);
 
     rtc.clearAlarm(DS3231_ALARM_1);
-    rtc.setAlarm1(aligned, DS3231_A1_Minute);
+    rtc.setAlarm1(aligned, DS3231_A1_Second);
 
     // Optionnel mais fortement recommandé pour debug terrain
     LOG_DEBUG("RTC alarm set at %04d-%02d-%02d %02d:%02d:00", aligned.year(), aligned.month(),
