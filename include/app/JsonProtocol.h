@@ -132,9 +132,6 @@ namespace JsonProtocol {
  * @return @c true if parsing succeeded and @p out.type != CommandType::NONE,
  *         @c false otherwise.
  *
- * @note On error, @p errorBuf contains a small JSON error response suitable
- *       for printing with Serial1.println(), or an empty string if no detail
- *       is available.
  */
 bool parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, size_t errorBufLen);
 
