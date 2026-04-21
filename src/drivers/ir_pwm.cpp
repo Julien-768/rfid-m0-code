@@ -3,6 +3,7 @@
 #include "SAMD21turboPWM.h"
 #include "ArduinoLowPower.h"
 #include "log.h"
+#include "wiring_private.h"
 
 /**
  * Platform: Adafruit Feather M0 (ATSAMD21G18)
@@ -48,35 +49,43 @@ void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t
     digitalWrite(_pwm_pin, LOW);
 
     if (_enable_sensor_1) {
-        pinMode(_sensor1_pin, INPUT);
+        pinMode(_sensor1_pin, INPUT_PULLUP);
     }
 
     if (_enable_sensor_2) {
-        pinMode(_sensor2_pin, INPUT);
+        pinMode(_sensor2_pin, INPUT_PULLUP);
     }
 
     setup_pwm();
     enable_sensor_wakeups();
 
-    if (_enable_sensor_1 || _enable_sensor_2) {
-        start_pwm();
-    }
+    _pwm_running = false;
 }
 
 /**
  * @brief Enable the PWM carrier with ~50% duty cycle.
  */
 void ir_pwm::start_pwm() {
+    if (_pwm_running) {
+        return;
+    }
+
     LOG_DEBUG("PWM start");
     pwm.analogWrite(_pwm_pin, PWM_DUTY_ON);
+    _pwm_running = true;
 }
 
 /**
  * @brief Disable the PWM carrier.
  */
 void ir_pwm::stop_pwm() {
+    if (!_pwm_running) {
+        return;
+    }
+
     LOG_DEBUG("PWM stop");
     pwm.analogWrite(_pwm_pin, PWM_DUTY_OFF);
+    _pwm_running = false;
 }
 
 /**

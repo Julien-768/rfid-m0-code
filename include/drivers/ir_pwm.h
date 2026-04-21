@@ -54,6 +54,7 @@ class ir_pwm {
 
     void start_pwm();
     void stop_pwm();
+    bool is_pwm_running() const { return _pwm_running; }
 
     void set_callback_sensor_1(ir_isr_callback_t callback);
     void set_callback_sensor_2(ir_isr_callback_t callback);
@@ -61,6 +62,8 @@ class ir_pwm {
     void disable_sensor_wakeups();
 
    private:
+    bool _pwm_running = false;
+
     void setup_pwm();
 
     void handle_interrupt_sensor_1();
