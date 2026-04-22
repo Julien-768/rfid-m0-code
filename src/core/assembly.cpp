@@ -72,11 +72,11 @@ Assembly hw_assembly;
  * @see assembly_save()
  * @see assembly_load()
  */
-void create_assembly_file() {
+bool create_assembly_file() {
     File file = SD.open(kAssemblyFilename, FILE_WRITE);
     if (!file) {
         LOG_ERROR("Failed to create %s", kAssemblyFilename);
-        return;
+        return false;
     }
 
     StaticJsonDocument<512> doc;
@@ -88,13 +88,16 @@ void create_assembly_file() {
     doc["sn_logger"]         = hw_assembly.sn_logger;
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
     if (serializeJson(doc, file) == 0) {
         LOG_ERROR("Failed to write JSON to %s", kAssemblyFilename);
+        file.close();
+        return false;
     } else {
         LOG_INFO("%s created successfully", kAssemblyFilename);
+        file.close();
+        return true;
     }
-    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
-    file.close();
 }
 
 /**
@@ -126,7 +129,7 @@ void create_assembly_file() {
  * @see create_assembly_file()
  * @see assembly_save()
  */
-void assembly_load(Assembly& hw_assembly_local) {
+bool assembly_load(Assembly& hw_assembly_local) {
     File file_c = SD.open(kAssemblyFilename);
     if (file_c) {
         StaticJsonDocument<512> doc;
@@ -158,9 +161,10 @@ void assembly_load(Assembly& hw_assembly_local) {
             LOG_DEBUG("%s loaded successfully", kAssemblyFilename);
         }
         file_c.close();
+        return true;
     } else {
         LOG_WARN("%s not found — creating default file", kAssemblyFilename);
-        create_assembly_file();
+        return create_assembly_file();
     }
 }
 

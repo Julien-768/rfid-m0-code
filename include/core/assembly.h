@@ -77,7 +77,7 @@ extern Assembly hw_assembly;
  * @param hw_assembly Reference to the Assembly structure to populate.
  * @see assembly_save()
  */
-void assembly_load(Assembly& hw_assembly_local);
+bool assembly_load(Assembly& hw_assembly_local);
 
 /**
  * @brief Saves the current Assembly configuration to the SD card.
@@ -92,7 +92,7 @@ void assembly_load(Assembly& hw_assembly_local);
  */
 bool assembly_save(const Assembly& hw_assembly);
 
-void create_assembly_file();
+bool create_assembly_file();
 
 /**
  * @brief Synchronize hw_assembly.cfg with factory identity stored in MCU flash.
