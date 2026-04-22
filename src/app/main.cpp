@@ -42,12 +42,14 @@
  */
 
 #include <ArduinoLowPower.h>
+#include <Arduino.h>
 #include <SD.h>
 #include "hardware.h"
 #include "rtc.h"
 #include "config.h"
 #include "assembly.h"
 #include "sd_manager.h"
+#include "Wire.h"
 
 #include "system_state.h"
 #include "log.h"
@@ -90,7 +92,11 @@ static SystemState runBootSequence() {
     delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
 
     String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
-    String board         = "Board: " + String(__PIO_BOARD_NAME__);
+#ifdef __PIO_BOARD_NAME__
+    String board = "Board: " + String(__PIO_BOARD_NAME__);
+#else
+    String board = "Board: unknown";
+#endif
     String string_widget = "------------------------------------------------------------";
 
     LOG_INFO(string_widget.c_str());
@@ -115,8 +121,11 @@ static SystemState runBootSequence() {
     }
 
     // --- Load existing assembly.cfg ---
-    assembly_load(hw_assembly);
-    LOG_INFO("Assembly information loaded from file");
+    if (!assembly_load(hw_assembly)) {
+        LOG_WARN("Assembly information not loaded from file");
+    } else {
+        LOG_INFO("Assembly information loaded from file");
+    }
     // initialize RTC for logging file creation and timestamping
 
     /*
@@ -333,9 +342,6 @@ void setup() {
  */
 
 void loop() {
-
-    pwr_manager::update();
-
     switch (currentState) {
         case STATE_INIT:
             if (load_configuration(config)) {
@@ -344,7 +350,6 @@ void loop() {
                 LOG_WARN("Using default compiled configuration");
             }
 
-            LOG_DEBUG("Initializing sensors for DEPLOY mode");
             Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
             LOG_DEBUG("Initializing DEPLOY mode");
