@@ -72,6 +72,7 @@
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
 bool rtc_available       = false;
+String string_widget     = "------------------------------------------------------------";
 
 /**
  * @brief IR PWM driver instance
@@ -91,19 +92,15 @@ static SystemState runBootSequence() {
     static bool ir_enabled = true;
     delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
 
+    LOG_INFO("Boot sequence started");
     String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
+    LOG_INFO(buildDateTime.c_str());
 #ifdef __PIO_BOARD_NAME__
     String board = "Board: " + String(__PIO_BOARD_NAME__);
 #else
     String board = "Board: unknown";
 #endif
-    String string_widget = "------------------------------------------------------------";
-
-    LOG_INFO(string_widget.c_str());
-    LOG_INFO("Boot sequence started");
-    LOG_INFO(buildDateTime.c_str());
     LOG_INFO(board.c_str());
-    LOG_INFO(string_widget.c_str());
     log_flush();
 
     /*
@@ -115,6 +112,7 @@ static SystemState runBootSequence() {
     /*
     Initialize SD card
      */
+    LOG_INFO(string_widget.c_str());
     LOG_INFO("Initializing SD card");
     if (!sd_initialization(PIN_SD_CS)) {
         return STATE_ENDOFLIFE;
@@ -131,10 +129,11 @@ static SystemState runBootSequence() {
     /*
     RTC initialization and sanity check
      */
+    LOG_INFO(string_widget.c_str());
     if (hw_assembly.rtc_type == "ds3231" and i2c_ok == true) {
         LOG_INFO("RTC used\tDS3231");
-        // Register RTC ISR callback
-        rtc_set_alarm_callback(nullptr);
+        // // Register RTC ISR callback
+        // rtc_set_alarm_callback(nullptr);
         // Initialize RTC
         if (!rtc_initialization(RTC_INTERRUPT_PIN)) {
             LOG_ERROR("RTC initialization failed");
@@ -145,12 +144,14 @@ static SystemState runBootSequence() {
         rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
+        return STATE_ENDOFLIFE;  // TODO: consider allowing operation without RTC, but with limited functionality (e.g., limited timestamping, limited daily file management)
     }
 
     if (rtc_available) {
         /*
         Check and create the daily log file on SD card
         */
+        // TODO: add rtc_available in rtc module
         DateTime now = rtc().now();
         if (!check_and_create_new_daily_file(now)) {
             LOG_ERROR("Failed to create daily log file at boot");
@@ -163,7 +164,7 @@ static SystemState runBootSequence() {
     /*
     Load hardware assembly information (UIDs, etc.) and sync with SD card.
     */
-
+    LOG_INFO(string_widget.c_str());
     // Read all hardware UIDs (in RAM only) ---
     bool uid_updated = false;
     if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
@@ -219,7 +220,7 @@ static SystemState runBootSequence() {
     /*
      Battery initialization
      */
-
+    LOG_INFO(string_widget.c_str());
     battery_service_config_t batt_serv_cfg{};
 
     // Hardware configuration
@@ -261,26 +262,38 @@ static SystemState runBootSequence() {
     }
 
     // --- Initialize IR PWM module ---
-
+    LOG_INFO(string_widget.c_str());
     if (ir_enabled) {
 
         // Enable both sensors and provide the ISR callback
         ir_driver.begin(true, true, nullptr, nullptr);
         LOG_INFO("IR PWM driver initialized");
+    } else {
+        LOG_INFO("IR PWM driver disabled by configuration");
     }
 
     // --- Initialize RFID driver ---
-
-    rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
-
+    LOG_INFO(string_widget.c_str());
+    if (config.enable_rfid) {
+        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
+        LOG_INFO("RFID driver initialized");
+    } else {
+        LOG_INFO("RFID driver disabled by configuration");
+    }
+    LOG_INFO(string_widget.c_str());
     // led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
+
+    DET_EXT_Init();
     if (DET_EXT_Connected()) {
         LOG_INFO("Entering CONNECTED mode");
+        LOG_INFO(string_widget.c_str());
+        LOG_INFO(string_widget.c_str());
         return STATE_CONNECTED;
     }
 
     LOG_INFO("Entering INIT mode");
+
     return STATE_INIT;
 }
 
@@ -315,9 +328,14 @@ void setup() {
     Wire.begin();
     i2c_ok = scanI2CBus();
 
+    // Initialize switch and power relay
     pwr_manager::begin();
-    DET_EXT_Init();
+
+    LOG_INFO(string_widget.c_str());
+    LOG_INFO(string_widget.c_str());
     currentState = runBootSequence();
+    LOG_INFO(string_widget.c_str());
+    LOG_INFO(string_widget.c_str());
 }
 
 /**
@@ -344,6 +362,7 @@ void setup() {
 void loop() {
     switch (currentState) {
         case STATE_INIT:
+            LOG_DEBUG("INIT mode active");
             if (load_configuration(config)) {
                 LOG_INFO("Configuration re-loaded from SD");
             } else {
