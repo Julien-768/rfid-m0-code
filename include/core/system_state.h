@@ -32,10 +32,10 @@
  * @brief Global runtime states of the logger.
  */
 enum SystemState : uint8_t {
-    STATE_INIT,       ///< Runtime initialization and mode selection
-    STATE_CONNECTED,  ///< Host / GUI communication mode
-    STATE_DEPLOY,     ///< Autonomous data acquisition mode
-    STATE_STOCK,      ///< Low-power storage / idle mode
-    STATE_ENDOFLIFE,  ///< Permanent shutdown / deep sleep
-    STATE_ERROR       ///< Fallback / placeholder idle state.
+    STATE_INIT      = 0x00,  ///< Runtime initialization and mode selection
+    STATE_CONNECTED = 0x01,  ///< Host / GUI communication mode
+    STATE_DEPLOY    = 0x02,  ///< Autonomous data acquisition mode
+    STATE_STOCK     = 0x03,  ///< Low-power storage / idle mode
+    STATE_ENDOFLIFE = 0x04,  ///< Permanent shutdown / deep sleep
+    STATE_ERROR     = 0x05   ///< Fallback / placeholder idle state.
 };
