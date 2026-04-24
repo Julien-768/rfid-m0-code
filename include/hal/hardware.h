@@ -29,7 +29,7 @@
 
 #define PIN_VBAT A2      // Battery voltage measurement
 #define PIN_PR_1 5       // IR receiver 1
-#define PIN_PR_2 6       // IR receiver 2
+#define PIN_PR_2 5       // IR receiver 2
 #define PIN_PW_SERVO A1  // Servo power relay
 #define PIN_TEMP_CS 12   // RTD sensor chip select
 
@@ -53,7 +53,7 @@
 #define PIN_BUZZER_LED 19  // Buzzer or LED
 #define PIN_IR_SEND 9      // 36 kHz IR output
 #define PWM_TIMER 1
-#define PIN_DET_EXT X         // FTDI detection
+#define PIN_DET_EXT 24        // FTDI detection
 #define PIN_PWR_3V 5          // 3V rail relay
 #define RTC_INTERRUPT_PIN 10  // DS3231 INT/SQW output
 
@@ -62,7 +62,7 @@
 #define PIN_BUZZER_LED 13  // Buzzer or LED
 #define PIN_IR_SEND 11     // 36 kHz IR output
 #define PWM_TIMER 2
-#define PIN_DET_EXT 5         // FTDI detection
+#define PIN_DET_EXT 6         // FTDI detection
 #define PIN_PWR_3V 12         // 3V rail relay
 #define RTC_INTERRUPT_PIN 10  // DS3231 INT/SQW output
 #else

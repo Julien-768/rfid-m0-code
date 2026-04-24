@@ -70,7 +70,7 @@ static volatile uint32_t g_ir1_last_ts = 0;
 static volatile uint32_t g_ir2_last_ts = 0;
 
 // Minimum delay between two valid events (us)
-constexpr uint32_t IR_DEBOUNCE_US = 200000;
+constexpr uint32_t IR_DEBOUNCE_MS = 200;
 
 // Counter for periodic battery checks
 constexpr uint8_t VBAT_CHECK_INTERVAL = 10;
@@ -80,11 +80,11 @@ static uint8_t vbat_counter = 0;
 static uint32_t rtc_period  = 0;
 
 // RFID runtime state
-static tag_info_t g_last_rfid_tag  = {{0}, 0};
-static bool g_has_last_rfid_tag    = false;
-static bool g_rfid_tag_detected    = false;
-static uint32_t g_rfid_start_ms    = 0;
-static uint32_t g_rfid_deadline_ms = 0;
+static tag_info_t g_last_rfid_tag   = {{0}, 0};
+static bool g_has_last_rfid_tag     = false;
+static bool g_rfid_tag_detected     = false;
+static uint32_t g_rfid_triggered_ms = 0;
+static uint32_t g_rfid_deadline_ms  = 0;
 
 static rfid_runtime_mode g_rfid_mode = RFID_RT_DISABLED;
 
@@ -151,13 +151,13 @@ static ScheduleManager g_schedule({
 
 static void callback_rtc() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
-    LOG_DEBUG("RTC alarm triggered, event flag set");
 }
 
 static void callback_ir1(uint8_t /*state*/) {
-    uint32_t now = micros();
+    uint32_t now = millis();
+    LOG_DEBUG("IR1 interrupt triggered");
 
-    if ((now - g_ir1_last_ts) < IR_DEBOUNCE_US) return;
+    if ((now - g_ir1_last_ts) < IR_DEBOUNCE_MS) return;
 
     g_ir1_last_ts = now;
     g_ir1_count++;
@@ -165,9 +165,10 @@ static void callback_ir1(uint8_t /*state*/) {
 }
 
 static void callback_ir2(uint8_t /*state*/) {
-    uint32_t now = micros();
+    uint32_t now = millis();
+    LOG_DEBUG("IR2 interrupt triggered");
 
-    if ((now - g_ir2_last_ts) < IR_DEBOUNCE_US) return;
+    if ((now - g_ir2_last_ts) < IR_DEBOUNCE_MS) return;
 
     g_ir2_last_ts = now;
     g_ir2_count++;
@@ -191,6 +192,7 @@ static void callback_rfid() {
 
 static void callback_button() {
     g_deploy_events |= DEPLOY_EVT_BUTTON_PRESS;
+    LOG_DEBUG("Button press detected, setting DEPLOY_EVT_BUTTON_PRESS");
 }
 
 static void set_next_deploy_alarm(const DateTime& now, bool active_window) {
@@ -277,7 +279,7 @@ void deploy_enter(ir_pwm& ir_driver) {
     g_last_rfid_tag          = {{0}, 0};
     g_has_last_rfid_tag      = false;
     g_rfid_tag_detected      = false;
-    g_rfid_start_ms          = 0;
+    g_rfid_triggered_ms      = 0;
     g_rfid_deadline_ms       = 0;
     g_sensor_wakeups_enabled = false;
 
@@ -285,8 +287,8 @@ void deploy_enter(ir_pwm& ir_driver) {
     //  config.deploy_end_minute}
 
     log_flush();
-    pwr_manager::enable_button_wakeup(callback_button);
 
+    LOG_DEBUG("Checking initial schedule window at startup");
     rtc_clear_alarm_flag();
     delay(100);  // Ensure RTC alarm flag is cleared before setting
     DateTime now = rtc().now();
@@ -302,6 +304,8 @@ void deploy_enter(ir_pwm& ir_driver) {
 
     interrupts();
 
+    LOG_DEBUG("Setting up DEPLOY mode callbacks");
+    pwr_manager::enable_button_wakeup(nullptr);
     rtc_set_alarm_callback(callback_rtc);
     set_next_deploy_alarm(now, in_awake_window);
 
@@ -342,7 +346,7 @@ void deploy_exit(ir_pwm& ir_driver) {
     g_last_rfid_tag            = {{0}, 0};
     g_has_last_rfid_tag        = false;
     g_rfid_tag_detected        = false;
-    g_rfid_start_ms            = 0;
+    g_rfid_triggered_ms        = 0;
     g_rfid_deadline_ms         = 0;
     in_awake_window            = false;
     g_sensor_wakeups_enabled   = false;
@@ -350,6 +354,11 @@ void deploy_exit(ir_pwm& ir_driver) {
     g_pw_button_was_pressed    = false;
     g_pw_button_press_start_ms = 0;
 }
+
+int count_4_dot          = 0;
+uint32_t rfid_start_time = 0;
+uint32_t now_ms          = 0;
+uint32_t elapsed         = 0;
 
 /**
  * @brief Main DEPLOY state handler.
@@ -365,8 +374,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     bool rfid_trigger = false;
 
     // Evaluate policy before sleeping.
-    now = rtc().now();
-    apply_awake_window(ir_driver, now, in_awake_window);
+    // now = rtc().now();
+    // apply_awake_window(ir_driver, now, in_awake_window);
 
     // Sleep policy:
     // - Outside active window: RTC must be the only wake source.
@@ -375,20 +384,17 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         LOG_DEBUG("Entering low-power mode. In active window: NO");
         LowPower.sleep();
     } else {
-        LOG_DEBUG("Before sleep: rtc_irq=%d (0 means active irq, 1 means no irq)", digitalRead(10));
-        LOG_DEBUG("Before sleep: events=0x%02X", g_deploy_events);
-        LowPower.sleep();
-        LOG_DEBUG("After wake: rtc_irq=%d events=0x%02X", digitalRead(10), g_deploy_events);
-        // LowPower.idle();
-        // delay(100);
-        // LOG_DEBUG(".");
-    }
-    // } else if (g_rfid_mode == RFID_RT_CONTINUOUS) {
-    //     LowPower.idle();
-    // } else {
-    //     LowPower.sleep();
+        // LOG_DEBUG("Before sleep: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
+        //           digitalRead(10), g_deploy_events);
+        // LowPower.sleep();
 
-    log_flush();
+        LowPower.idle();
+        delay(2000);
+
+        // LOG_DEBUG("After wake: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
+        //           digitalRead(10), g_deploy_events);
+    }
+
     noInterrupts();
 
     events = g_deploy_events;
@@ -409,16 +415,27 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     // If we woke up outside the active window due to a non-RTC event, ignore it and go back to sleep.
     if (!in_awake_window) {
         if (!(events & DEPLOY_EVT_RTC_WAKE)) {
+            LOG_DEBUG("Woke up outside active window, events=0x%02X. Ignoring non-RTC events.",
+                      events);
             return;
         }
     }
 
     // If no event occurred and RFID is not continuous, exit early.
-    if (events == DEPLOY_EVT_NONE && g_rfid_mode != RFID_RT_CONTINUOUS) {
-        return;
-    }
+    if (events == DEPLOY_EVT_NONE && pwr_manager::rfid_is_on() == false) {
+        // LOG_DEBUG("Woke up from idle. No events to process.");
+        // temp
 
-    LOG_DEBUG("events=0x%02X", events);
+        // /end temp
+        if (count_4_dot < 4) {
+            Serial1.print(".");
+            count_4_dot++;
+        }
+        if (count_4_dot >= 4) {
+            Serial1.println(".");
+            count_4_dot = 0;
+        }
+    }
 
     // Common post-wake handling
     if ((events != DEPLOY_EVT_NONE) || (g_rfid_mode == RFID_RT_CONTINUOUS)) {
@@ -428,47 +445,48 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
             state = STATE_ENDOFLIFE;
             return;
         }
+        LOG_DEBUG("Woke up with events=0x%02X", events);
     }
 
     // ===== Periodic full acquisition (RTC driven) =====
 
     // If we woke up due to RTC, perform a full periodic acquisition and log.
     if (events & DEPLOY_EVT_RTC_WAKE) {
+        LOG_DEBUG("RTC wake-up event.");
         rtc_clear_alarm_flag();
         set_next_deploy_alarm(now, in_awake_window);
-        LOG_DEBUG("RTC wake-up event. Performing periodic acquisition.");
 
         // Reserved for future use: read all sensors and log a full SensorFrame.
         // SensorFrame frame = readAllSensors(g_sensors, G_SENSOR_COUNT);
         // logSensorFrame(now, frame);
 
-        // if (config.enable_vbat && battery_is_available()) {
-        //     vbat_counter++;
+        if (config.enable_vbat && battery_is_available()) {
+            vbat_counter++;
 
-        //     if (vbat_counter >= VBAT_CHECK_INTERVAL) {
-        //         vbat_counter = 0;
+            if (vbat_counter >= VBAT_CHECK_INTERVAL) {
+                vbat_counter = 0;
 
-        //         if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-        //             LOG_ERROR("Failed to read filtered VBAT value");
-        //             deploy_exit(ir_driver);  // Ensure we clean up before shutting down
-        //             // handle shutdown in STATE_ENDOFLIFE
-        //             state = STATE_ENDOFLIFE;
-        //             return;
-        //         } else if (changed) {
-        //             LOG_INFO("VBAT changed: %d mV", vbat_mv);
-        //             logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
-        //         }
+                if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+                    LOG_ERROR("Failed to read filtered VBAT value");
+                    deploy_exit(ir_driver);  // Ensure we clean up before shutting down
+                    // handle shutdown in STATE_ENDOFLIFE
+                    state = STATE_ENDOFLIFE;
+                    return;
+                } else if (changed) {
+                    LOG_INFO("VBAT changed: %d mV", vbat_mv);
+                    logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
+                }
 
-        //         if (!battery_service_decision("Deployment", vbat_mv)) {
-        //             error_signal(ERR_BATTERY_CRITICAL);
-        //             log_flush();
-        //             deploy_exit(ir_driver);  // Ensure we clean up before shutting down
-        //             // handle shutdown in STATE_ENDOFLIFE
-        //             state = STATE_ENDOFLIFE;
-        //             return;
-        //         }
-        //     }
-        // }
+                if (!battery_service_decision("Deployment", vbat_mv)) {
+                    error_signal(ERR_BATTERY_CRITICAL);
+                    log_flush();
+                    deploy_exit(ir_driver);  // Ensure we clean up before shutting down
+                    // handle shutdown in STATE_ENDOFLIFE
+                    state = STATE_ENDOFLIFE;
+                    return;
+                }
+            }
+        }
     }
 
     // ===== Event-driven partial acquisition =====
@@ -494,11 +512,11 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     if (events & DEPLOY_EVT_BUTTON_PRESS) {
         LOG_INFO("Button press event detected");
         deploy_handle_power_button(state, ir_driver);
-        // if (pwr_manager::handle_button_wakeup()) {
-        //     deploy_exit(ir_driver);  // Ensure we clean up before shutting down
-        //     state = STATE_ENDOFLIFE;
-        //     return;
-        // }
+        if (pwr_manager::handle_button_wakeup()) {
+            deploy_exit(ir_driver);  // Ensure we clean up before shutting down
+            state = STATE_ENDOFLIFE;
+            return;
+        }
     }
 
     // ===== RFID trigger handling =====
@@ -512,11 +530,14 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     // Switch on RFID if needed.
     if (rfid_trigger && !pwr_manager::rfid_is_on()) {
         pwr_manager::rfid_pwr_on(g_rfid_mode);
+        rfid_start_time     = millis();
         g_rfid_tag_detected = false;
-        g_rfid_start_ms     = millis();
-        g_rfid_deadline_ms  = g_rfid_start_ms + RFID_MAX_ACTIVE_MS;
-
         rfid_driver::poll_now(&rfid_driver);
+    }
+    // prolong RFID active time if already on and another IR event occurs.
+    if (rfid_trigger) {
+        g_rfid_triggered_ms = millis();
+        g_rfid_deadline_ms  = g_rfid_triggered_ms + RFID_MAX_ACTIVE_MS;
     }
 
     if (pwr_manager::rfid_is_on()) {
@@ -544,17 +565,17 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         }
 
         if (!rfid_continuous) {
-            const uint32_t now_ms  = millis();
-            const uint32_t elapsed = now_ms - g_rfid_start_ms;
-
-            if (elapsed >= RFID_MIN_ACTIVE_MS &&
-                (g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms)) {
+            now_ms  = millis();
+            elapsed = now_ms - rfid_start_time;
+            if (g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms) {
                 pwr_manager::rfid_pwr_off(g_rfid_mode);
 
                 g_rfid_tag_detected = false;
-                g_rfid_start_ms     = 0;
+                g_rfid_triggered_ms = 0;
                 g_rfid_deadline_ms  = 0;
             }
+            LOG_DEBUG("RFID active for %d ms, tag detected: %d, deadline in %d ms", elapsed,
+                      g_rfid_tag_detected, g_rfid_deadline_ms - now_ms);
         }
     }
 }
