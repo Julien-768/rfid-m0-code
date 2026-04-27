@@ -30,6 +30,7 @@
 
 #include <ctype.h>
 #include <string.h>
+#include "log.h"
 
 #include "utils_rfid.h"  // provides: rfid_tag_hex_to_nic(...), RFID_FDX_HEX_LEN, etc.
 
@@ -323,6 +324,8 @@ void rfid_driver::poll_now(rfid_driver_t* drv) {
     if (!cmd) return;
 
     drv->port->print(cmd);
+
+    LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
 }
 
 /**
@@ -360,6 +363,7 @@ void rfid_driver::tick(rfid_driver_t* drv) {
         const char* cmd = cmd_for(drv->type);
         if (cmd) {
             drv->port->print(cmd);
+            LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
         }
     }
 
