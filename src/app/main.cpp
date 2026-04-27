@@ -68,6 +68,20 @@
 #include "signal.h"
 #include "rfid_driver.h"
 #include "pwr_manager.h"
+#include "wiring_private.h"
+
+// // ---------------------------------------------------------------------------
+// // Alternate UART on D12 (RX) / D6 (TX)
+// // ---------------------------------------------------------------------------
+// #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+
+// Uart SerialAlt(&sercom3, 12, 6, SERCOM_RX_PAD_3, UART_TX_PAD_2);
+
+// void SERCOM3_Handler() {
+//     SerialAlt.IrqHandler();
+// }
+
+// #endif
 
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
@@ -77,7 +91,7 @@ String string_widget     = "----------------------------------------------------
 /**
  * @brief IR PWM driver instance
  */
-ir_pwm ir_driver(PIN_IR_SEND, PIN_PR_1, PIN_PR_2);
+ir_pwm ir_driver(PIN_PWM_IR, PIN_PR_1, PIN_PR_2);
 
 /**
  * @brief RFID driver instance
@@ -141,6 +155,8 @@ static SystemState runBootSequence() {
         }
         // Boot-time sanity check
         rtc_boot_recover();
+        // // dev fix: should not be needed here as rtc_boot_recover() already sets a valid time if the RTC was lost, but just in case, ensure that the RTC is set to a valid time before proceeding with file creation and timestamping
+        // rtc_apply_external_time(DateTime(__DATE__, __TIME__));
         rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
@@ -311,14 +327,9 @@ void setup() {
     Serial1.print("LOG_SERIAL_LEVEL = ");
     Serial1.println(LOG_SERIAL_LEVEL);
 #elif (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-    pinPeripheral(12, PIO_SERCOM);
-    pinPeripheral(6, PIO_SERCOM);
-    SerialAlt.begin(115200);
+    logInit();
     delay(1000);
-    SerialAlt.println("SerialAlt initialized");
-    SerialAlt.println("LOG_SERIAL_OUTPUT = LOG_ALT_SERIAL");
-    SerialAlt.print("LOG_SERIAL_LEVEL = ");
-    SerialAlt.println(LOG_SERIAL_LEVEL);
+
 #endif
 
     // pinMode(LED_BUILTIN, OUTPUT);
@@ -376,6 +387,8 @@ void loop() {
 
             LOG_INFO("Entering DEPLOY mode");
             currentState = STATE_DEPLOY;
+            LOG_INFO(string_widget.c_str());
+            LOG_INFO(string_widget.c_str());
             break;
 
         case STATE_CONNECTED:
