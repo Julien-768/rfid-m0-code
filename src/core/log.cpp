@@ -4,6 +4,14 @@
  *
  */
 
+/**
+ * @section platform_info Platform Information
+ * - Platform: Adafruit Feather M0 (ATSAMD21G18)
+ * - MCU: ARM Cortex-M0+ @ 48 MHz
+ * - Framework: Arduino (SAMD core)
+ * - Logic Level: 3.3V
+ */
+
 #include "log.h"
 #include "rtc.h"
 #include "sd_manager.h"
@@ -12,19 +20,17 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <wiring_private.h>  // SERCOM
+#include "wiring_private.h"
+#include "hardware.h"
+#include "SoftTx.h"
 
-// ---------------------------------------------------------------------------
-// Alternate UART on D12 (RX) / D6 (TX)
-// ---------------------------------------------------------------------------
 #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+SoftTx SerialAlt(A4, 9600);
 
-Uart SerialAlt(&sercom2, 12, 6, SERCOM_RX_PAD_1, UART_TX_PAD_0);
-
-void SERCOM2_Handler() {
-    SerialAlt.IrqHandler();
+void logInit() {
+    SerialAlt.begin();
+    SerialAlt.println("Soft TX on D6 OK");
 }
-
 #endif
 
 // ---------------------------------------------------------------------------
@@ -151,18 +157,18 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
     }
 #endif
 
-    // #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-    //     if (level >= LOG_SERIAL_LEVEL) {
-    //         SerialAlt.println(final);
-    //     }
-    // #endif
+#if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    if (level >= LOG_SERIAL_LEVEL) {
+        SerialAlt.println(final);
+    }
+#endif
 }
 
 void log_flush() {
 #if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
     Serial1.flush();
 #endif
-    // #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-    //     SerialAlt.flush();
-    // #endif
+#if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    SerialAlt.flush();
+#endif
 }
