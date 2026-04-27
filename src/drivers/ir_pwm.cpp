@@ -37,7 +37,11 @@ ir_pwm::ir_pwm(uint8_t pwm_pin, uint8_t sensor1_pin, uint8_t sensor2_pin)
  */
 void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t callback_sensor_1,
                    ir_isr_callback_t callback_sensor_2) {
-    LOG_DEBUG("ir_pwm::begin - pwm=%d s1=%d s2=%d", _pwm_pin, _sensor1_pin, _sensor2_pin);
+    LOG_DEBUG("IR_PWM initialization: PWM pin=%d", _pwm_pin);
+    LOG_DEBUG("Sensor 1: pin=%d, external interrupt=%d", _sensor1_pin,
+              g_APinDescription[_sensor1_pin].ulExtInt);
+    LOG_DEBUG("Sensor 2: pin=%d, external interrupt=%d", _sensor2_pin,
+              g_APinDescription[_sensor2_pin].ulExtInt);
 
     _enable_sensor_1 = enable_sensor_1;
     _enable_sensor_2 = enable_sensor_2;
