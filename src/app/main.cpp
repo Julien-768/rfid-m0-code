@@ -68,20 +68,6 @@
 #include "signal.h"
 #include "rfid_driver.h"
 #include "pwr_manager.h"
-#include "wiring_private.h"
-
-// // ---------------------------------------------------------------------------
-// // Alternate UART on D12 (RX) / D6 (TX)
-// // ---------------------------------------------------------------------------
-// #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-
-// Uart SerialAlt(&sercom3, 12, 6, SERCOM_RX_PAD_3, UART_TX_PAD_2);
-
-// void SERCOM3_Handler() {
-//     SerialAlt.IrqHandler();
-// }
-
-// #endif
 
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
