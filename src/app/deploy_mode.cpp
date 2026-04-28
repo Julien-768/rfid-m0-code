@@ -53,6 +53,7 @@ enum deploy_event : uint8_t {
     DEPLOY_EVT_SENSOR_IR2     = 1 << 4,
     DEPLOY_EVT_SENSOR_RFID    = 1 << 5,
     DEPLOY_EVT_BUTTON_PRESS   = 1 << 6,
+    DEPLOY_EVT_BUTTON_RELEASE = 1 << 7,
 };
 
 // RFID runtime mode
@@ -115,11 +116,31 @@ static uint32_t g_pw_button_press_start_ms           = 0;
 static uint32_t g_pw_button_last_log_ms              = 0;
 constexpr uint32_t DEPLOY_POWER_BUTTON_LONG_PRESS_MS = 12000;  // 12 seconds
 
-// Timestamp captured as early as possible in the button wakeup callback.
-// This prevents the press duration from starting only after LowPower.idle(),
-// delay(), logging, or other post-wakeup processing.
-static volatile uint32_t g_button_irq_ms  = 0;
-static volatile bool g_button_irq_pending = false;
+// Button timing captured in the interrupt callback.
+// IMPORTANT: pwr_manager::enable_button_wakeup() must call callback_button()
+// on both button edges (press and release / CHANGE), otherwise very short
+// presses that are already released before the main loop runs cannot be timed.
+static volatile bool g_button_irq_is_pressed       = false;
+static volatile uint32_t g_button_irq_press_ms     = 0;
+static volatile uint32_t g_button_irq_release_ms   = 0;
+static volatile uint32_t g_button_irq_duration_ms  = 0;
+static volatile bool g_button_irq_duration_pending = false;
+
+struct button_irq_snapshot_t {
+    bool is_pressed;
+    uint32_t press_ms;
+    uint32_t release_ms;
+    uint32_t duration_ms;
+    bool duration_pending;
+};
+
+static void reset_button_irq_state() {
+    g_button_irq_is_pressed       = false;
+    g_button_irq_press_ms         = 0;
+    g_button_irq_release_ms       = 0;
+    g_button_irq_duration_ms      = 0;
+    g_button_irq_duration_pending = false;
+}
 
 static void reset_power_button_tracking() {
     g_pw_button_was_pressed    = false;
@@ -127,28 +148,49 @@ static void reset_power_button_tracking() {
     g_pw_button_last_log_ms    = 0;
 
     noInterrupts();
-    g_button_irq_ms      = 0;
-    g_button_irq_pending = false;
+    g_button_irq_is_pressed       = false;
+    g_button_irq_press_ms         = 0;
+    g_button_irq_release_ms       = 0;
+    g_button_irq_duration_ms      = 0;
+    g_button_irq_duration_pending = false;
     interrupts();
 }
 
+static void log_user_battery_check() {
+    int32_t vbat_mv = 0;
+    bool changed    = false;
+
+    LOG_INFO("Short power-button press: battery check requested");
+    if (config.enable_vbat && battery_is_available() &&
+        battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+        logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer);
+    }
+}
+
+static bool consume_button_irq_duration(uint32_t& duration_ms) {
+    if (!g_button_irq_duration_pending) {
+        return false;
+    }
+
+    duration_ms = g_button_irq_duration_ms;
+    reset_button_irq_state();
+    return true;
+}
+
 static void deploy_handle_power_button(SystemState& state, ir_pwm& ir_driver,
-                                       uint32_t button_irq_ms) {
+                                       const button_irq_snapshot_t& button_irq) {
     (void)ir_driver;
 
-    while (pwr_manager::power_button_read_state()) {
-        const uint32_t now = millis();
+    // Best case: the ISR saw both edges. This measures even very short presses
+    // that were already released before the main loop got CPU time.
+    if (button_irq.duration_pending) {
+        const uint32_t press_duration = button_irq.duration_ms;
 
-        if (!g_pw_button_was_pressed) {
-            g_pw_button_was_pressed    = true;
-            g_pw_button_press_start_ms = (button_irq_ms != 0) ? button_irq_ms : now;
-            g_pw_button_last_log_ms    = now;
-        }
-
-        const uint32_t press_duration = now - g_pw_button_press_start_ms;
+        LOG_INFO("Button released after %lu ms", press_duration);
+        LOG_INFO("Button pressed for %lu ms", press_duration);
+        reset_button_irq_state();
 
         if (press_duration >= DEPLOY_POWER_BUTTON_LONG_PRESS_MS) {
-            LOG_INFO("Button pressed for %lu ms", press_duration);
             LOG_WARN("Long power-button press: user shutdown requested");
             logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer);
             log_flush();
@@ -156,48 +198,69 @@ static void deploy_handle_power_button(SystemState& state, ir_pwm& ir_driver,
             reset_power_button_tracking();
             return;
         }
+
+        log_user_battery_check();
+        g_pw_button_was_pressed    = false;
+        g_pw_button_press_start_ms = 0;
+        g_pw_button_last_log_ms    = 0;
+        return;
     }
 
-    if (g_pw_button_was_pressed) {
+    // If the button is still held, keep polling only to detect a long press
+    // before release. The start timestamp still comes from the ISR.
+    if (pwr_manager::power_button_read_state()) {
+        g_pw_button_was_pressed    = true;
+        g_pw_button_press_start_ms = (button_irq.press_ms != 0) ? button_irq.press_ms : millis();
+        g_pw_button_last_log_ms    = millis();
+
+        while (pwr_manager::power_button_read_state()) {
+            const uint32_t now            = millis();
+            const uint32_t press_duration = now - g_pw_button_press_start_ms;
+
+            if (press_duration >= DEPLOY_POWER_BUTTON_LONG_PRESS_MS) {
+                LOG_INFO("Button pressed for %lu ms", press_duration);
+                LOG_WARN("Long power-button press: user shutdown requested");
+                logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer);
+                log_flush();
+                state = STATE_ENDOFLIFE;
+                reset_power_button_tracking();
+                return;
+            }
+        }
+
+        // Release happened while we were polling. If the release ISR also ran,
+        // the next wake/event will contain the exact ISR duration. Otherwise,
+        // this is still a correct fallback based on the ISR press timestamp.
         const uint32_t press_duration = millis() - g_pw_button_press_start_ms;
 
         LOG_INFO("Button released after %lu ms", press_duration);
+        LOG_INFO("Button pressed for %lu ms", press_duration);
 
-        reset_power_button_tracking();
+        reset_button_irq_state();
 
-        if (press_duration < DEPLOY_POWER_BUTTON_LONG_PRESS_MS) {
-            int32_t vbat_mv = 0;
-            bool changed    = false;
-            LOG_INFO("Short power-button press: battery check requested");
-            if (config.enable_vbat && battery_is_available() &&
-                battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV",
-                               config.use_buffer);
-            }
+        g_pw_button_was_pressed    = false;
+        g_pw_button_press_start_ms = 0;
+        g_pw_button_last_log_ms    = 0;
+
+        if (press_duration >= DEPLOY_POWER_BUTTON_LONG_PRESS_MS) {
+            LOG_WARN("Long power-button press: user shutdown requested");
+            logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer);
+            log_flush();
+            state = STATE_ENDOFLIFE;
+            reset_power_button_tracking();
+            return;
         }
-    } else {
-        // We woke on a button event, but the button is already released by the
-        // time the main loop runs. Treat this as a completed short press rather
-        // than keeping the first IRQ timestamp for the next press.
-        noInterrupts();
-        const bool had_pending_irq = g_button_irq_pending;
-        g_button_irq_ms            = 0;
-        g_button_irq_pending       = false;
-        interrupts();
 
-        if (had_pending_irq) {
-            LOG_INFO("Button press was already released before it could be measured");
-            LOG_INFO("Short power-button press: battery check requested");
-
-            int32_t vbat_mv = 0;
-            bool changed    = false;
-            if (config.enable_vbat && battery_is_available() &&
-                battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV",
-                               config.use_buffer);
-            }
-        }
+        log_user_battery_check();
+        return;
     }
+
+    // If we get here, the main loop saw a button event but neither an ISR-complete
+    // duration nor a currently pressed button. That means the wake callback is
+    // probably configured on press only, not CHANGE.
+    LOG_INFO("Button press was already released before it could be measured");
+    reset_button_irq_state();
+    log_user_battery_check();
 }
 // Example schedule: active from 08:00 to 18:30 daily.
 static ScheduleManager g_schedule({
@@ -273,14 +336,24 @@ static void callback_rfid() {
 }
 
 static void callback_button() {
-    const uint32_t now = millis();
+    const uint32_t now    = millis();
+    const bool is_pressed = pwr_manager::power_button_read_state();
 
-    if (!g_button_irq_pending) {
-        g_button_irq_ms      = now;
-        g_button_irq_pending = true;
+    if (is_pressed) {
+        if (!g_button_irq_is_pressed) {
+            g_button_irq_is_pressed = true;
+            g_button_irq_press_ms   = now;
+            g_deploy_events |= DEPLOY_EVT_BUTTON_PRESS;
+        }
+    } else {
+        if (g_button_irq_is_pressed) {
+            g_button_irq_is_pressed       = false;
+            g_button_irq_release_ms       = now;
+            g_button_irq_duration_ms      = now - g_button_irq_press_ms;
+            g_button_irq_duration_pending = true;
+            g_deploy_events |= DEPLOY_EVT_BUTTON_RELEASE;
+        }
     }
-
-    g_deploy_events |= DEPLOY_EVT_BUTTON_PRESS;
 }
 
 static void set_next_deploy_alarm(const DateTime& now, bool active_window) {
@@ -384,15 +457,18 @@ void deploy_enter(ir_pwm& ir_driver) {
 
     noInterrupts();
 
-    g_deploy_events      = DEPLOY_EVT_NONE;
-    g_ir1_count          = 0;
-    g_ir2_count          = 0;
-    g_ir1_last_ts        = 0;
-    g_ir2_last_ts        = 0;
-    g_ir1_last_state     = digitalRead(PIN_PR_1);
-    g_ir2_last_state     = digitalRead(PIN_PR_2);
-    g_button_irq_ms      = 0;
-    g_button_irq_pending = false;
+    g_deploy_events               = DEPLOY_EVT_NONE;
+    g_ir1_count                   = 0;
+    g_ir2_count                   = 0;
+    g_ir1_last_ts                 = 0;
+    g_ir2_last_ts                 = 0;
+    g_ir1_last_state              = digitalRead(PIN_PR_1);
+    g_ir2_last_state              = digitalRead(PIN_PR_2);
+    g_button_irq_is_pressed       = false;
+    g_button_irq_press_ms         = 0;
+    g_button_irq_release_ms       = 0;
+    g_button_irq_duration_ms      = 0;
+    g_button_irq_duration_pending = false;
 
     interrupts();
 
@@ -417,15 +493,18 @@ void deploy_exit(ir_pwm& ir_driver) {
     log_flush();
     noInterrupts();
 
-    g_deploy_events      = DEPLOY_EVT_NONE;
-    g_ir1_count          = 0;
-    g_ir2_count          = 0;
-    g_ir1_last_ts        = 0;
-    g_ir2_last_ts        = 0;
-    g_ir1_last_state     = HIGH;
-    g_ir2_last_state     = HIGH;
-    g_button_irq_ms      = 0;
-    g_button_irq_pending = false;
+    g_deploy_events               = DEPLOY_EVT_NONE;
+    g_ir1_count                   = 0;
+    g_ir2_count                   = 0;
+    g_ir1_last_ts                 = 0;
+    g_ir2_last_ts                 = 0;
+    g_ir1_last_state              = HIGH;
+    g_ir2_last_state              = HIGH;
+    g_button_irq_is_pressed       = false;
+    g_button_irq_press_ms         = 0;
+    g_button_irq_release_ms       = 0;
+    g_button_irq_duration_ms      = 0;
+    g_button_irq_duration_pending = false;
 
     interrupts();
 
@@ -462,12 +541,12 @@ uint32_t elapsed         = 0;
  * @brief Main DEPLOY state handler.
  */
 void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir_driver) {
-    uint8_t events         = DEPLOY_EVT_NONE;
-    uint32_t button_irq_ms = 0;
-    uint32_t ir1_count     = 0;
-    uint32_t ir2_count     = 0;
-    int32_t vbat_mv        = 0;
-    bool changed           = false;
+    uint8_t events                   = DEPLOY_EVT_NONE;
+    button_irq_snapshot_t button_irq = {};
+    uint32_t ir1_count               = 0;
+    uint32_t ir2_count               = 0;
+    int32_t vbat_mv                  = 0;
+    bool changed                     = false;
     DateTime now;
 
     bool rfid_trigger = false;
@@ -488,7 +567,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         // LowPower.sleep();
 
         LowPower.idle();
-        delay(2000);
+        delay(200);
 
         // LOG_DEBUG("After wake: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
         //           digitalRead(10), g_deploy_events);
@@ -498,7 +577,12 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     events = g_deploy_events;
     g_deploy_events &= ~events;
-    button_irq_ms = g_button_irq_ms;
+
+    button_irq.is_pressed       = g_button_irq_is_pressed;
+    button_irq.press_ms         = g_button_irq_press_ms;
+    button_irq.release_ms       = g_button_irq_release_ms;
+    button_irq.duration_ms      = g_button_irq_duration_ms;
+    button_irq.duration_pending = g_button_irq_duration_pending;
 
     ir1_count   = g_ir1_count;
     g_ir1_count = 0;
@@ -601,18 +685,18 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
-        LOG_DEBUG("IR1 event detected (count: %d)", ir1_count);
+        LOG_INFO("IR1 event detected (count: %d)", ir1_count);
         logMeasurement(now, "IR1_EVENT", (float)ir1_count, "count", config.use_buffer);
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR2) {
-        LOG_DEBUG("IR2 event detected (count: %d)", ir2_count);
+        LOG_INFO("IR2 event detected (count: %d)", ir2_count);
         logMeasurement(now, "IR2_EVENT", (float)ir2_count, "count", config.use_buffer);
     }
 
-    if (events & DEPLOY_EVT_BUTTON_PRESS) {
-        LOG_DEBUG("Button press event detected");
-        deploy_handle_power_button(state, ir_driver, button_irq_ms);
+    if (events & (DEPLOY_EVT_BUTTON_PRESS | DEPLOY_EVT_BUTTON_RELEASE)) {
+        LOG_INFO("Button event detected");
+        deploy_handle_power_button(state, ir_driver, button_irq);
     }
 
     // ===== RFID trigger handling =====
