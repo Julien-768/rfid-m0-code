@@ -63,6 +63,7 @@ bool g_feedback_on               = false;
 
 inline void write_power_pin(uint8_t pin, bool active, bool active_high) {
     digitalWrite(pin, (active == active_high) ? HIGH : LOW);
+    LOG_DEBUG("pin %u set to %s", pin, digitalRead(pin) ? "HIGH" : "LOW");
 }
 
 inline bool read_active_pin(uint8_t pin, bool active_high) {
@@ -75,15 +76,12 @@ Switch power control logic:
 */
 inline void set_power_enabled(bool enabled) {
     write_power_pin(PIN_PW_EN, enabled, PWR_EN_ACTIVE_HIGH);
+    LOG_DEBUG("pin %u set to %s (power %s)", PIN_PW_EN, digitalRead(PIN_PW_EN));
 }
 
 inline void set_feedback_output(bool on) {
     g_feedback_on = on;
-#ifdef PIN_BUZZER_LED
-    digitalWrite(PIN_BUZZER_LED, on ? HIGH : LOW);
-#else
     (void)on;
-#endif
 }
 
 }  // namespace
@@ -99,12 +97,8 @@ namespace pwr_manager {
 void begin() {
     pinMode(PIN_PWR_3V, OUTPUT);
     pinMode(PIN_PWR_5V, OUTPUT);
-    pinMode(PIN_PW_SW, INPUT_PULLUP);
+    pinMode(PIN_PW_SW, INPUT);
     pinMode(PIN_PW_EN, OUTPUT);
-#ifdef PIN_BUZZER_LED
-    pinMode(PIN_BUZZER_LED, OUTPUT);
-    digitalWrite(PIN_BUZZER_LED, LOW);
-#endif
 
     // Fail-safe au boot : sous-modules OFF, maintien d'alimentation ON.
     write_power_pin(PIN_PWR_3V, false, PWR_3V_ACTIVE_HIGH);
