@@ -25,11 +25,13 @@
 #include "SoftTx.h"
 
 #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-SoftTx SerialAlt(A4, 9600);
+SoftTx SerialAlt(SerialAlt_TX, 9600);
 
 void logInit() {
     SerialAlt.begin();
-    SerialAlt.println("Soft TX on D6 OK");
+    SerialAlt.print("Soft TX on D");
+    SerialAlt.print(SerialAlt_TX);
+    SerialAlt.println(" OK");
 }
 #endif
 
