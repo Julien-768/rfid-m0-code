@@ -1,25 +1,39 @@
-
 // #include "signal.h"
-
+//
 // constexpr uint8_t pin_led = 13;
-// constexpr uint8_t pin_buzzer = 19;
-
+// constexpr uint8_t pin_buzzer = 13; // Also supported: LED and buzzer may share the same pin.
+//
 // void setup()
 // {
 //     signal_engine_init(pin_led, pin_buzzer);
-
+//
 //     led_start_blink_isr(3, blink_mode::fast);
 //     buzzer_beep_isr(200);
 // }
-
+//
 // void loop()
 // {
-//     // Nothing required for LED or buzzer timing.
+//     // Required for non-blocking LED / buzzer timing.
+//     signal_engine_update();
 // }
 
 #include "signal.h"
-#include "wiring_private.h"
 #include "log.h"
+
+void blink_blocking_safe(uint8_t pin, uint32_t on_ms, uint32_t off_ms, uint8_t repeat) {
+    for (uint8_t i = 0; i < repeat; i++) {
+
+        digitalWrite(pin, HIGH);
+        for (uint32_t t = 0; t < on_ms; t += 10) {
+            delay(10);
+        }
+
+        digitalWrite(pin, LOW);
+        for (uint32_t t = 0; t < off_ms; t += 10) {
+            delay(10);
+        }
+    }
+}
 
 /**
  * @brief Global LED channel state instance.
@@ -30,6 +44,21 @@ static signal_channel_state_t s_led_channel;
  * @brief Global buzzer channel state instance.
  */
 static signal_channel_state_t s_buzzer_channel;
+
+/**
+ * @brief Runtime data used by the non-blocking scheduler.
+ *
+ * This deliberately stays outside signal_channel_state_t so the public struct
+ * does not need to change. Timing is based on millis() and unsigned subtraction,
+ * so it is safe across millis() wraparound.
+ */
+struct signal_channel_runtime_t {
+    uint32_t start_ms           = 0;
+    uint32_t last_transition_ms = 0;
+};
+
+static signal_channel_runtime_t s_led_runtime;
+static signal_channel_runtime_t s_buzzer_runtime;
 
 /**
  * @brief Return the global LED channel state.
@@ -45,45 +74,61 @@ signal_channel_state_t& get_buzzer_channel() {
     return s_buzzer_channel;
 }
 
-/**
- * @brief Configure TC5 to generate a periodic 1 ms interrupt on SAMD21.
- */
-static void signal_engine_timer_init_tc5() {
-    PM->APBCMASK.reg |= PM_APBCMASK_TC5;
+static signal_channel_runtime_t& get_runtime(signal_channel_state_t& channel) {
+    if (&channel == &s_led_channel) {
+        return s_led_runtime;
+    }
 
-    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID(GCM_TC4_TC5) | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_CLKEN;
-    while (GCLK->STATUS.bit.SYNCBUSY) {}
-
-    TC5->COUNT16.CTRLA.bit.ENABLE = 0;
-    while (TC5->COUNT16.STATUS.bit.SYNCBUSY) {}
-
-    TC5->COUNT16.CTRLA.bit.SWRST = 1;
-    while (TC5->COUNT16.CTRLA.bit.SWRST || TC5->COUNT16.STATUS.bit.SYNCBUSY) {}
-
-    TC5->COUNT16.CTRLA.reg = TC_CTRLA_MODE_COUNT16 | TC_CTRLA_WAVEGEN_MFRQ |
-                             TC_CTRLA_PRESCALER_DIV64 | TC_CTRLA_PRESCSYNC_PRESC;
-
-    while (TC5->COUNT16.STATUS.bit.SYNCBUSY) {}
-
-    // 48 MHz / 64 = 750 kHz
-    // 750 counts = 1 ms
-    TC5->COUNT16.CC[0].reg = 750 - 1;
-    while (TC5->COUNT16.STATUS.bit.SYNCBUSY) {}
-
-    TC5->COUNT16.INTENSET.bit.MC0 = 1;
-
-    NVIC_ClearPendingIRQ(TC5_IRQn);
-    NVIC_SetPriority(TC5_IRQn, 3);
-    NVIC_EnableIRQ(TC5_IRQn);
-
-    TC5->COUNT16.CTRLA.bit.ENABLE = 1;
-    while (TC5->COUNT16.STATUS.bit.SYNCBUSY) {}
+    return s_buzzer_runtime;
 }
 
 /**
- * @brief Reset one output channel to the idle LOW state.
+ * @brief True when LED and buzzer are wired to the same physical output.
+ */
+static bool outputs_share_pin() {
+    return s_led_channel.pin == s_buzzer_channel.pin;
+}
+
+/**
+ * @brief Return the logical output level currently requested by one channel.
+ */
+static bool channel_requests_high(const signal_channel_state_t& channel) {
+    return channel.active && channel.level_high;
+}
+
+/**
+ * @brief Apply the logical LED / buzzer states to the physical GPIO pin(s).
  *
- * @param channel Channel to reset.
+ * If LED and buzzer share the same pin, the pin is HIGH when either logical
+ * channel requests HIGH. This avoids one channel forcing the pin LOW while the
+ * other one is still active.
+ */
+static void apply_signal_outputs() {
+    const bool led_high    = channel_requests_high(s_led_channel);
+    const bool buzzer_high = channel_requests_high(s_buzzer_channel);
+
+    if (outputs_share_pin()) {
+        digitalWrite(s_led_channel.pin, (led_high || buzzer_high) ? HIGH : LOW);
+        return;
+    }
+
+    digitalWrite(s_led_channel.pin, led_high ? HIGH : LOW);
+    digitalWrite(s_buzzer_channel.pin, buzzer_high ? HIGH : LOW);
+}
+
+/**
+ * @brief Reset runtime timing for one output channel.
+ */
+static void reset_runtime(signal_channel_runtime_t& runtime) {
+    runtime.start_ms           = 0;
+    runtime.last_transition_ms = 0;
+}
+
+/**
+ * @brief Reset one logical output channel to idle.
+ *
+ * This does not write the GPIO directly. Always call apply_signal_outputs()
+ * after state changes so shared-pin configurations remain safe.
  */
 static void reset_channel(signal_channel_state_t& channel) {
     channel.active       = false;
@@ -93,57 +138,88 @@ static void reset_channel(signal_channel_state_t& channel) {
     channel.elapsed_ms   = 0;
     channel.duration_ms  = 0;
     channel.toggles_left = 0;
+
+    reset_runtime(get_runtime(channel));
 }
 
 /**
- * @brief Update one channel from the timer ISR.
- *
- * @param channel Channel state to update.
+ * @brief Stop one logical channel and refresh the physical GPIO output.
  */
-static void update_channel_isr(signal_channel_state_t& channel) {
+static void stop_channel(signal_channel_state_t& channel) {
+    reset_channel(channel);
+    apply_signal_outputs();
+    LOG_DEBUG("Channel on pin %u stopped", channel.pin);
+}
+
+/**
+ * @brief Return true when duration_ms elapsed since start_ms.
+ */
+static bool elapsed(uint32_t now_ms, uint32_t start_ms, uint32_t duration_ms) {
+    return static_cast<uint32_t>(now_ms - start_ms) >= duration_ms;
+}
+
+/**
+ * @brief Update one logical channel without blocking and without disabling interrupts.
+ *
+ * This function updates state only. GPIO writes are done once by
+ * signal_engine_update() through apply_signal_outputs().
+ */
+static void update_channel(signal_channel_state_t& channel) {
     if (!channel.active) {
         return;
     }
 
-    channel.elapsed_ms++;
+    signal_channel_runtime_t& runtime = get_runtime(channel);
+    const uint32_t now_ms             = millis();
 
     if (channel.mode == signal_mode::pulse) {
-        if (channel.elapsed_ms >= channel.duration_ms) {
-            digitalWrite(channel.pin, LOW);
+        if (elapsed(now_ms, runtime.start_ms, channel.duration_ms)) {
             reset_channel(channel);
         }
 
         return;
     }
 
-    if (channel.mode == signal_mode::blink) {
-        if (channel.elapsed_ms < channel.period_ms) {
-            return;
-        }
+    if (channel.mode != signal_mode::blink) {
+        return;
+    }
 
-        channel.elapsed_ms = 0;
+    if (channel.period_ms == 0) {
+        reset_channel(channel);
+        return;
+    }
+
+    while (channel.active && elapsed(now_ms, runtime.last_transition_ms, channel.period_ms)) {
+        runtime.last_transition_ms += channel.period_ms;
 
         if (channel.toggles_left == 0) {
-            digitalWrite(channel.pin, LOW);
             reset_channel(channel);
             return;
         }
 
         channel.level_high = !channel.level_high;
-        digitalWrite(channel.pin, channel.level_high ? HIGH : LOW);
         channel.toggles_left--;
+
+        // A full blink sequence always finishes LOW. Stop immediately after the
+        // last transition instead of keeping the channel active for one extra
+        // OFF period.
+        if (channel.toggles_left == 0 && !channel.level_high) {
+            reset_channel(channel);
+            return;
+        }
     }
 }
 
 /**
- * @brief Initialize the shared ISR engine and both output channels.
+ * @brief Initialize the non-blocking signal engine and both output channels.
+ *
+ * No timer ISR is configured here. The caller must call signal_engine_update()
+ * regularly from loop() or from the main state-machine tick.
  */
 void signal_engine_init(uint32_t led_pin, uint32_t buzzer_pin) {
+
     signal_channel_state_t& led_channel    = get_led_channel();
     signal_channel_state_t& buzzer_channel = get_buzzer_channel();
-
-    log_flush();
-    noInterrupts();
 
     led_channel.pin = led_pin;
     reset_channel(led_channel);
@@ -151,34 +227,44 @@ void signal_engine_init(uint32_t led_pin, uint32_t buzzer_pin) {
     buzzer_channel.pin = buzzer_pin;
     reset_channel(buzzer_channel);
 
-    interrupts();
-
     pinMode(led_pin, OUTPUT);
-    digitalWrite(led_pin, LOW);
+    if (led_pin != buzzer_pin) {
+        pinMode(buzzer_pin, OUTPUT);
+    }
 
-    pinMode(buzzer_pin, OUTPUT);
-    digitalWrite(buzzer_pin, LOW);
-
-    signal_engine_timer_init_tc5();
+    apply_signal_outputs();
 }
 
 /**
- * @brief Start an ISR-driven LED blink sequence.
+ * @brief Update LED and buzzer timing.
+ *
+ * This function is non-blocking. It must be called often enough to get the
+ * desired timing precision.
+ */
+void signal_engine_update() {
+    update_channel(get_led_channel());
+    update_channel(get_buzzer_channel());
+    apply_signal_outputs();
+}
+
+/**
+ * @brief Start a non-blocking LED blink sequence.
+ *
+ * The name is kept for compatibility with existing code, but this function no
+ * longer uses an ISR timer and does not disable interrupts.
  *
  * One full blink = ON then OFF.
  */
 void led_start_blink_isr(uint8_t count, blink_mode speed) {
     signal_channel_state_t& led_channel = get_led_channel();
-
-    log_flush();
-    noInterrupts();
+    signal_channel_runtime_t& runtime   = get_runtime(led_channel);
 
     if (count == 0) {
-        digitalWrite(led_channel.pin, LOW);
-        reset_channel(led_channel);
-        interrupts();
+        stop_channel(led_channel);
         return;
     }
+
+    const uint32_t now_ms = millis();
 
     led_channel.active       = true;
     led_channel.level_high   = true;
@@ -188,39 +274,35 @@ void led_start_blink_isr(uint8_t count, blink_mode speed) {
     led_channel.duration_ms  = 0;
     led_channel.toggles_left = static_cast<uint8_t>(count * 2U - 1U);
 
-    digitalWrite(led_channel.pin, HIGH);
+    runtime.start_ms           = now_ms;
+    runtime.last_transition_ms = now_ms;
 
-    interrupts();
+    apply_signal_outputs();
 }
 
 /**
- * @brief Stop the LED sequence and force the output LOW.
+ * @brief Stop the LED sequence and refresh the physical output.
  */
 void led_stop_isr() {
-    signal_channel_state_t& led_channel = get_led_channel();
-
-    log_flush();
-    noInterrupts();
-    digitalWrite(led_channel.pin, LOW);
-    reset_channel(led_channel);
-    interrupts();
+    stop_channel(get_led_channel());
 }
 
 /**
- * @brief Start an ISR-driven buzzer pulse.
+ * @brief Start a non-blocking buzzer pulse.
+ *
+ * The name is kept for compatibility with existing code, but this function no
+ * longer uses an ISR timer and does not disable interrupts.
  */
 void buzzer_beep_isr(uint16_t duration_ms) {
     signal_channel_state_t& buzzer_channel = get_buzzer_channel();
-
-    log_flush();
-    noInterrupts();
+    signal_channel_runtime_t& runtime      = get_runtime(buzzer_channel);
 
     if (duration_ms == 0) {
-        digitalWrite(buzzer_channel.pin, LOW);
-        reset_channel(buzzer_channel);
-        interrupts();
+        stop_channel(buzzer_channel);
         return;
     }
+
+    const uint32_t now_ms = millis();
 
     buzzer_channel.active       = true;
     buzzer_channel.level_high   = true;
@@ -230,34 +312,23 @@ void buzzer_beep_isr(uint16_t duration_ms) {
     buzzer_channel.duration_ms  = duration_ms;
     buzzer_channel.toggles_left = 0;
 
-    digitalWrite(buzzer_channel.pin, HIGH);
+    runtime.start_ms           = now_ms;
+    runtime.last_transition_ms = now_ms;
 
-    interrupts();
+    apply_signal_outputs();
 }
 
 /**
- * @brief Stop the buzzer sequence and force the output LOW.
+ * @brief Stop the buzzer sequence and refresh the physical output.
  */
 void buzzer_stop_isr() {
-    signal_channel_state_t& buzzer_channel = get_buzzer_channel();
-
-    log_flush();
-    noInterrupts();
-    digitalWrite(buzzer_channel.pin, LOW);
-    reset_channel(buzzer_channel);
-    interrupts();
+    stop_channel(get_buzzer_channel());
 }
 
 /**
- * @brief TC5 ISR called every 1 ms.
+ * @brief Compatibility stub.
  *
- * This ISR updates both the LED channel and the buzzer channel.
+ * TC5 is no longer used by this non-blocking implementation. Keeping the symbol
+ * avoids link errors if an old startup file still references it.
  */
-void TC5_Handler() {
-    if (TC5->COUNT16.INTFLAG.bit.MC0) {
-        TC5->COUNT16.INTFLAG.bit.MC0 = 1;
-    }
-
-    update_channel_isr(get_led_channel());
-    update_channel_isr(get_buzzer_channel());
-}
+void TC5_Handler() {}
