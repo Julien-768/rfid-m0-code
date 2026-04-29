@@ -106,7 +106,7 @@ static SystemState runBootSequence() {
     /*
     Initialize the built-in LED for visual feedback during boot.
     */
-    // signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
+    signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
     // led_start_blink_isr(3, blink_mode::fast);
 
     /*
@@ -318,9 +318,6 @@ void setup() {
 
 #endif
 
-    // pinMode(LED_BUILTIN, OUTPUT);
-    // digitalWrite(LED_BUILTIN, LOW);
-
     // Initialize I²C for RTC and sensors
     Wire.begin();
     i2c_ok = scanI2CBus();
@@ -375,6 +372,7 @@ void loop() {
             currentState = STATE_DEPLOY;
             LOG_INFO(string_widget.c_str());
             LOG_INFO(string_widget.c_str());
+            blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
             break;
 
         case STATE_CONNECTED:
@@ -398,6 +396,8 @@ void loop() {
             SD.end();
             // led_start_blink_isr(1, blink_mode::slow);
             // led_start_blink_isr(10, blink_mode::fast);
+            // Blink fast 10 times before switching off
+            blink_blocking_safe(PIN_BUZZER_LED, 100, 100, 10);
             pwr_manager::request_shutdown();
             delay(2000);
 
