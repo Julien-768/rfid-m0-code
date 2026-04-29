@@ -34,15 +34,14 @@
 #endif
 #define PIN_PWR_5V A5  // 5V rail relay
 
-#define PIN_ERROR LED_BUILTIN  // Error indicator
-#define PIN_DET_EXT 12         // FTDI detection
-#define PIN_PWM_IR 11          // 36 kHz IR output
-#define PIN_PR_1 10            // IR receiver 1
-#define PIN_BUZZER_LED 9       // Buzzer or LED
-#define PIN_LED_SD 8           // SD card activity indicator
-#define RTC_INTERRUPT_PIN 6    // DS3231 INT/SQW output
-#define PIN_PWR_3V 5           // 3V rail relay
-#define PIN_SD_CS 4            // SD card chip select
+#define PIN_DET_EXT 12       // FTDI detection
+#define PIN_PWM_IR 11        // 36 kHz IR output
+#define PIN_PR_1 10          // IR receiver 1
+#define PIN_BUZZER_LED 9     // Buzzer or LED
+#define PIN_LED_SD 8         // SD card activity indicator
+#define RTC_INTERRUPT_PIN 6  // DS3231 INT/SQW output
+#define PIN_PWR_3V 5         // 3V rail relay
+#define PIN_SD_CS 4          // SD card chip select
 
 #define PWR_3V_ACTIVE_HIGH false
 #define PWR_5V_ACTIVE_HIGH false
@@ -51,25 +50,24 @@
 #elif defined(RFID_DOOR)
 // Commit a9097436 authored Oct 6, 2023 by Julien 🦅
 
-#define PWM_TIMER 1           // Timer 1 supports PWM on pins 9 and 10
-#define PIN_PWR_5V A0         // 5V rail relay
-#define RTC_INTERRUPT_PIN A1  // DS3231 INT/SQW output // A1 = D15 // formerly PW_SERVO
-#define PIN_VBAT A2           // Battery voltage measurement
-#define PIN_PW_SW A3          // Power switch input
-#define PIN_PW_EN A4          // Low battery power relay
-#define PIN_BUZZER_LED A5     // Buzzer or LED
+#define PWM_TIMER 1        // Timer 1 supports PWM on pins 9 and 10
+#define PIN_PWR_5V A0      // 5V rail relay
+#define PIN_DET_EXT A1     // FTDI detection // formerly PW_SERVO
+#define PIN_VBAT A2        // Battery voltage measurement
+#define PIN_PW_SW A3       // Power switch input
+#define PIN_PW_EN A4       // Low battery power relay
+#define PIN_BUZZER_LED A5  // Buzzer or LED
 
-#define PIN_SD_CS 4     // SD card chip select
-#define PIN_PR_1 5      // IR receiver 1
-#define PIN_PR_2 6      // IR receiver 2
-#define PIN_LED_SD 8    // SD card activity indicator
-#define PIN_PWM_IR 9    // 36 kHz IR output
-#define PIN_PWR_3V 10   // 3V rail relay
-#define PIN_DET_EXT 11  // FTDI detection // formerly SERVO
+#define PIN_SD_CS 4           // SD card chip select
+#define PIN_PR_1 5            // IR receiver 1
+#define PIN_PR_2 6            // IR receiver 2
+#define PIN_LED_SD 8          // SD card activity indicator
+#define PIN_PWM_IR 9          // 36 kHz IR output
+#define PIN_PWR_3V 10         // 3V rail relay
+#define RTC_INTERRUPT_PIN 11  // DS3231 INT/SQW output // A1 = D15 // formerly SERVO
 #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
 #define SerialAlt_TX 12  // Alternate serial TX pin
 #endif
-#define PIN_ERROR LED_BUILTIN  // Error indicator
 
 #define PWR_3V_ACTIVE_HIGH false
 #define PWR_5V_ACTIVE_HIGH false
