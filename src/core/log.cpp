@@ -24,6 +24,24 @@
 #include "hardware.h"
 #include "SoftTx.h"
 
+#if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
+void logInit() {
+    Serial.begin(115200);
+    while (!Serial && millis() < 3000) {}
+    Serial.println("USB Serial OK");
+}
+#endif
+
+#if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
+
+void logInit() {
+    Serial1.begin(115200);
+    delay(100);
+    Serial1.println("Serial1 OK");
+}
+
+#endif
+
 #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
 SoftTx SerialAlt(SerialAlt_TX, 9600);
 
@@ -153,6 +171,12 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
 
     log_event(final);
 
+#if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
+    if (level >= LOG_SERIAL_LEVEL) {
+        Serial.println(final);
+    }
+#endif
+
 #if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
     if (level >= LOG_SERIAL_LEVEL) {
         Serial1.println(final);
@@ -167,6 +191,9 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
 }
 
 void log_flush() {
+#if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
+    Serial.flush();
+#endif
 #if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
     Serial1.flush();
 #endif

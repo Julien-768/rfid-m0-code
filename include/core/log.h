@@ -19,12 +19,16 @@
 // ---------------------------------------------------------------------------
 // Available modes:
 //   LOG_SERIAL_NONE   : no serial output
+//   LOG_USB_SERIAL    : output to USB Serial (Serial)
 //   LOG_SERIAL1       : output to Serial1
-//   LOG_ALT_SERIAL    : output to SerialAlt (SERCOM on pins 22/23)
+//   LOG_ALT_SERIAL    : output to SerialAlt (SoftTx on SerialAlt_TX pin)
 
 #define LOG_SERIAL_NONE 0
-#define LOG_SERIAL1 1
-#define LOG_ALT_SERIAL 2
+#define LOG_USB_SERIAL 1
+#define LOG_SERIAL1 2
+#define LOG_ALT_SERIAL 3
+
+#define LOG_SERIAL_OUTPUT LOG_USB_SERIAL
 
 #ifndef LOG_SERIAL_OUTPUT
 #define LOG_SERIAL_OUTPUT LOG_SERIAL_NONE
