@@ -74,6 +74,11 @@ static bool i2c_ok       = false;
 bool rtc_available       = false;
 String string_widget     = "------------------------------------------------------------";
 
+void logWidgetTwice() {
+    LOG_INFO(string_widget.c_str());
+    LOG_INFO(string_widget.c_str());
+}
+
 /**
  * @brief IR PWM driver instance
  */
@@ -89,6 +94,9 @@ rfid_driver_t rfid_driver;
  *
  **/
 static SystemState runBootSequence() {
+
+    logWidgetTwice();
+
     static bool ir_enabled = true;
     delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
 
@@ -289,8 +297,7 @@ static SystemState runBootSequence() {
     DET_EXT_Init();
     if (DET_EXT_Connected()) {
         LOG_INFO("Entering CONNECTED mode");
-        LOG_INFO(string_widget.c_str());
-        LOG_INFO(string_widget.c_str());
+        logWidgetTwice();
         return STATE_CONNECTED;
     }
 
@@ -304,19 +311,9 @@ static SystemState runBootSequence() {
  */
 
 void setup() {
-// TODO add serial choice on logger configuration
-#if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
-    Serial1.begin(115200);
-    delay(1000);
-    Serial1.println("Serial1 initialized");
-    Serial1.println("LOG_SERIAL_OUTPUT = LOG_SERIAL1");
-    Serial1.print("LOG_SERIAL_LEVEL = ");
-    Serial1.println(LOG_SERIAL_LEVEL);
-#elif (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    // Initialize logging system first to capture all subsequent logs
     logInit();
     delay(1000);
-
-#endif
 
     // Initialize I²C for RTC and sensors
     Wire.begin();
@@ -325,11 +322,9 @@ void setup() {
     // Initialize switch and power relay
     pwr_manager::begin();
 
-    LOG_INFO(string_widget.c_str());
-    LOG_INFO(string_widget.c_str());
+    // Run the boot sequence
     currentState = runBootSequence();
-    LOG_INFO(string_widget.c_str());
-    LOG_INFO(string_widget.c_str());
+    logWidgetTwice();
 }
 
 /**
