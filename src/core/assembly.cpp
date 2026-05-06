@@ -58,6 +58,48 @@ constexpr const char* kAssemblyFilename = "/hw_assem.cfg";
  */
 Assembly hw_assembly;
 
+static bool is_placeholder(const String& value) {
+    return value.startsWith("$") && value.endsWith("$");
+}
+
+static uint8_t assembly_count_unprovisioned_fields(const Assembly& a) {
+    uint8_t count = 0;
+
+    if (is_placeholder(a.uid_light_sensor1)) count++;
+    if (is_placeholder(a.uid_light_sensor2)) count++;
+    if (is_placeholder(a.uid_software)) count++;
+    if (is_placeholder(a.uid_experiment)) count++;
+    if (is_placeholder(a.battery_type)) count++;
+
+    return count;
+}
+
+static void assembly_log_unprovisioned_fields(const Assembly& a) {
+    uint8_t count = assembly_count_unprovisioned_fields(a);
+
+    if (count == 0) {
+        return;
+    }
+
+    LOG_WARN("Assembly config incomplete: %u unprovisioned field(s) remaining", count);
+
+    if (is_placeholder(a.uid_light_sensor1)) {
+        LOG_WARN("Unprovisioned: uid_light_sensor1");
+    }
+    if (is_placeholder(a.uid_light_sensor2)) {
+        LOG_WARN("Unprovisioned: uid_light_sensor2");
+    }
+    if (is_placeholder(a.uid_software)) {
+        LOG_WARN("Unprovisioned: uid_software");
+    }
+    if (is_placeholder(a.uid_experiment)) {
+        LOG_WARN("Unprovisioned: uid_experiment");
+    }
+    if (is_placeholder(a.battery_type)) {
+        LOG_WARN("Unprovisioned: battery_type");
+    }
+}
+
 /**
  * @brief Create a new `hw_assembly.cfg` file on the SD card using current @ref hw_assembly values.
  *
@@ -130,42 +172,58 @@ bool create_assembly_file() {
  * @see assembly_save()
  */
 bool assembly_load(Assembly& hw_assembly_local) {
-    File file_c = SD.open(kAssemblyFilename);
-    if (file_c) {
-        StaticJsonDocument<512> doc;
-        DeserializationError error = deserializeJson(doc, file_c);
-        if (error) {
-            LOG_ERROR("JSON parse error: %s", error.c_str());
-        } else {
-            Assembly tmp          = hw_assembly_local;
-            tmp.uid_mainboard     = doc["uid_mainboard"] | String("$uid_mainboard$");
-            tmp.uid_light_sensor1 = doc["uid_light_sensor1"] | String("$uid_light_sensor1$");
-            tmp.uid_light_sensor2 = doc["uid_light_sensor2"] | String("$uid_light_sensor2$");
-            tmp.uid_software      = doc["uid_software"] | String("$uid_software$");
-            tmp.uid_experiment    = doc["uid_experiment"] | String("$uid_experiment$");
-            tmp.sn_logger         = doc["sn_logger"] | String("$sn_logger$");
-            tmp.battery_type      = doc["battery_type"] | String("$battery_type$");
-            tmp.rtc_type          = doc["rtc_type"] | String("$rtc_type$");
-            LOG_DEBUG("Assembly loaded from %s:", kAssemblyFilename);
-            LOG_DEBUG("\tuid_mainboard: %s", tmp.uid_mainboard.c_str());
-            LOG_DEBUG("\tuid_light_sensor1: %s", tmp.uid_light_sensor1.c_str());
-            LOG_DEBUG("\tuid_light_sensor2: %s", tmp.uid_light_sensor2.c_str());
-            LOG_DEBUG("\tuid_software: %s", tmp.uid_software.c_str());
-            LOG_DEBUG("\tuid_experiment: %s", tmp.uid_experiment.c_str());
-            LOG_DEBUG("\tsn_logger: %s", tmp.sn_logger.c_str());
-            LOG_DEBUG("\tbattery_type: %s", tmp.battery_type.c_str());
-            LOG_DEBUG("\trtc_type: %s", tmp.rtc_type.c_str());
-            LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
-            delay(1000);
-            hw_assembly_local = tmp;
-            LOG_DEBUG("%s loaded successfully", kAssemblyFilename);
-        }
-        file_c.close();
-        return true;
-    } else {
-        LOG_WARN("%s not found — creating default file", kAssemblyFilename);
-        return create_assembly_file();
+    if (!SD.exists(kAssemblyFilename)) {
+        LOG_ERROR("%s not found", kAssemblyFilename);
+
+        return false;
     }
+
+    File file_c = SD.open(kAssemblyFilename, FILE_READ);
+    if (!file_c) {
+        LOG_ERROR("Failed to open %s", kAssemblyFilename);
+        return false;
+    }
+
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, file_c);
+    file_c.close();
+
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
+
+    if (error) {
+        LOG_ERROR("JSON parse error in %s: %s", kAssemblyFilename, error.c_str());
+        return false;
+    }
+
+    const char* required[] = {"uid_mainboard",
+                              "uid_light_sensor1",
+                              "uid_light_sensor2",
+                              "uid_software",
+                              "uid_experiment",
+                              "sn_logger",
+                              "battery_type",
+                              "rtc_type"};
+
+    for (const char* key : required) {
+        if (!doc.containsKey(key)) {
+            LOG_ERROR("Missing key in %s: %s", kAssemblyFilename, key);
+            return false;
+        }
+    }
+
+    hw_assembly_local.uid_mainboard     = doc["uid_mainboard"].as<String>();
+    hw_assembly_local.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
+    hw_assembly_local.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
+    hw_assembly_local.uid_software      = doc["uid_software"].as<String>();
+    hw_assembly_local.uid_experiment    = doc["uid_experiment"].as<String>();
+    hw_assembly_local.sn_logger         = doc["sn_logger"].as<String>();
+    hw_assembly_local.battery_type      = doc["battery_type"].as<String>();
+    hw_assembly_local.rtc_type          = doc["rtc_type"].as<String>();
+
+    assembly_log_unprovisioned_fields(hw_assembly_local);
+
+    LOG_INFO("%s loaded successfully", kAssemblyFilename);
+    return true;
 }
 
 /**
@@ -249,7 +307,8 @@ bool assembly_sync_sn(Assembly& hw_assembly) {
     // --- Serial number sync ---
     if (strcmp(id_flash.serial_number, "UNKNOWN") != 0) {
         if (hw_assembly.sn_logger != id_flash.serial_number) {
-            LOG_INFO("Updating SN from flash: %s -> %s", hw_assembly.sn_logger.c_str(),
+            LOG_INFO("Updating SN from flash: %s -> %s",
+                     hw_assembly.sn_logger.c_str(),
                      id_flash.serial_number);
             hw_assembly.sn_logger = id_flash.serial_number;
             return true;
