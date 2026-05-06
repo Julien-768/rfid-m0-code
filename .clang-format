@@ -3,6 +3,11 @@ BasedOnStyle: Google
 # Largeur de ligne (comme Python)
 ColumnLimit: 100
 
+BinPackArguments: false
+BinPackParameters: false
+
+AllowAllArgumentsOnNextLine: false
+
 # Alignement des affectations
 AlignConsecutiveAssignments: true
 

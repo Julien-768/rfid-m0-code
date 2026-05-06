@@ -18,12 +18,17 @@
  *     "command": {
  *       "config": {
  *         "date_current": "2025-12-08T14:30:00",
+ *         "use_buffer": false,
  *         "acquisition_interval_s": 60,
  *         "enable_light1": true,
  *         "enable_light2": false,
  *         "enable_rfid": true,
  *         "rfid_mode": 2,
- *         "enable_vbat": true
+ *         "enable_vbat": true,
+ *         "schedule_start_hour": 8,
+ *         "schedule_start_minute": 0,
+ *         "schedule_end_hour": 18,
+ *         "schedule_end_minute": 30
  *       }
  *     }
  *   }
@@ -45,15 +50,10 @@
  */
 
 #include <ArduinoJson.h>
-#include <string.h>  // strcmp, strncpy, memset, snprintf
+#include <string.h>
 
-#include "app/JsonProtocol.h"
-#include "app/config.h"
-#include "core/utils.h"
-
-// -----------------------------------------------------------------------------
-// Internal helpers
-// -----------------------------------------------------------------------------
+#include "JsonProtocol.h"
+#include "utils.h"
 
 namespace {
 /**
@@ -75,27 +75,8 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
 }
 }  // namespace
 
-// -----------------------------------------------------------------------------
-// Parsing
-// -----------------------------------------------------------------------------
-
 /**
  * @brief Parse an incoming JSON command into a ParsedCommand structure.
- *
- * This function reads the root key `"command"` and supports two forms:
- *
- * 1. Simple string commands:
- *    - "GET_INFO"
- *    - "GET_ID"
- *    - "GET_VBAT"
- *    - "GET_CONFIG"
- *
- * 2. Object commands:
- *    - `{ "config": { ... } }`   -> SET_CONFIG
- *    - `{ "identity": { ... } }` -> SET_IDENTITY
- *
- * On success, @p out.type is set to the appropriate @ref CommandType and the
- * corresponding payload is filled when relevant.
  *
  * @param json_string Null-terminated JSON input string.
  * @param out Output structure with parsed command and payload.
@@ -105,7 +86,9 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
  * @return @c true if parsing succeeded and @p out.type != CommandType::NONE,
  *         @c false otherwise.
  */
-bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf,
+bool JsonProtocol::parseCommand(const char* json_string,
+                                ParsedCommand& out,
+                                char* errorBuf,
                                 size_t errorBufLen) {
     out.type = CommandType::NONE;
 
@@ -114,21 +97,19 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
         return false;
     }
 
-    StaticJsonDocument<256> doc;
+    StaticJsonDocument<384> doc;
     DeserializationError error = deserializeJson(doc, json_string);
     if (error) {
         writeErrorJson(errorBuf, errorBufLen, "Invalid JSON");
         return false;
     }
 
-    // Root key "command" is required
     JsonVariant command = doc["command"];
     if (command.isNull()) {
         writeErrorJson(errorBuf, errorBufLen, "'command' is missing");
         return false;
     }
 
-    // Case 1: "command" is a simple string
     if (command.is<const char*>()) {
         const char* cmd = command.as<const char*>();
 
@@ -149,11 +130,9 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
         return true;
     }
 
-    // Case 2: "command" is an object
     if (command.is<JsonObject>()) {
         JsonObject cmdObj = command.as<JsonObject>();
 
-        // SET_CONFIG
         if (cmdObj.containsKey("config")) {
             JsonObject jsonConfig = cmdObj["config"];
 
@@ -173,10 +152,13 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
             strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
             out.cfg.dateCurrentIso[sizeof(out.cfg.dateCurrentIso) - 1] = '\0';
 
+            out.cfg.use_buffer =
+                jsonConfig.containsKey("use_buffer") ? jsonConfig["use_buffer"].as<bool>() : false;
+
             out.cfg.acquisition_interval_s =
                 jsonConfig.containsKey("acquisition_interval_s")
                     ? jsonConfig["acquisition_interval_s"].as<uint16_t>()
-                    : 0;
+                    : 120;
 
             out.cfg.enable_light1 = jsonConfig.containsKey("enable_light1")
                                         ? jsonConfig["enable_light1"].as<bool>()
@@ -186,32 +168,47 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
                                         ? jsonConfig["enable_light2"].as<bool>()
                                         : false;
 
-            out.cfg.enable_rfid = jsonConfig.containsKey("enable_rfid")
-                                      ? jsonConfig["enable_rfid"].as<bool>()
-                                      : false;
+            out.cfg.enable_rfid =
+                jsonConfig.containsKey("enable_rfid") ? jsonConfig["enable_rfid"].as<bool>() : true;
 
             out.cfg.rfid_mode =
-                jsonConfig.containsKey("rfid_mode") ? jsonConfig["rfid_mode"].as<uint8_t>() : 0;
+                jsonConfig.containsKey("rfid_mode") ? jsonConfig["rfid_mode"].as<uint8_t>() : 2;
 
-            out.cfg.enable_vbat = jsonConfig.containsKey("enable_vbat")
-                                      ? jsonConfig["enable_vbat"].as<bool>()
-                                      : false;
+            out.cfg.enable_vbat =
+                jsonConfig.containsKey("enable_vbat") ? jsonConfig["enable_vbat"].as<bool>() : true;
+
+            out.cfg.schedule_start_hour = jsonConfig.containsKey("schedule_start_hour")
+                                              ? jsonConfig["schedule_start_hour"].as<uint8_t>()
+                                              : 8;
+
+            out.cfg.schedule_start_minute = jsonConfig.containsKey("schedule_start_minute")
+                                                ? jsonConfig["schedule_start_minute"].as<uint8_t>()
+                                                : 0;
+
+            out.cfg.schedule_end_hour = jsonConfig.containsKey("schedule_end_hour")
+                                            ? jsonConfig["schedule_end_hour"].as<uint8_t>()
+                                            : 18;
+
+            out.cfg.schedule_end_minute = jsonConfig.containsKey("schedule_end_minute")
+                                              ? jsonConfig["schedule_end_minute"].as<uint8_t>()
+                                              : 30;
 
             out.type = CommandType::SET_CONFIG;
             if (errorBuf && errorBufLen) errorBuf[0] = '\0';
             return true;
         }
 
-        // SET_IDENTITY
         if (cmdObj.containsKey("identity")) {
             JsonObject ident = cmdObj["identity"];
 
+            const char* uid          = ident["uid_mcu"] | "UNKNOWN";
             const char* manufacturer = ident["manufacturer"] | "UNKNOWN";
             const char* logger_type  = ident["logger_type"] | "UNKNOWN";
             const char* date_fab     = ident["date_fab"] | "2025-01-01";
             const char* logger_sn    = ident["logger_sn"] | "UNKNOWN";
 
             memset(&out.identity, 0, sizeof(out.identity));
+            strncpy(out.identity.UID, uid, sizeof(out.identity.UID) - 1);
 
             strncpy(out.identity.manufacturer, manufacturer, sizeof(out.identity.manufacturer) - 1);
             strncpy(out.identity.logger_type, logger_type, sizeof(out.identity.logger_type) - 1);
@@ -230,10 +227,6 @@ bool JsonProtocol::parseCommand(const char* json_string, ParsedCommand& out, cha
     writeErrorJson(errorBuf, errorBufLen, "Unsupported 'command' format");
     return false;
 }
-
-// -----------------------------------------------------------------------------
-// JSON builders
-// -----------------------------------------------------------------------------
 
 /**
  * @brief Build JSON with firmware version and compilation date.
@@ -303,22 +296,28 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
  * - @c gui_time_sync_rb.dateCurrent as the current date/time
  * - @c config as the runtime configuration
  *
+ * The JSON includes the daily active schedule window so that the GUI can
+ * display and edit the same values used by ScheduleManager.
+ *
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
-const char* JsonProtocol::buildConfigJSON() {
-    static char buffer[256];
-    StaticJsonDocument<256> doc;
-
-    char dateCurrentStr[23];
-    convertBcdDateToISO8601(&gui_time_sync_rb.dateCurrent, dateCurrentStr, sizeof(dateCurrentStr));
+const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) {
+    static char buffer[384];
+    StaticJsonDocument<384> doc;
 
     JsonObject obj                = doc.createNestedObject("config");
-    obj["date_current"]           = dateCurrentStr;
-    obj["acquisition_interval_s"] = config.acquisition_interval_s;
-    obj["enable_light1"]          = config.enable_light1;
-    obj["enable_light2"]          = config.enable_light2;
-    obj["rfid_mode"]              = config.rfid_mode;
-    obj["enable_vbat"]            = config.enable_vbat;
+    obj["date_current"]           = payload.dateCurrentIso;
+    obj["use_buffer"]             = payload.use_buffer;
+    obj["acquisition_interval_s"] = payload.acquisition_interval_s;
+    obj["enable_light1"]          = payload.enable_light1;
+    obj["enable_light2"]          = payload.enable_light2;
+    obj["enable_rfid"]            = payload.enable_rfid;
+    obj["rfid_mode"]              = payload.rfid_mode;
+    obj["enable_vbat"]            = payload.enable_vbat;
+    obj["schedule_start_hour"]    = payload.schedule_start_hour;
+    obj["schedule_start_minute"]  = payload.schedule_start_minute;
+    obj["schedule_end_hour"]      = payload.schedule_end_hour;
+    obj["schedule_end_minute"]    = payload.schedule_end_minute;
 
     serializeJson(doc, buffer);
     return buffer;

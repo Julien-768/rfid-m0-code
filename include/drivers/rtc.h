@@ -24,11 +24,18 @@
 extern bool rtc_available;
 
 /**
- * @brief Compact BCD date/time structure used by the logger (years since 2000).
+ * @brief Compact BCD date/time structure used for RTC register exchange
+ * and lightweight protocol/storage operations.
+ *
+ * This structure is NOT intended for date/time arithmetic.
+ * Use DateTime for high-level temporal computations.
  *
  * Each field is stored in BCD format:
  * - year: 00..99 (for 2000..2099)
  * - month/day/hour/minute/second: standard ranges
+ *
+ * The main difference between LoggerTime_t and DateTime is
+ * in year representation (00..99 vs 2000..2099).
  */
 typedef struct {
     uint8_t year;    ///< 00..99 (BCD, years since 2000)

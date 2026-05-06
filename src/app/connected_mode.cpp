@@ -119,11 +119,11 @@ void runConnectedMode(SystemState& state) {
             const auto& id = device_id_get();
 
             SetIdentityPayload payload{};
-            strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID));
-            strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer));
-            strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab));
-            strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type));
-            strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn));
+            strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID) - 1);
+            strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer) - 1);
+            strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab) - 1);
+            strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type) - 1);
+            strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn) - 1);
 
             const char* json = JsonProtocol::buildIdJSON(payload);
 
@@ -149,7 +149,33 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_CONFIG: {
-            const char* json = JsonProtocol::buildConfigJSON();
+            ConfigResponsePayload payload{};
+
+            DateTime now = rtc().now();
+
+            snprintf(payload.dateCurrentIso,
+                     sizeof(payload.dateCurrentIso),
+                     "%04d-%02d-%02dT%02d:%02d:%02d",
+                     now.year(),
+                     now.month(),
+                     now.day(),
+                     now.hour(),
+                     now.minute(),
+                     now.second());
+            payload.use_buffer             = config.use_buffer;
+            payload.acquisition_interval_s = config.acquisition_interval_s;
+            payload.enable_light1          = config.enable_light1;
+            payload.enable_light2          = config.enable_light2;
+            payload.enable_rfid            = config.enable_rfid;
+            payload.rfid_mode              = rfidModeToUint(config.rfid_mode);
+            payload.enable_vbat            = config.enable_vbat;
+            payload.schedule_start_hour    = config.schedule_start_hour;
+            payload.schedule_start_minute  = config.schedule_start_minute;
+            payload.schedule_end_hour      = config.schedule_end_hour;
+            payload.schedule_end_minute    = config.schedule_end_minute;
+
+            const char* json = JsonProtocol::buildConfigJSON(payload);
+
             Serial1.println(json);
             break;
         }
@@ -157,12 +183,32 @@ void runConnectedMode(SystemState& state) {
         case CommandType::SET_CONFIG: {
             LOG_INFO("Configuration received from GUI");
 
-            DateTime dt = applyGuiConfigAndBuildDateTime(parsed.cfg);
+            DateTime dt;
+            if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
+                LOG_ERROR("Invalid date received from GUI");
+                Serial1.println("{\"error\":\"Invalid date_current\"}");
+                break;
+            }
+
+            config.use_buffer             = parsed.cfg.use_buffer;
+            config.acquisition_interval_s = parsed.cfg.acquisition_interval_s;
+            config.enable_light1          = parsed.cfg.enable_light1;
+            config.enable_light2          = parsed.cfg.enable_light2;
+            config.enable_rfid            = parsed.cfg.enable_rfid;
+            config.rfid_mode              = rfidModeFromUint(parsed.cfg.rfid_mode);
+            config.enable_vbat            = parsed.cfg.enable_vbat;
+            config.schedule_start_hour    = parsed.cfg.schedule_start_hour;
+            config.schedule_start_minute  = parsed.cfg.schedule_start_minute;
+            config.schedule_end_hour      = parsed.cfg.schedule_end_hour;
+            config.schedule_end_minute    = parsed.cfg.schedule_end_minute;
+
+            validateConfig(config);
+
             if (hw_assembly.rtc_type == "ds3231") {
                 rtc_apply_external_time(dt);
                 LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
             }
-            // If no daily file exists yet, create it now
+
             if (strlen(get_filename()) == 0) {
                 check_and_create_new_daily_file(rtc().now());
                 LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
@@ -185,10 +231,17 @@ void runConnectedMode(SystemState& state) {
         case CommandType::SET_IDENTITY: {
             LOG_INFO("Factory SET_IDENTITY command received");
 
-            device_id_applyFromFields(parsed.identity.manufacturer, parsed.identity.logger_type,
-                                      parsed.identity.date_fab, parsed.identity.logger_sn);
+            device_id_applyFromFields(parsed.identity.manufacturer,
+                                      parsed.identity.logger_type,
+                                      parsed.identity.date_fab,
+                                      parsed.identity.logger_sn);
 
             Serial1.println("{\"identity\":\"ACK\"}");
+            break;
+        }
+
+        case CommandType::SET_STORAGE: {
+            Serial1.println("{\"storage\":\"ACK\"}");
             break;
         }
 

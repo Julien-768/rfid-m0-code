@@ -67,11 +67,28 @@ String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
     char buffer[48];
 
     if (opts.include_ms) {
-        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d.%03d", t.year(), t.month(),
-                 t.day(), opts.separator, t.hour(), t.minute(), t.second(), opts.ms);
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "%04d-%02d-%02d%s%02d:%02d:%02d.%03d",
+                 t.year(),
+                 t.month(),
+                 t.day(),
+                 opts.separator,
+                 t.hour(),
+                 t.minute(),
+                 t.second(),
+                 opts.ms);
     } else {
-        snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d", t.year(), t.month(),
-                 t.day(), opts.separator, t.hour(), t.minute(), t.second());
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "%04d-%02d-%02d%s%02d:%02d:%02d",
+                 t.year(),
+                 t.month(),
+                 t.day(),
+                 opts.separator,
+                 t.hour(),
+                 t.minute(),
+                 t.second());
     }
 
     return String(buffer);
@@ -173,8 +190,15 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
  * @param len Length of @p out (recommend at least 20 bytes).
  */
 void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
-    snprintf(out, len, "20%02x-%02x-%02xT%02x:%02x:%02x", in->year, in->month, in->day, in->hour,
-             in->minute, in->second);
+    snprintf(out,
+             len,
+             "20%02x-%02x-%02xT%02x:%02x:%02x",
+             in->year,
+             in->month,
+             in->day,
+             in->hour,
+             in->minute,
+             in->second);
 }
 
 /**
@@ -189,4 +213,38 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
 // TODO should take a DateTime as arg instead of using __DATE__ and __TIME__
 void convertDateToISO8601(char* out, size_t len) {
     snprintf(out, len, "20%.*sT%.*s:00", 6, __DATE__ + 7, 5, __TIME__);
+}
+
+/**
+ * @brief Convert an ISO8601 datetime string to a DateTime object.
+ *
+ * Expected format:
+ * `"YYYY-MM-DDTHH:MM:SS"`
+ *
+ * Example:
+ * `"2025-07-23T14:30:00"`
+ *
+ * @param iso8601 Null-terminated ISO8601 string.
+ * @param out Pointer to the destination DateTime object.
+ * @return true if parsing succeeded, false otherwise.
+ */
+bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
+    if (!iso8601 || !out) {
+        return false;
+    }
+
+    LoggerTime_t t{};
+
+    if (!convertDatetoBcd(iso8601, &t)) {
+        return false;
+    }
+
+    *out = DateTime(2000 + bcdToDec(t.year),
+                    bcdToDec(t.month),
+                    bcdToDec(t.day),
+                    bcdToDec(t.hour),
+                    bcdToDec(t.minute),
+                    bcdToDec(t.second));
+
+    return true;
 }

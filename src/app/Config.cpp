@@ -1,23 +1,11 @@
 /**
- * @file config.cpp
+ * @file Config.cpp
  * @brief Runtime configuration handling for the logger.
  *
  * This module defines the global runtime configuration and provides helpers
- * to load options from the SD card and apply configuration received from
- * an external GUI (SET_CONFIG).
+ * to load options from the SD card.
  *
- * Two distinct data groups are handled:
- * - @ref Config : Runtime options used directly by the application
- * - @ref TimeSyncConfig : GUI-provided date/time data used only for RTC update
- *
- * ## Typical flow
- * - Boot (autonomous): @ref load_configuration() loads runtime options from
- *   `/config.cfg`.
- * - Connected mode: GUI sends a `SET_CONFIG` payload, applied by
- *   @ref applyGuiConfigAndBuildDateTime(), which:
- *   - updates @ref gui_time_sync with the incoming date/time
- *   - updates @ref config with the incoming runtime options
- *   - returns a `DateTime` used to update the RTC
+ * It intentionally does not depend on JsonProtocol.
  *
  * @note JSON parsing uses ArduinoJson v6.
  * @warning SD card must be initialized before calling @ref load_configuration().
@@ -25,166 +13,179 @@
 
 #include <ArduinoJson.h>
 #include <SD.h>
+
 #include "config.h"
 #include "log.h"
-#include "utils.h"
-#include "JsonProtocol.h"
 
-/**
- * @var config
- * @brief Global runtime configuration options.
- *
- * This structure represents the effective configuration used by the application
- * (state machine, deploy loop, sensor enabling, RFID handling, etc.).
- */
 Config config;
 
-/**
- * @var gui_time_sync
- * @brief Latest GUI-provided date/time payload.
- *
- * This structure stores the last date/time received from the external GUI.
- * It is separate from @ref config because date/time synchronization is not a
- * persistent runtime behavior parameter.
- */
-TimeSyncConfig gui_time_sync = {};
+static const char* boolStr(bool value) {
+    return value ? "true" : "false";
+}
 
-/**
- * @var gui_time_sync_rb
- * @brief Readback date/time payload.
- *
- * Intended to store date/time values returned to the GUI, if required for
- * verification or reporting purposes.
- */
-TimeSyncConfig gui_time_sync_rb = {};
+static bool isScheduleValid(const Config& config_var) {
+    return config_var.schedule_start_hour <= 23 && config_var.schedule_start_minute <= 59 &&
+           config_var.schedule_end_hour <= 23 && config_var.schedule_end_minute <= 59;
+}
 
-/**
- * @brief Load runtime configuration from `/config.cfg` on the SD card.
- *
- * This function:
- * - opens the `/config.cfg` file from the SD card
- * - parses it as JSON using ArduinoJson
- * - updates the provided @ref Config instance with runtime options
- * - leaves existing values in place if the file is missing or invalid
- *
- * Example `/config.cfg`:
- * @code{.json}
- * {
- *   "use_buffer": false,
- *   "enable_light1": false,
- *   "enable_light2": false,
- *   "enable_rfid": true,
- *   "rfid_mode": 2,
- *   "enable_vbat": true,
- *   "acquisition_interval_s": 120
- * }
- * @endcode
- *
- * Supported keys:
- * - `use_buffer`: Use circular-buffered SD logging
- * - `enable_light1`: Enable AS7341 spectral sensor
- * - `enable_light2`: Enable TSL2591 ambient light sensor
- * - `enable_rfid`: Enable RFID reader
- * - `rfid_mode`: RFID operating mode (0=OFF, 1=CONTINUOUS, 2=ON_IR_EVENT)
- * - `enable_vbat`: Enable battery voltage measurement
- * - `acquisition_interval_s`: Sensor acquisition interval in seconds
- *
- * @param config_var Reference to the @ref Config structure to update.
- * @return true if the file was found and parsed successfully, false otherwise.
- *
- * @warning The SD card must be initialized before calling this function.
- * @note Unknown JSON keys are ignored. Missing keys keep current values via
- *       ArduinoJson's `|` operator.
- */
-bool load_configuration(Config& config_var) {
-    File file = SD.open("/config.cfg");
-    if (!file) {
-        LOG_WARN("config.cfg not found on SD card. Using defaults.");
-        return false;
-    }
-
-    StaticJsonDocument<256> doc;
-    DeserializationError error = deserializeJson(doc, file);
-    if (error) {
-        LOG_ERROR("Failed to parse config.cfg: %s", error.c_str());
-        file.close();
-        return false;
-    }
-
-    // Update configuration fields with JSON values or keep existing defaults
-    config_var.use_buffer    = doc["use_buffer"] | config_var.use_buffer;
-    config_var.enable_light1 = doc["enable_light1"] | config_var.enable_light1;
-    config_var.enable_light2 = doc["enable_light2"] | config_var.enable_light2;
-    config_var.enable_rfid   = doc["enable_rfid"] | config_var.enable_rfid;
-    config_var.rfid_mode     = doc["rfid_mode"] | config_var.rfid_mode;
-    config_var.enable_vbat   = doc["enable_vbat"] | config_var.enable_vbat;
-    config_var.acquisition_interval_s =
-        doc["acquisition_interval_s"] | config_var.acquisition_interval_s;
-
-    file.close();
-
-    // Compact summary log of effective configuration
-    LOG_INFO("Configuration loaded:");
-    LOG_INFO(config_var.use_buffer ? "\tuse_buffer: true" : "\tuse_buffer: false");
-    LOG_INFO(config_var.enable_light1 ? "\tlight1: true" : "\tlight1: false");
-    LOG_INFO(config_var.enable_light2 ? "\tlight2: true" : "\tlight2: false");
-    LOG_INFO(config_var.enable_rfid ? "\trfid: true" : "\trfid: false");
-    LOG_INFO("\trfid_mode: %u", config_var.rfid_mode);
-    LOG_INFO(config_var.enable_vbat ? "\tvbat: true" : "\tvbat: false");
+static void logConfiguration(const Config& config_var, const char* title) {
+    LOG_INFO("%s", title);
+    LOG_INFO("\tuse_buffer: %s", boolStr(config_var.use_buffer));
+    LOG_INFO("\tlight1: %s", boolStr(config_var.enable_light1));
+    LOG_INFO("\tlight2: %s", boolStr(config_var.enable_light2));
+    LOG_INFO("\trfid: %s", boolStr(config_var.enable_rfid));
+    LOG_INFO("\trfid_mode: %u", rfidModeToUint(config_var.rfid_mode));
+    LOG_INFO("\tvbat: %s", boolStr(config_var.enable_vbat));
     LOG_INFO("\tinterval: %u s", config_var.acquisition_interval_s);
+    LOG_INFO("\tschedule: %02u:%02u -> %02u:%02u",
+             config_var.schedule_start_hour,
+             config_var.schedule_start_minute,
+             config_var.schedule_end_hour,
+             config_var.schedule_end_minute);
+}
 
-    return true;
+static void readBoolField(const JsonDocument& doc, const char* key, bool& destination) {
+    if (!doc.containsKey(key)) return;
+
+    if (!doc[key].is<bool>()) {
+        LOG_WARN("Invalid boolean value for '%s'. Keeping previous value.", key);
+        return;
+    }
+
+    destination = doc[key].as<bool>();
+}
+
+static void readUint8Field(const JsonDocument& doc, const char* key, uint8_t& destination) {
+    if (!doc.containsKey(key)) return;
+
+    if (!doc[key].is<uint8_t>()) {
+        LOG_WARN("Invalid uint8 value for '%s'. Keeping previous value.", key);
+        return;
+    }
+
+    destination = doc[key].as<uint8_t>();
+}
+
+static void readIntervalField(const JsonDocument& doc, const char* key, uint16_t& destination) {
+    if (!doc.containsKey(key)) return;
+
+    if (!doc[key].is<uint16_t>()) {
+        LOG_WARN("Invalid numeric value for '%s'. Keeping previous value.", key);
+        return;
+    }
+
+    const uint16_t raw_value = doc[key].as<uint16_t>();
+
+    if (raw_value < MIN_ACQUISITION_INTERVAL_S) {
+        LOG_WARN("Invalid acquisition interval %u s. Keeping previous value.", raw_value);
+        return;
+    }
+
+    destination = raw_value;
+}
+
+static void readRfidModeField(const JsonDocument& doc, const char* key, RfidMode& destination) {
+    if (!doc.containsKey(key)) return;
+
+    if (!doc[key].is<uint8_t>()) {
+        LOG_WARN("Invalid RFID mode value for '%s'. Keeping previous value.", key);
+        return;
+    }
+
+    const uint8_t raw_value = doc[key].as<uint8_t>();
+
+    if (raw_value > rfidModeToUint(RfidMode::OnIrEvent)) {
+        LOG_WARN("Invalid RFID mode %u. Keeping previous value.", raw_value);
+        return;
+    }
+
+    destination = rfidModeFromUint(raw_value);
+}
+
+uint8_t rfidModeToUint(RfidMode mode) {
+    return static_cast<uint8_t>(mode);
+}
+
+RfidMode rfidModeFromUint(uint8_t value) {
+    switch (value) {
+        case 0:
+            return RfidMode::Off;
+        case 1:
+            return RfidMode::Continuous;
+        case 2:
+            return RfidMode::OnIrEvent;
+        default:
+            return DEFAULT_RFID_MODE;
+    }
 }
 
 /**
- * @brief Apply GUI-provided runtime settings and build a DateTime for RTC update.
- *
- * This helper applies a `SET_CONFIG` payload received from an external GUI:
- * - converts the ISO8601-like date string into the internal BCD date representation
- *   stored in @ref gui_time_sync
- * - updates the runtime @ref config fields from the GUI payload
- * - builds a `DateTime` object for the RTC layer
- *
- * @param src Incoming SET_CONFIG payload (typically parsed from the JSON protocol).
- * @return A `DateTime` representing the requested current date/time.
- *
- * @note This function does not directly update the RTC. The caller should pass the
- *       returned `DateTime` to the RTC module.
- *
- * @warning The interpretation of the incoming date string depends on
- *          @ref convertDatetoBcd(). Ensure the expected format is enforced by the GUI.
+ * @brief Validate and sanitize runtime configuration.
  */
-DateTime applyGuiConfigAndBuildDateTime(const SetConfigPayload& src) {
-    // Store the GUI-provided current date/time
-    convertDatetoBcd(src.dateCurrentIso, &gui_time_sync.dateCurrent);
+bool validateConfig(Config& config_var) {
+    bool valid = true;
 
-    // Log the received date/time in human-readable form
-    char dateCurrentStr[24];
-    convertBcdDateToISO8601(&gui_time_sync.dateCurrent, dateCurrentStr, sizeof(dateCurrentStr));
-    LOG_INFO("Date/time set to: %s", dateCurrentStr);
+    if (config_var.acquisition_interval_s < MIN_ACQUISITION_INTERVAL_S) {
+        LOG_WARN("Invalid acquisition interval %u s. Falling back to %u s.",
+                 config_var.acquisition_interval_s,
+                 DEFAULT_ACQUISITION_INTERVAL_S);
+        config_var.acquisition_interval_s = DEFAULT_ACQUISITION_INTERVAL_S;
+        valid                             = false;
+    }
 
-    // Build DateTime for RTC update
-    DateTime dt(2000 + bcdToDec(gui_time_sync.dateCurrent.year),
-                bcdToDec(gui_time_sync.dateCurrent.month), bcdToDec(gui_time_sync.dateCurrent.day),
-                bcdToDec(gui_time_sync.dateCurrent.hour),
-                bcdToDec(gui_time_sync.dateCurrent.minute),
-                bcdToDec(gui_time_sync.dateCurrent.second));
+    if (!isScheduleValid(config_var)) {
+        LOG_WARN("Invalid schedule. Falling back to default schedule 08:00 -> 18:30.");
 
-    // Update runtime configuration directly
-    config.acquisition_interval_s = src.acquisition_interval_s;
-    config.enable_light1          = src.enable_light1;
-    config.enable_light2          = src.enable_light2;
-    config.rfid_mode              = src.rfid_mode;
-    config.enable_vbat            = src.enable_vbat;
+        config_var.schedule_start_hour   = DEFAULT_SCHEDULE_START_HOUR;
+        config_var.schedule_start_minute = DEFAULT_SCHEDULE_START_MINUTE;
+        config_var.schedule_end_hour     = DEFAULT_SCHEDULE_END_HOUR;
+        config_var.schedule_end_minute   = DEFAULT_SCHEDULE_END_MINUTE;
 
-    // Short readable summary
-    LOG_DEBUG("Updated configuration from GUI:");
-    LOG_DEBUG(config.enable_light1 ? "  light1: enabled" : "  light1: disabled");
-    LOG_DEBUG(config.enable_light2 ? "  light2: enabled" : "  light2: disabled");
+        valid = false;
+    }
 
-    LOG_DEBUG("  rfid_mode: %u", config.rfid_mode);
-    LOG_DEBUG(config.enable_vbat ? "  vbat: enabled" : "  vbat: disabled");
-    LOG_DEBUG("  interval (s): %u", config.acquisition_interval_s);
+    return valid;
+}
 
-    return dt;
+/**
+ * @brief Load runtime configuration from `/config.cfg` on the SD card.
+ */
+bool load_configuration(Config& config_var) {
+    File file = SD.open("/config.cfg");
+
+    if (!file) {
+        LOG_WARN("config.cfg not found on SD card. Using defaults.");
+        validateConfig(config_var);
+        logConfiguration(config_var, "Default configuration:");
+        return false;
+    }
+
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+
+    if (error) {
+        LOG_ERROR("Failed to parse config.cfg: %s", error.c_str());
+        validateConfig(config_var);
+        logConfiguration(config_var, "Configuration after parse failure:");
+        return false;
+    }
+
+    readBoolField(doc, "use_buffer", config_var.use_buffer);
+    readBoolField(doc, "enable_light1", config_var.enable_light1);
+    readBoolField(doc, "enable_light2", config_var.enable_light2);
+    readBoolField(doc, "enable_rfid", config_var.enable_rfid);
+    readRfidModeField(doc, "rfid_mode", config_var.rfid_mode);
+    readBoolField(doc, "enable_vbat", config_var.enable_vbat);
+    readIntervalField(doc, "acquisition_interval_s", config_var.acquisition_interval_s);
+
+    readUint8Field(doc, "schedule_start_hour", config_var.schedule_start_hour);
+    readUint8Field(doc, "schedule_start_minute", config_var.schedule_start_minute);
+    readUint8Field(doc, "schedule_end_hour", config_var.schedule_end_hour);
+    readUint8Field(doc, "schedule_end_minute", config_var.schedule_end_minute);
+
+    validateConfig(config_var);
+    logConfiguration(config_var, "Configuration loaded:");
+
+    return true;
 }

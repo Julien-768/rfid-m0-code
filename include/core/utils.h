@@ -96,3 +96,18 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
  * @param len Size of the output buffer in bytes.
  */
 void convertDateToISO8601(char* out, size_t len);
+
+/**
+ * @brief Convert an ISO8601 datetime string to a DateTime object.
+ *
+ * Expected format:
+ * `"YYYY-MM-DDTHH:MM:SS"`
+ *
+ * Example:
+ * `"2025-07-23T14:30:00"`
+ *
+ * @param iso8601 Null-terminated ISO8601 string.
+ * @param out Pointer to the destination DateTime object.
+ * @return true if parsing succeeded, false otherwise.
+ */
+bool convertISO8601ToDateTime(const char* iso8601, DateTime* out);
