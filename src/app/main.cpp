@@ -126,11 +126,9 @@ static SystemState runBootSequence() {
         return STATE_ENDOFLIFE;
     }
 
-    // --- Load existing assembly.cfg ---
+    // --- Load existing hw_assembly.cfg ---
     if (!assembly_load(hw_assembly)) {
-        LOG_WARN("Assembly information not loaded from file");
-    } else {
-        LOG_INFO("Assembly information loaded from file");
+        return STATE_ENDOFLIFE;
     }
     // initialize RTC for logging file creation and timestamping
 
