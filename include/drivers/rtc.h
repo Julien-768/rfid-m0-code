@@ -121,6 +121,13 @@ constexpr uint8_t DS3231_ALARM_2 = 2;  ///< Alarm 2 index (optional / currently 
 bool rtc_initialization(uint32_t interrupt_pin);
 
 /**
+ * @brief Return true if the RTC has been initialized.
+ *
+ * @return true if the RTC is initialized, false otherwise.
+ */
+bool rtc_is_initialized();
+
+/**
  * @brief Quick I2C probe to check if DS3231 (0x68) is present.
  *
  * @return true if device ACKs on address 0x68, false otherwise.

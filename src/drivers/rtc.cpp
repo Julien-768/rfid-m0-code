@@ -80,6 +80,20 @@ RTC_STATE& get_rtc_state() {
 static volatile bool s_alarm_flag = false;
 
 /**
+ * @brief Internal flag to track if RTC initialization has been performed.
+ */
+static bool s_rtc_initialized = false;
+
+/**
+ * @brief Return true if the RTC has been initialized.
+ *
+ * @return true if the RTC is initialized, false otherwise.
+ */
+bool rtc_is_initialized() {
+    return s_rtc_initialized;
+}
+
+/**
  * @brief Optional user callback executed from the RTC ISR.
  *
  * @note This callback runs in interrupt context and must stay short
@@ -137,6 +151,10 @@ void rtc_set_alarm_callback(rtc_alarm_callback_t callback) {
  * @return true if an alarm interrupt occurred, false otherwise.
  */
 bool rtc_alarm_fired() {
+    RTC_DS3231& rtc = get_rtc();
+    LOG_DEBUG("Checking RTC alarm flag");
+    s_alarm_flag = rtc.alarmFired(DS3231_ALARM_1);
+    LOG_DEBUG("RTC alarm flag is %s", s_alarm_flag ? "SET" : "NOT SET");
     return s_alarm_flag;
 }
 
@@ -186,6 +204,8 @@ bool rtc_initialization(uint32_t interrupt_pin) {
         return false;
     }
 
+    s_rtc_initialized = true;
+
     if (rtc.lostPower()) {
         LOG_WARN("RTC lost power, needs reconfiguration via SET_CONFIG");
     }
@@ -211,6 +231,7 @@ void rtc_clear_alarm_flag() {
     RTC_DS3231& rtc = get_rtc();
 
     s_alarm_flag = false;
+    LOG_DEBUG("Clearing RTC alarm flag and acknowledging DS3231 Alarm1");
     rtc.clearAlarm(DS3231_ALARM_1);
 }
 
@@ -277,8 +298,12 @@ void rtc_set_alarm_at(const DateTime& when) {
     rtc.setAlarm1(aligned, DS3231_A1_Second);
 
     // Optionnel mais fortement recommandé pour debug terrain
-    LOG_DEBUG("RTC alarm set at %04d-%02d-%02d %02d:%02d:00", aligned.year(), aligned.month(),
-              aligned.day(), aligned.hour(), aligned.minute());
+    LOG_DEBUG("RTC alarm set at %04d-%02d-%02d %02d:%02d:00",
+              aligned.year(),
+              aligned.month(),
+              aligned.day(),
+              aligned.hour(),
+              aligned.minute());
 }
 
 // -----------------------------------------------------------------------------
@@ -333,8 +358,10 @@ bool rtc_boot_recover() {
     String build_time_string = isoformat(build_time_utc, {opts});
 
     // TODO should use a format converter from 'utils.cpp' instead of individual field accessors
-    LOG_DEBUG("RTC boot check: rtc=%s, build=%s, lostPower=%s", now_string.c_str(),
-              build_time_string.c_str(), rtc.lostPower() ? "YES" : "NO");
+    LOG_DEBUG("RTC boot check: rtc=%s, build=%s, lostPower=%s",
+              now_string.c_str(),
+              build_time_string.c_str(),
+              rtc.lostPower() ? "YES" : "NO");
 
     const bool time_in_range = rtc_sanity_ok(now, build_time_utc);
 
