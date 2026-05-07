@@ -62,7 +62,7 @@ void logInit() {
 // Therefore: a message is emitted if level <= configured threshold.
 // ---------------------------------------------------------------------------
 static bool logLevelEnabled(uint8_t level, uint8_t threshold) {
-    return level <= threshold;
+    return level >= threshold;
 }
 
 static const char* logLevelTag(uint8_t level) {
@@ -119,8 +119,13 @@ static void appendPaddedLevel(char* out, size_t size, size_t* pos, const char* l
 // %S = source
 // %% = literal percent
 // ---------------------------------------------------------------------------
-static void formatLogLine(char* out, size_t size, const char* format, const char* timestamp,
-                          const char* level, const char* message, const char* source) {
+static void formatLogLine(char* out,
+                          size_t size,
+                          const char* format,
+                          const char* timestamp,
+                          const char* level,
+                          const char* message,
+                          const char* source) {
     if (!out || size == 0) return;
 
     out[0] = '\0';
@@ -193,8 +198,16 @@ static void formatTimestamp(char* timestamp, size_t size) {
         // This gives useful sub-second ordering, but not true RTC milliseconds.
         uint16_t ms = millis() % 1000;
 
-        snprintf(timestamp, size, "%04d-%02d-%02d %02d:%02d:%02d.%03u", now.year(), now.month(),
-                 now.day(), now.hour(), now.minute(), now.second(), ms);
+        snprintf(timestamp,
+                 size,
+                 "%04d-%02d-%02d %02d:%02d:%02d.%03u",
+                 now.year(),
+                 now.month(),
+                 now.day(),
+                 now.hour(),
+                 now.minute(),
+                 now.second(),
+                 ms);
     } else {
         uint32_t uptime_ms = millis();
         uint32_t seconds   = uptime_ms / 1000UL;
@@ -204,7 +217,12 @@ static void formatTimestamp(char* timestamp, size_t size) {
         uint8_t secs    = seconds % 60UL;
         uint16_t ms     = uptime_ms % 1000UL;
 
-        snprintf(timestamp, size, "UPTIME %lu:%02u:%02u.%03u", (unsigned long)hours, minutes, secs,
+        snprintf(timestamp,
+                 size,
+                 "UPTIME %lu:%02u:%02u.%03u",
+                 (unsigned long)hours,
+                 minutes,
+                 secs,
                  ms);
     }
 }
@@ -239,7 +257,12 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
     formatTimestamp(timestamp, sizeof(timestamp));
 
     char final[256];
-    formatLogLine(final, sizeof(final), LOG_FORMAT, timestamp, logLevelTag(level), message,
+    formatLogLine(final,
+                  sizeof(final),
+                  LOG_FORMAT,
+                  timestamp,
+                  logLevelTag(level),
+                  message,
                   "SYSTEM");
 
 #if defined(LOG_SD_LEVEL)
