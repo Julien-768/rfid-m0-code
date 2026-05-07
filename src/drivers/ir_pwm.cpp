@@ -4,6 +4,7 @@
 #include "ArduinoLowPower.h"
 #include "log.h"
 #include "wiring_private.h"
+#include "irq_helper.h"
 
 /**
  * Platform: Adafruit Feather M0 (ATSAMD21G18)
@@ -35,12 +36,16 @@ ir_pwm::ir_pwm(uint8_t pwm_pin, uint8_t sensor1_pin, uint8_t sensor2_pin)
 /**
  * @brief Initialize the driver.
  */
-void ir_pwm::begin(bool enable_sensor_1, bool enable_sensor_2, ir_isr_callback_t callback_sensor_1,
+void ir_pwm::begin(bool enable_sensor_1,
+                   bool enable_sensor_2,
+                   ir_isr_callback_t callback_sensor_1,
                    ir_isr_callback_t callback_sensor_2) {
     LOG_DEBUG("IR_PWM initialization: PWM pin=%d", _pwm_pin);
-    LOG_DEBUG("Sensor 1: pin=%d, external interrupt=%d", _sensor1_pin,
+    LOG_DEBUG("Sensor 1: pin=%d, external interrupt=%d",
+              _sensor1_pin,
               g_APinDescription[_sensor1_pin].ulExtInt);
-    LOG_DEBUG("Sensor 2: pin=%d, external interrupt=%d", _sensor2_pin,
+    LOG_DEBUG("Sensor 2: pin=%d, external interrupt=%d",
+              _sensor2_pin,
               g_APinDescription[_sensor2_pin].ulExtInt);
 
     _enable_sensor_1 = enable_sensor_1;
@@ -138,21 +143,11 @@ void ir_pwm::enable_sensor_wakeups() {
  */
 void ir_pwm::disable_sensor_wakeups() {
     if (_enable_sensor_1) {
-        detachInterrupt(digitalPinToInterrupt(_sensor1_pin));
-
-        EExt_Interrupts in1 = g_APinDescription[_sensor1_pin].ulExtInt;
-        if (in1 != NOT_AN_INTERRUPT && in1 != EXTERNAL_INT_NMI) {
-            EIC->WAKEUP.reg &= ~(1 << in1);
-        }
+        low_power_detach_interrupt(_sensor1_pin);
     }
 
     if (_enable_sensor_2) {
-        detachInterrupt(digitalPinToInterrupt(_sensor2_pin));
-
-        EExt_Interrupts in2 = g_APinDescription[_sensor2_pin].ulExtInt;
-        if (in2 != NOT_AN_INTERRUPT && in2 != EXTERNAL_INT_NMI) {
-            EIC->WAKEUP.reg &= ~(1 << in2);
-        }
+        low_power_detach_interrupt(_sensor2_pin);
     }
 }
 
