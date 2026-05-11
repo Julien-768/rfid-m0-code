@@ -146,7 +146,10 @@ bool check_and_create_new_daily_file(const DateTime& now);
  * @param value  Floating-point measurement value.
  * @param unit   Unit string (e.g. `"count"`, `"lux"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit,
+u_int8_t logMeasurement(const DateTime& now,
+                        const char* sensor,
+                        float value,
+                        const char* unit,
                         bool use_buffer = false);
 
 void log_event(const char* message);

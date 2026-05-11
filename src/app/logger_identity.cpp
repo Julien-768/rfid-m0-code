@@ -283,8 +283,10 @@ static void copyField_(char* dst, size_t dstSize, const char* src) {
     dst[dstSize - 1] = '\0';
 }
 
-void device_id_applyFromFields(const char* manufacturer, const char* logger_type,
-                               const char* date_fab, const char* serial_number) {
+void device_id_applyFromFields(const char* manufacturer,
+                               const char* logger_type,
+                               const char* date_fab,
+                               const char* serial_number) {
     // Start from existing identity, then override fields
     LoggerIdentityFlash id = device_id_get();  // copy
 

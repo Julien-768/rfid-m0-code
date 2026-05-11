@@ -48,7 +48,8 @@ class ir_pwm {
 
     ir_pwm(uint8_t pwm_pin, uint8_t sensor1_pin, uint8_t sensor2_pin);
 
-    void begin(bool enable_sensor_1, bool enable_sensor_2,
+    void begin(bool enable_sensor_1,
+               bool enable_sensor_2,
                ir_isr_callback_t callback_sensor_1 = nullptr,
                ir_isr_callback_t callback_sensor_2 = nullptr);
 

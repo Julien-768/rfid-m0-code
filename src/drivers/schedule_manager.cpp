@@ -68,8 +68,12 @@ DateTime ScheduleManager::nextStart(const DateTime& now) const {
         return now;
     }
 
-    DateTime today_start(now.year(), now.month(), now.day(), m_window.start_hour,
-                         m_window.start_minute, 0);
+    DateTime today_start(now.year(),
+                         now.month(),
+                         now.day(),
+                         m_window.start_hour,
+                         m_window.start_minute,
+                         0);
 
     // plage normale
     if (start_min < end_min) {
@@ -103,7 +107,11 @@ DateTime ScheduleManager::nextEnd(const DateTime& now) const {
         return now;
     }
 
-    DateTime today_end(now.year(), now.month(), now.day(), m_window.end_hour, m_window.end_minute,
+    DateTime today_end(now.year(),
+                       now.month(),
+                       now.day(),
+                       m_window.end_hour,
+                       m_window.end_minute,
                        0);
 
     // plage normale

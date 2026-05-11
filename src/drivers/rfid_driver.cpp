@@ -292,7 +292,9 @@ static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
  * @param type Tag type.
  * @param poll_interval_ms Polling interval in milliseconds.
  */
-void rfid_driver::init(rfid_driver_t* drv, Stream* port, tag_type_t type,
+void rfid_driver::init(rfid_driver_t* drv,
+                       Stream* port,
+                       tag_type_t type,
                        uint32_t poll_interval_ms) {
     if (!drv) return;
 
@@ -420,7 +422,8 @@ bool rfid_driver::get_tag(rfid_driver_t* drv, tag_info_t* out) {
  * @param delay_ms Minimum delay between identical tags.
  * @return true if the tag should be recorded.
  */
-bool rfid_driver::should_record_tag(const tag_info_t* previous, const tag_info_t* current,
+bool rfid_driver::should_record_tag(const tag_info_t* previous,
+                                    const tag_info_t* current,
                                     uint32_t delay_ms) {
     if (!previous || !current) return false;
 

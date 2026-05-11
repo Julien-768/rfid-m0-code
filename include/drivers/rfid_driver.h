@@ -151,7 +151,8 @@ class rfid_driver {
      * @param delay_ms Minimum delay between identical tags.
      * @return true if the tag should be recorded, false otherwise.
      */
-    static bool should_record_tag(const tag_info_t* previous, const tag_info_t* current,
+    static bool should_record_tag(const tag_info_t* previous,
+                                  const tag_info_t* current,
                                   uint32_t delay_ms);
 };
 

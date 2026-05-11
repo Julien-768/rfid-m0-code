@@ -163,7 +163,11 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
  * @see rtc().now(), error()
  */
 bool daily_data_file(const DateTime& now) {
-    snprintf(filename_data, sizeof(filename_data), "%04d%02d%02d.TXT", now.year(), now.month(),
+    snprintf(filename_data,
+             sizeof(filename_data),
+             "%04d%02d%02d.TXT",
+             now.year(),
+             now.month(),
              now.day());
 
     if (SD.exists(filename_data)) {
@@ -217,8 +221,8 @@ bool check_and_create_new_daily_file(const DateTime& now) {
  * @param value  Measured value.
  * @param unit   Measurement unit (e.g. `"lux"`, `"count"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit,
-                        bool use_buffer) {
+u_int8_t logMeasurement(
+    const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
     IsoFormatOptions opts;
     opts.separator    = " ";
     String now_string = isoformat(now, {opts});

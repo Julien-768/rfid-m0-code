@@ -132,7 +132,8 @@ static float clamp01(float x) {
  * @param cfg Filter configuration
  * @return true if filtered value changed significantly, false otherwise
  */
-static bool battery_filter_update(battery_filter_state_t& s, int32_t new_sample_mv,
+static bool battery_filter_update(battery_filter_state_t& s,
+                                  int32_t new_sample_mv,
                                   const battery_filter_config_t& cfg) {
     const float alpha = clamp01(cfg.ema_alpha);
 
@@ -240,16 +241,20 @@ bool battery_service_init(const battery_service_config_t& cfg) {
 
     batt_thresholds_active = battery_thresholds_default(battery_type_t::battery_lipo_1s);
 
-    LOG_DEBUG("Battery_hw_cfg: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u", batt_hw_cfg.pin,
-              batt_hw_cfg.adc_cfg.ratio, batt_hw_cfg.adc_cfg.adc_ref_mv,
+    LOG_DEBUG("Battery_hw_cfg: pin=%lu ratio=%.3f adc_ref=%umV adc_max=%u",
+              batt_hw_cfg.pin,
+              batt_hw_cfg.adc_cfg.ratio,
+              batt_hw_cfg.adc_cfg.adc_ref_mv,
               batt_hw_cfg.adc_cfg.adc_max);
 
     LOG_DEBUG("Battery model defaults: low_warn=%umV low_crit=%umV high_crit=%umV",
-              batt_thresholds_active.low_warn_mv, batt_thresholds_active.low_crit_mv,
+              batt_thresholds_active.low_warn_mv,
+              batt_thresholds_active.low_crit_mv,
               batt_thresholds_active.high_crit_mv);
 
     LOG_DEBUG("Battery filter config: ema_alpha=%.3f delta_threshold=%u mV",
-              batt_filter_cfg.ema_alpha, batt_filter_cfg.delta_threshold_mv);
+              batt_filter_cfg.ema_alpha,
+              batt_filter_cfg.delta_threshold_mv);
 
     return battery_init(batt_hw_cfg);
 }
@@ -303,7 +308,8 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
         return false;
     }
 
-    if (!check_battery_voltage_plausibility(v, batt_policy_cfg.plausible_min_mv,
+    if (!check_battery_voltage_plausibility(v,
+                                            batt_policy_cfg.plausible_min_mv,
                                             batt_policy_cfg.plausible_max_mv)) {
         vbat_mv = -2;
         changed = false;
@@ -314,8 +320,11 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
 
     vbat_mv = batt_filter_state.ema_mv;
 
-    LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d", v, batt_filter_state.median_mv,
-              batt_filter_state.ema_mv, (int)changed);
+    LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d",
+              v,
+              batt_filter_state.median_mv,
+              batt_filter_state.ema_mv,
+              (int)changed);
 
     return true;
 }

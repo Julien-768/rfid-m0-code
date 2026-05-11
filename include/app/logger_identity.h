@@ -39,5 +39,7 @@ bool device_id_program(const LoggerIdentityFlash& id);
  */
 bool device_id_resetDefaults();
 
-void device_id_applyFromFields(const char* manufacturer, const char* logger_type,
-                               const char* date_fab, const char* serial_number);
+void device_id_applyFromFields(const char* manufacturer,
+                               const char* logger_type,
+                               const char* date_fab,
+                               const char* serial_number);
