@@ -129,10 +129,18 @@ void ir_pwm::setup_pwm() {
 void ir_pwm::enable_sensor_wakeups() {
     if (_enable_sensor_1) {
         LowPower.attachInterruptWakeup(_sensor1_pin, ir_pwm::isr_sensor_1, CHANGE);
+        LOG_DEBUG("Sensor 1 interrupt pin=%d digitalPinToInterrupt=%d extint=%d",
+                  _sensor1_pin,
+                  digitalPinToInterrupt(_sensor1_pin),
+                  g_APinDescription[_sensor1_pin].ulExtInt);
     }
 
     if (_enable_sensor_2) {
         LowPower.attachInterruptWakeup(_sensor2_pin, ir_pwm::isr_sensor_2, CHANGE);
+        LOG_DEBUG("Sensor 2 interrupt pin=%d digitalPinToInterrupt=%d extint=%d",
+                  _sensor2_pin,
+                  digitalPinToInterrupt(_sensor2_pin),
+                  g_APinDescription[_sensor2_pin].ulExtInt);
     }
 }
 

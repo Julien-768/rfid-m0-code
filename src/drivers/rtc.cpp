@@ -173,9 +173,12 @@ bool rtc_alarm_fired() {
  *       the correct EXTINT line using `g_APinDescription[pin].ulExtInt`.
  */
 void rtc_configure_interrupt(uint8_t interrupt_pin, void (*isr)()) {
-    LOG_DEBUG("Configuring RTC interrupt on pin %d", interrupt_pin);
     pinMode(interrupt_pin, INPUT_PULLUP);
     LowPower.attachInterruptWakeup(interrupt_pin, isr, FALLING);
+    LOG_DEBUG("RTC interrupt pin=%d digitalPinToInterrupt=%d extint=%d",
+              interrupt_pin,
+              digitalPinToInterrupt(interrupt_pin),
+              g_APinDescription[interrupt_pin].ulExtInt);
 }
 
 // -----------------------------------------------------------------------------
