@@ -5,6 +5,7 @@
 #include "log.h"
 #include "hardware.h"
 #include "wiring_private.h"
+#include "irq_helper.h"
 
 // -----------------------------------------------------------------------------
 // Configuration hardware
@@ -43,23 +44,29 @@
 #endif
 
 #ifndef POWER_BUTTON_LONG_PRESS_MS
-#define POWER_BUTTON_LONG_PRESS_MS 1200UL
-#endif
-
-#ifndef POWER_BUTTON_FEEDBACK_PERIOD_MS
-#define POWER_BUTTON_FEEDBACK_PERIOD_MS 100UL
+#define POWER_BUTTON_LONG_PRESS_MS 12000UL
 #endif
 
 namespace {
 
+constexpr uint32_t POWER_BUTTON_DEBOUNCE_MS = 30;
+
+bool g_button_is_pressed         = false;
+bool g_button_last_raw           = false;
+uint32_t g_button_last_change_ms = 0;
+uint32_t g_button_press_ms       = 0;
+uint32_t g_button_duration_ms    = 0;
+bool g_button_duration_pending   = false;
+
 bool g_ir_on   = false;
 bool g_rfid_on = false;
 
-bool g_pw_button_pressed         = false;
-bool g_shutdown_requested        = false;
-unsigned long g_pw_press_start   = 0;
-unsigned long g_last_feedback_ms = 0;
-bool g_feedback_on               = false;
+bool g_shutdown_requested = false;
+
+// volatile bool g_button_irq_is_pressed       = false;
+// volatile uint32_t g_button_irq_press_ms     = 0;
+// volatile uint32_t g_button_irq_duration_ms  = 0;
+// volatile bool g_button_irq_duration_pending = false;
 
 inline void write_power_pin(uint8_t pin, bool active, bool active_high) {
     digitalWrite(pin, (active == active_high) ? HIGH : LOW);
@@ -70,29 +77,26 @@ inline bool read_active_pin(uint8_t pin, bool active_high) {
     return digitalRead(pin) == (active_high ? HIGH : LOW);
 }
 
-/*
-Switch power control logic:
-- Power enable pin (PIN_PW_EN)
-*/
-inline void set_power_enabled(bool enabled) {
-    write_power_pin(PIN_PW_EN, enabled, PWR_EN_ACTIVE_HIGH);
-    LOG_DEBUG("pin %u set to %s (power %s)", PIN_PW_EN, digitalRead(PIN_PW_EN));
-}
-
-inline void set_feedback_output(bool on) {
-    g_feedback_on = on;
-    (void)on;
-}
-
 }  // namespace
 
-// Hooks optionnels a definir ailleurs dans le projet si besoin.
-void __attribute__((weak)) pwr_manager_on_short_press() {}
-void __attribute__((weak)) pwr_manager_on_before_shutdown(const char* reason) {
-    (void)reason;
-}
-
 namespace pwr_manager {
+
+void reset_power_button_tracking() {
+    // noInterrupts();
+    // g_button_irq_is_pressed = false;
+    // g_button_irq_press_ms   = 0;
+
+    // g_button_irq_duration_ms      = 0;
+    // g_button_irq_duration_pending = false;
+    // interrupts();
+
+    g_button_is_pressed       = false;
+    g_button_last_raw         = power_button_read_state();
+    g_button_last_change_ms   = millis();
+    g_button_press_ms         = 0;
+    g_button_duration_ms      = 0;
+    g_button_duration_pending = false;
+}
 
 void begin() {
     pinMode(PIN_PWR_3V, OUTPUT);
@@ -103,72 +107,92 @@ void begin() {
     // Fail-safe au boot : sous-modules OFF, maintien d'alimentation ON.
     write_power_pin(PIN_PWR_3V, false, PWR_3V_ACTIVE_HIGH);
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
-    set_power_enabled(true);
+    write_power_pin(PIN_PW_EN, true, PWR_EN_ACTIVE_HIGH);
 
     g_ir_on              = false;
     g_rfid_on            = false;
-    g_pw_button_pressed  = false;
     g_shutdown_requested = false;
-    g_pw_press_start     = 0;
-    g_last_feedback_ms   = 0;
-    g_feedback_on        = false;
+    reset_power_button_tracking();
 
     LOG_INFO("Power manager initialized");
 }
 
-void enable_button_wakeup(void (*callback)()) {
-    LowPower.attachInterruptWakeup(PIN_PW_SW, callback, PW_SW_ACTIVE_HIGH ? RISING : FALLING);
+void button_interrupt_attach(void (*callback)()) {
+    // LowPower.attachInterruptWakeup(PIN_PW_SW, callback, CHANGE);
+    // LOG_DEBUG("Button interrupt pin=%d digitalPinToInterrupt=%d extint=%d",
+    //           PIN_PW_SW,
+    //           digitalPinToInterrupt(PIN_PW_SW),
+    //           g_APinDescription[PIN_PW_SW].ulExtInt);
+    (void)callback;
+    LOG_DEBUG("Power button uses polling, interrupt not attached");
 }
 
-void disable_button_wakeup() {
-    detachInterrupt(digitalPinToInterrupt(PIN_PW_SW));
+void button_interrupt_detach() {
+    // low_power_detach_interrupt(PIN_PW_SW);
+}
 
-    EExt_Interrupts in = g_APinDescription[PIN_PW_SW].ulExtInt;
-    if (in != NOT_AN_INTERRUPT && in != EXTERNAL_INT_NMI) {
-        EIC->WAKEUP.reg &= ~(1 << in);
+bool power_button_read_state() {
+    return read_active_pin(PIN_PW_SW, PW_SW_ACTIVE_HIGH);
+}
+
+void power_button_irq_handler() {
+    // const uint32_t now    = millis();
+    // const bool is_pressed = power_button_read_state();
+
+    // if (is_pressed) {
+    //     if (!g_button_irq_is_pressed) {
+    //         g_button_irq_is_pressed = true;
+    //         g_button_irq_press_ms   = now;
+    //     }
+    // } else {
+    //     if (g_button_irq_is_pressed) {
+    //         g_button_irq_is_pressed = false;
+
+    //         g_button_irq_duration_ms      = now - g_button_irq_press_ms;
+    //         g_button_irq_duration_pending = true;
+    //     }
+    // }
+    power_button_poll();
+}
+
+bool consume_power_button_event(power_button_event_t& event) {
+    power_button_poll();
+
+    event.type        = POWER_BUTTON_EVENT_NONE;
+    event.duration_ms = 0;
+
+    const bool pressed = power_button_read_state();
+
+    if (g_button_duration_pending) {
+        const uint32_t duration_ms = g_button_duration_ms;
+
+        event.duration_ms = duration_ms;
+        event.type        = (duration_ms >= POWER_BUTTON_LONG_PRESS_MS) ? POWER_BUTTON_LONG_PRESS
+                                                                        : POWER_BUTTON_SHORT_PRESS;
+
+        reset_power_button_tracking();
+        digitalWrite(PIN_BUZZER_LED, LOW);
+        return true;
     }
-}
 
-bool handle_button_wakeup() {
-    if (g_shutdown_requested) {
-        LOG_DEBUG("Wakeup event ignored: shutdown already requested");
+    if (pressed && g_button_press_ms != 0) {
+        const uint32_t press_duration = millis() - g_button_press_ms;
+
+        digitalWrite(PIN_BUZZER_LED, HIGH);
+
+        if (press_duration >= POWER_BUTTON_LONG_PRESS_MS) {
+            event.type        = POWER_BUTTON_LONG_PRESS;
+            event.duration_ms = press_duration;
+
+            reset_power_button_tracking();
+            digitalWrite(PIN_BUZZER_LED, LOW);
+            return true;
+        }
+
         return false;
     }
 
-    if (!power_button_read_state()) {
-        LOG_DEBUG("Wakeup event ignored: power button not pressed");
-        return false;
-    }
-
-    g_pw_button_pressed = true;
-    g_pw_press_start    = millis();
-    g_last_feedback_ms  = g_pw_press_start;
-
-    while (power_button_read_state()) {
-        const unsigned long now = millis();
-
-        if ((now - g_last_feedback_ms) >= POWER_BUTTON_FEEDBACK_PERIOD_MS) {
-            g_last_feedback_ms = now;
-            set_feedback_output(!g_feedback_on);
-        }
-
-        if ((now - g_pw_press_start) >= POWER_BUTTON_LONG_PRESS_MS) {
-            g_pw_button_pressed = false;
-            set_feedback_output(false);
-            return g_shutdown_requested;
-        }
-
-        delay(10);
-    }
-
-    const unsigned long press_duration = millis() - g_pw_press_start;
-    g_pw_button_pressed                = false;
-    set_feedback_output(false);
-
-    if (press_duration < POWER_BUTTON_LONG_PRESS_MS) {
-        LOG_INFO("Battery check by user");
-        pwr_manager_on_short_press();
-    }
+    digitalWrite(PIN_BUZZER_LED, LOW);
     return false;
 }
 
@@ -178,19 +202,13 @@ void request_shutdown() {
     }
 
     g_shutdown_requested = true;
-    set_feedback_output(true);
 
     delay(1000);
-    set_power_enabled(false);
+    write_power_pin(PIN_PW_EN, false, PWR_EN_ACTIVE_HIGH);
 
-    // Attente de la coupure physique.
     while (true) {
         delay(1000);
     }
-}
-
-bool power_button_read_state() {
-    return read_active_pin(PIN_PW_SW, PW_SW_ACTIVE_HIGH);
 }
 
 void update() {
@@ -198,37 +216,48 @@ void update() {
         return;
     }
 
-    const bool pressed      = power_button_read_state();
-    const unsigned long now = millis();
+    power_button_event_t event = {};
+    if (consume_power_button_event(event) && event.type == POWER_BUTTON_LONG_PRESS) {
+        request_shutdown();
+    }
+}
 
-    if (pressed && !g_pw_button_pressed) {
-        g_pw_button_pressed = true;
-        g_pw_press_start    = now;
-        g_last_feedback_ms  = now;
+void power_button_poll() {
+    const uint32_t now = millis();
+    const bool raw     = power_button_read_state();
+
+    // LOG_DEBUG("Power button raw state: %d", raw);
+
+    // State change detected, reset debounce timer.
+    if (raw != g_button_last_raw) {
+        g_button_last_raw       = raw;
+        g_button_last_change_ms = now;
+        return;
     }
 
-    if (pressed && g_pw_button_pressed) {
-        if ((now - g_last_feedback_ms) >= POWER_BUTTON_FEEDBACK_PERIOD_MS) {
-            g_last_feedback_ms = now;
-            set_feedback_output(!g_feedback_on);
-        }
-
-        if ((now - g_pw_press_start) >= POWER_BUTTON_LONG_PRESS_MS) {
-            request_shutdown();
-            return;
-        }
+    // If we're within the debounce period, ignore.
+    if ((now - g_button_last_change_ms) < POWER_BUTTON_DEBOUNCE_MS) {
+        return;
     }
 
-    if (!pressed && g_pw_button_pressed) {
-        const unsigned long press_duration = now - g_pw_press_start;
-        g_pw_button_pressed                = false;
-        set_feedback_output(false);
-
-        if (press_duration < POWER_BUTTON_LONG_PRESS_MS) {
-            LOG_INFO("Battery check by user");
-            pwr_manager_on_short_press();
+    // If button is currently pressed and wasn't previously registered as pressed, mark as pressed and record press time.
+    if (raw && !g_button_is_pressed) {
+        LOG_DEBUG("Power button pressed");
+        g_button_is_pressed = true;
+        g_button_press_ms   = now;
+    } else
+        // If button is currently released and wasn't previously registered as released
+        if (!raw && g_button_is_pressed) {
+            LOG_DEBUG("Power button released after %lu ms", now - g_button_press_ms);
+            g_button_is_pressed       = false;
+            g_button_duration_ms      = now - g_button_press_ms;
+            g_button_duration_pending = true;
         }
-    }
+}
+
+bool power_button_event_pending() {
+    power_button_poll();
+    return g_button_duration_pending;
 }
 
 void ir_power_on() {
