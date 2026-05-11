@@ -4,6 +4,7 @@
  */
 
 #pragma once
+#include <Arduino.h>
 
-/// Read Feather M0 unique ID and update `assembly.uid_mainboard` if needed.
-void readFeatherUID();
+/// Read Feather M0 unique ID
+String mcu_uid_read();

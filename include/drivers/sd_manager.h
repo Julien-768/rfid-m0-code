@@ -1,6 +1,6 @@
 /**
  * @file sd_manager.h
- * @brief SD card logging manager for the Moonraker low-power data logger.
+ * @brief SD card logging manager for the low-power data logger.
  *
  * This module provides all SD card management utilities, including:
  * - SD initialization
@@ -18,9 +18,9 @@
  *
  * Example (DEPLOY mode):
  * @code
- * if (!initSD()) { return; }
+ * if (!sd_initialization()) { return; }
  *
- * DateTime now = rtc.now();
+ * DateTime now = rtc().now();
  * daily_data_file(get_filename(), now);
  *
  * SensorFrame frame = readAllSensors();
@@ -57,8 +57,7 @@ struct SensorFrame;  // Forward declaration
  * When full, the buffer automatically overwrites the oldest data
  * and logs a warning (first occurrence only).
  */
-typedef struct
-{
+typedef struct {
     char buffer[BUFFER_SIZE];  ///< Raw byte storage.
     size_t head;               ///< Next write position.
     size_t tail;               ///< Next read/flush position.
@@ -88,7 +87,7 @@ extern const char* get_filename();
  *
  * @return `true` if the SD card was successfully initialized.
  */
-bool initSD(uint8_t pin_cs);
+bool sd_initialization(uint8_t pin_cs);
 
 /**
  * @brief Append a null-terminated text line to the circular buffer.
@@ -121,7 +120,18 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb);
  * @param filename Output buffer where the filename (8.3 format) is stored.
  * @param now      Current timestamp used to generate the filename.
  */
-u_int8_t daily_data_file(char* filename, const DateTime& now);
+bool daily_data_file(const DateTime& now);
+
+/**
+ * @brief Check and create the daily log file on SD card
+ *
+ * Compares the day of the month in `now` with the last logged day stored
+ * in `rtc_state`. If they differ, it generates a new daily log filename
+ * and updates `rtc_state.last_log_day`.
+ *
+ * @param now Current DateTime instance.
+ */
+bool check_and_create_new_daily_file(const DateTime& now);
 
 /**
  * @brief Log a single measurement in semicolon-delimited format.
@@ -136,4 +146,10 @@ u_int8_t daily_data_file(char* filename, const DateTime& now);
  * @param value  Floating-point measurement value.
  * @param unit   Unit string (e.g. `"count"`, `"lux"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer = false);
+u_int8_t logMeasurement(const DateTime& now,
+                        const char* sensor,
+                        float value,
+                        const char* unit,
+                        bool use_buffer = false);
+
+void log_event(const char* message);

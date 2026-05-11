@@ -7,7 +7,7 @@
  * - Initialize a list of sensors described by @ref SensorSpec.
  * - Read data from all active sensors into an application-defined context.
  *
- * The HAL remains completely generic: it does not depend on any Moonraker code,
+ * The HAL remains completely generic: it does not depend on any code,
  * drivers, or data structures. All behaviors come from user-provided callbacks
  * in the SensorSpec table.
  *
@@ -43,35 +43,31 @@
 void SensorsHAL_InitForDeploy(SensorSpec* specs, size_t count) {
     LOG_DEBUG("Initializing sensors for Deploy mode...");
 
-    for (size_t i = 0; i < count; ++i)
-        {
-            auto& s = specs[i];
+    for (size_t i = 0; i < count; ++i) {
+        auto& s = specs[i];
 
-            // ---- Disabled sensor ------------------------------------------------
-            if (!(s.enabled && *s.enabled))
-                {
-                    LOG_INFO((String(s.name) + " disabled in configuration").c_str());
-                    continue;
-            }
-
-            // ---- No init function (optional sensors or virtual sensors) ---------
-            if (!s.initFn)
-                {
-                    LOG_INFO((String(s.name) + " has no init function, skipping init").c_str());
-                    continue;
-            }
-
-            // ---- Initialization failed -----------------------------------------
-            if (!s.initFn())
-                {
-                    LOG_ERROR((String(s.name) + " initialization failed — disabled").c_str());
-                    *s.enabled = false;  // Prevent further acquisition
-                    continue;
-            }
-
-            // ---- Successful initialization --------------------------------------
-            LOG_INFO((String(s.name) + " initialized successfully").c_str());
+        // ---- Disabled sensor ------------------------------------------------
+        if (!(s.enabled && *s.enabled)) {
+            LOG_INFO((String(s.name) + " disabled in configuration").c_str());
+            continue;
         }
+
+        // ---- No init function (optional sensors or virtual sensors) ---------
+        if (!s.initFn) {
+            LOG_WARN((String(s.name) + " has no init function, skipping init").c_str());
+            continue;
+        }
+
+        // ---- Initialization failed -----------------------------------------
+        if (!s.initFn()) {
+            LOG_ERROR((String(s.name) + " initialization failed — disabled").c_str());
+            *s.enabled = false;  // Prevent further acquisition
+            continue;
+        }
+
+        // ---- Successful initialization --------------------------------------
+        LOG_INFO((String(s.name) + " initialized successfully").c_str());
+    }
 
     LOG_DEBUG("All active sensors initialized");
 }
@@ -96,13 +92,12 @@ void SensorsHAL_InitForDeploy(SensorSpec* specs, size_t count) {
  * @param context Pointer to an application-defined structure (e.g. SensorFrame).
  */
 void readAllSensorsGeneric(SensorSpec* specs, size_t count, void* context) {
-    for (size_t i = 0; i < count; ++i)
-        {
-            auto& s = specs[i];
+    for (size_t i = 0; i < count; ++i) {
+        auto& s = specs[i];
 
-            if (!(s.enabled && *s.enabled)) continue;  ///< Sensor disabled
-            if (!s.readFn) continue;                   ///< No runtime data
+        if (!(s.enabled && *s.enabled)) continue;  ///< Sensor disabled
+        if (!s.readFn) continue;                   ///< No runtime data
 
-            s.readFn(context);
-        }
+        s.readFn(context);
+    }
 }

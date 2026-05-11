@@ -1,46 +1,54 @@
 BasedOnStyle: Google
 
-# Limite de colonne pour la largeur des lignes
-ColumnLimit: 150
+# Largeur de ligne (comme Python)
+ColumnLimit: 100
 
-# Alignement des affectations consécutives
+BinPackArguments: false
+BinPackParameters: false
+
+AllowAllArgumentsOnNextLine: false
+
+# Alignement des affectations
 AlignConsecutiveAssignments: true
 
-# Gestion des accolades
-BreakBeforeBraces: Custom
+# Accolades plus compactes (moins "C++ verbeux")
+BreakBeforeBraces: Attach
 BraceWrapping:
-  AfterClass: true
-  AfterControlStatement: true
-  AfterEnum: true
+  AfterClass: false
+  AfterControlStatement: false
+  AfterEnum: false
   AfterFunction: false
-  AfterNamespace: true
-  AfterStruct: true
-  AfterUnion: true
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
   BeforeCatch: true
-  BeforeElse: false
-  IndentBraces: true
+  BeforeElse: true
+  IndentBraces: false
 
-# Commentaires
-PenaltyBreakComment: 10000
-MaxEmptyLinesToKeep: 1
+# Commentaires (alignés entre eux)
 AlignTrailingComments: true
+SpacesBeforeTrailingComments: 2
+PenaltyBreakComment: 10000
+ReflowComments: false
+MaxEmptyLinesToKeep: 1
 
 SortIncludes: false
 
-# Alignement et indentation
-AlignAfterOpenBracket: Align
+# Indentation type Python
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
 IndentCaseLabels: true
+AlignAfterOpenBracket: Align
 
-# Autres réglages
+# Style plus fluide (moins cassé)
 BreakBeforeBinaryOperators: None
 BreakStringLiterals: true
 DerivePointerAlignment: false
 KeepEmptyLinesAtTheStartOfBlocks: true
+
 AllowShortBlocksOnASingleLine: Empty
-AllowShortFunctionsOnASingleLine: None
+AllowShortFunctionsOnASingleLine: Inline
 
 PenaltyBreakBeforeFirstCallParameter: 10000
 PenaltyBreakString: 0

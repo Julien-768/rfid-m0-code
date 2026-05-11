@@ -2,10 +2,10 @@
  * @file sd_manager.cpp
  * @defgroup SD_Manager SD Manager
  * @ingroup SystemModules
- * @brief SD card management and buffered data logging for the Moonraker Logger.
+ * @brief SD card management and buffered data logging for the Logger.
  *
  * The **SD Manager** module handles initialization, daily file management, and
- * buffered writing for the Moonraker low-power data logger. It ensures
+ * buffered writing for the Logger. It ensures
  * reliable, power-efficient logging even under intermittent storage access
  * or during long deployments.
  *
@@ -30,6 +30,8 @@
 #include "sd_manager.h"
 #include "log.h"
 #include "error_handler.h"
+#include "hardware.h"
+#include "utils.h"
 
 // Define the global filename buffer for daily log file
 char filename_data[16] = {0};  // e.g., "20251124.TXT"
@@ -57,16 +59,15 @@ CircularBuffer& get_sdBuffer() {
  * @return `true` if SD initialized successfully, `false` if not detected.
  *
  * @note This function must be called once during @ref STATE_BOOT.
- * @see error_signal(), logSystemEvent(), ERR_SD_NOT_FOUND
+ * @see error_signal(), log_event(), ERR_SD_NOT_FOUND
  */
-bool initSD(uint8_t pin_cs) {
+bool sd_initialization(uint8_t pin_cs) {
 
-    if (!SD.begin(pin_cs))
-        {
-            // 🔴 Blink code 2× — non-blocking
-            error_signal(ERR_SD_NOT_FOUND, false);
+    if (!SD.begin(pin_cs)) {
+        // 🔴 Blink code 2× — non-blocking
+        error_signal(ERR_SD_NOT_FOUND);
 
-            return false;  // ❌ Initialization failed
+        return false;  // ❌ Initialization failed
     }
     LOG_INFO("SD card initialized successfully");
     return true;  // ✅ OK
@@ -87,21 +88,18 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
     static bool overflowWarned = false;
     size_t len                 = strlen(line);
 
-    for (size_t i = 0; i < len; i++)
-        {
-            cb->buffer[cb->head] = line[i];
-            cb->head             = (cb->head + 1) % BUFFER_SIZE;
+    for (size_t i = 0; i < len; i++) {
+        cb->buffer[cb->head] = line[i];
+        cb->head             = (cb->head + 1) % BUFFER_SIZE;
 
-            if (cb->head == cb->tail)
-                {
-                    if (!overflowWarned)
-                        {
-                            LOG_WARN("Buffer overflow: advancing tail to avoid overwrite");
-                            overflowWarned = true;
-                    }
-                    cb->tail = (cb->tail + 1) % BUFFER_SIZE;
+        if (cb->head == cb->tail) {
+            if (!overflowWarned) {
+                LOG_WARN("Buffer overflow: advancing tail to avoid overwrite");
+                overflowWarned = true;
             }
+            cb->tail = (cb->tail + 1) % BUFFER_SIZE;
         }
+    }
 }
 
 /**
@@ -114,45 +112,41 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
  *
  * @param cb Pointer to the @ref CircularBuffer to flush.
  *
- * @see error_signal(), logSystemEvent(), daily_data_file()
+ * @see error_signal(), log_event(), daily_data_file()
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb) {
-    size_t buffered = (cb->head >= cb->tail) ? (cb->head - cb->tail) : (BUFFER_SIZE - cb->tail + cb->head);
+    size_t buffered =
+        (cb->head >= cb->tail) ? (cb->head - cb->tail) : (BUFFER_SIZE - cb->tail + cb->head);
 
     if (buffered < 512) return 0;  // Nothing to flush yet
 
     File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (!log) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return -1;
     }
 
     bool writeSuccess = true;
 
-    if (cb->head > cb->tail)
-        {
-            size_t bytesWritten = log.write((uint8_t*)&cb->buffer[cb->tail], cb->head - cb->tail);
-            if (bytesWritten != (cb->head - cb->tail)) writeSuccess = false;
-    } else
-        {
-            size_t part1         = BUFFER_SIZE - cb->tail;
-            size_t bytesWritten1 = log.write((uint8_t*)&cb->buffer[cb->tail], part1);
-            size_t bytesWritten2 = log.write((uint8_t*)&cb->buffer[0], cb->head);
-            if (bytesWritten1 != part1 || bytesWritten2 != cb->head) writeSuccess = false;
-        }
+    if (cb->head > cb->tail) {
+        size_t bytesWritten = log.write((uint8_t*)&cb->buffer[cb->tail], cb->head - cb->tail);
+        if (bytesWritten != (cb->head - cb->tail)) writeSuccess = false;
+    } else {
+        size_t part1         = BUFFER_SIZE - cb->tail;
+        size_t bytesWritten1 = log.write((uint8_t*)&cb->buffer[cb->tail], part1);
+        size_t bytesWritten2 = log.write((uint8_t*)&cb->buffer[0], cb->head);
+        if (bytesWritten1 != part1 || bytesWritten2 != cb->head) writeSuccess = false;
+    }
 
     log.close();
 
-    if (!writeSuccess)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
-    } else
-        {
-            cb->tail = cb->head;  // Reset buffer after successful flush
-            LOG_INFO("Circular buffer flushed to SD successfully");
-        }
+    if (!writeSuccess) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return -1;
+    } else {
+        cb->tail = cb->head;  // Reset buffer after successful flush
+        LOG_INFO("Circular buffer flushed to SD successfully");
+    }
     return 0;
 }
 
@@ -163,25 +157,48 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
  * If the file cannot be created or opened, signals @ref ERR_SD_WRITE_FAIL
  * and transitions to @ref STATE_ENDOFLIFE.
  *
- * @param filename Output buffer (char[13]) for the generated filename.
+
  * @param now      Current date/time used for naming.
  *
- * @see rtc.now(), error()
+ * @see rtc().now(), error()
  */
-u_int8_t daily_data_file(char* filename, const DateTime& now) {
-    snprintf(filename, 16, "%04d%02d%02d.TXT", now.year(), now.month(), now.day());
+bool daily_data_file(const DateTime& now) {
+    snprintf(filename_data,
+             sizeof(filename_data),
+             "%04d%02d%02d.TXT",
+             now.year(),
+             now.month(),
+             now.day());
 
-    File logfile = SD.open(filename, FILE_WRITE);
-    if (!logfile)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (SD.exists(filename_data)) {
+        LOG_INFO("Daily file already exists: %s", filename_data);
+        return true;  // Pas besoin de le recréer
+    }
+
+    File logfile = SD.open(filename_data, FILE_WRITE);
+    if (!logfile) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
     }
 
     logfile.close();
 
-    LOG_INFO("Daily log file ready: %s", filename);
-    return 0;
+    LOG_INFO("Daily log file created: %s", filename_data);
+    return true;
+}
+
+bool check_and_create_new_daily_file(const DateTime& now) {
+    if (now.day() == rtc_state().last_log_day) {
+        return true;
+    }
+
+    if (!daily_data_file(now)) {
+        return false;
+    }
+
+    rtc_state().last_log_day = now.day();
+    LOG_DEBUG("Initialization or day change detected. New daily file: %s", get_filename());
+    return true;
 }
 
 /**
@@ -204,35 +221,76 @@ u_int8_t daily_data_file(char* filename, const DateTime& now) {
  * @param value  Measured value.
  * @param unit   Measurement unit (e.g. `"lux"`, `"count"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
-    char timestamp[25];
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(),
-             now.second());
+u_int8_t logMeasurement(
+    const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
+    IsoFormatOptions opts;
+    opts.separator    = " ";
+    String now_string = isoformat(now, {opts});
+    String line       = now_string + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
 
-    String line = String(timestamp) + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
-
-    if (use_buffer)
-        {
-            addToCircularBuffer(&sdBuffer, line.c_str());
-            return 0;
+    if (use_buffer) {
+        addToCircularBuffer(&sdBuffer, line.c_str());
+        return 0;
     }
 
+    // LOG_DEBUG("logging on %s", get_filename());  // Ensure filename is up-to-date
     File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (!log) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return -1;
     }
 
     size_t written = log.println(line);
     log.close();
 
-    if (written == 0)
-        {
-            error_signal(ERR_SD_WRITE_FAIL, false);
-            return -1;
+    if (written == 0) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return -1;
     }
     return 0;
+}
+
+/**
+ * @brief Writes a fully formatted log message to the SD card.
+ *
+ * This is the final stage of the logging pipeline. It prepends a timestamp
+ * from the RTC and writes the line to the current daily log file.
+ *
+ * The final on-disk format is:
+ * @code
+ * YYYY-MM-DD HH:MM:SS;SYSTEM;<message>
+ * @endcode
+ *
+ * If the daily file name is not yet available (very early at boot), the last
+ * message is buffered in RAM and written once the filename is assigned.
+ *
+ * @param message User-formatted log payload (without timestamp).
+ */
+void log_event(const char* message) {
+    static char pending[256] = {0};
+    static bool hasPending   = false;
+
+    if (get_filename()[0] == '\0') {
+        snprintf(pending, sizeof(pending), "%s", message);
+        hasPending = true;
+        return;
+    }
+
+    File log = SD.open(get_filename(), FILE_WRITE);
+    if (!log) {
+        snprintf(pending, sizeof(pending), "%s", message);
+        hasPending = true;
+        return;
+    }
+
+    if (hasPending) {
+        log.println(pending);
+        hasPending = false;
+        pending[0] = '\0';
+    }
+
+    log.println(message);
+    log.close();
 }
 
 /** @} */  // end of SD_Manager group

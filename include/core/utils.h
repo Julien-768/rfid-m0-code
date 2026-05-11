@@ -11,18 +11,15 @@
 
 #include <Arduino.h>
 #include <RTClib.h>
-#include "drivers/rtc.h"
+#include "rtc.h"
 
-/**
- * @brief Checks the current date and creates a new daily log file if needed.
- *
- * Compares the day of the month in `now` with the last logged day stored
- * in `rtc_state`. If they differ, it generates a new daily log filename
- * and updates `rtc_state.last_log_day`.
- *
- * @param now Current DateTime instance.
- */
-void check_and_create_new_daily_file(const DateTime& now);
+struct IsoFormatOptions {
+    int ms                = 0;
+    const char* separator = "T";
+    bool include_ms       = false;
+};
+
+bool scanI2CBus();
 
 /**
  * @brief Formats a DateTime as a filename-friendly date string.
@@ -33,7 +30,7 @@ void check_and_create_new_daily_file(const DateTime& now);
  * @param t DateTime instance representing the current date.
  * @return String with the date formatted as "YY_MM_DD".
  */
-String isoformat_date(DateTime t);
+//TODO
 
 /**
  * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}{sep}"
@@ -46,7 +43,7 @@ String isoformat_date(DateTime t);
  * @param include_ms If true, includes milliseconds; if false, omits them.
  * @return Formatted timestamp string.
  */
-String isoformat(DateTime t, int ms, const String& separator, bool include_ms = true);
+String isoformat(const DateTime& t, const IsoFormatOptions& opts);
 
 // /**
 //  * @brief Returns a millisecond counter synchronized with the RTC.
@@ -93,11 +90,24 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
 
 /**
  * @brief Writes the compile date and time in ISO8601 format to a buffer.
- *
- * Uses the compiler macros `__DATE__` and `__TIME__` to generate a
- * timestamp string in ISO8601 format (e.g., `"2025-07-23T14:30:00"`).
+ * (e.g., `"2025-07-23T14:30:00"`).
  *
  * @param out Output buffer for the resulting string.
  * @param len Size of the output buffer in bytes.
  */
 void convertDateToISO8601(char* out, size_t len);
+
+/**
+ * @brief Convert an ISO8601 datetime string to a DateTime object.
+ *
+ * Expected format:
+ * `"YYYY-MM-DDTHH:MM:SS"`
+ *
+ * Example:
+ * `"2025-07-23T14:30:00"`
+ *
+ * @param iso8601 Null-terminated ISO8601 string.
+ * @param out Pointer to the destination DateTime object.
+ * @return true if parsing succeeded, false otherwise.
+ */
+bool convertISO8601ToDateTime(const char* iso8601, DateTime* out);

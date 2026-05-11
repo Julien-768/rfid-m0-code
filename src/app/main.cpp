@@ -41,17 +41,19 @@
  * @{
  */
 
-#include "stdint.h"
+#include <ArduinoLowPower.h>
+#include <Arduino.h>
+#include <SD.h>
 #include "hardware.h"
 #include "rtc.h"
 #include "config.h"
 #include "assembly.h"
 #include "sd_manager.h"
+#include "Wire.h"
 
 #include "system_state.h"
 #include "log.h"
-#include <ArduinoLowPower.h>
-#include <SD.h>
+#include "error_handler.h"
 #include "connected_mode.h"
 #include "det_ext.h"
 #include "deploy_mode.h"
@@ -59,187 +61,268 @@
 #include "sensors_internal.h"
 #include "logger_identity.h"
 #include "mcu_uid.h"
-#include "sd_manager.h"
 #include "utils.h"
 #include "battery.h"
+#include "battery_service.h"
+#include "ir_pwm.h"
+#include "signal.h"
+#include "rfid_driver.h"
+#include "pwr_manager.h"
 
 SystemState currentState = STATE_INIT;
+static bool i2c_ok       = false;
+bool rtc_available       = false;
+String string_widget     = "------------------------------------------------------------";
 
-enum class BlinkMode
-{
-    Slow   = 500,
-    Medium = 250,
-    Fast   = 100
-    // Seules 3 valeurs possibles
-};
-
-void Led_Blink(uint32_t Pin, BlinkMode speed, uint8_t count) {
-    for (uint8_t i = 0; i < count; i++)
-        {
-            digitalWrite(Pin, HIGH);
-            delay((uint16_t)speed);
-            digitalWrite(Pin, LOW);
-            delay((uint16_t)speed);
-        }
+void logWidgetTwice() {
+    LOG_INFO(string_widget.c_str());
+    LOG_INFO(string_widget.c_str());
 }
+
+/**
+ * @brief IR PWM driver instance
+ */
+ir_pwm ir_driver(PIN_PWM_IR, PIN_PR_1, PIN_PR_2);
+
+/**
+ * @brief RFID driver instance
+ */
+rfid_driver_t rfid_driver;
 
 /**
  * @brief Execute the full hardware initialization sequence at startup.
  *
- * This function is called once from @ref setup(). It performs all critical
- * hardware checks and prepares the logging environment.
- *
- * ### Responsibilities
- * - Initialize SD card storage via @ref initSD().
- * - Initialize RTC (DS3231), validate time, and perform recovery via
- *   @ref rtc_bootRecover().
- * - Initialize RTC (DS3231), validate time, and perform recovery via
- *   @ref rtc_bootRecover().
- * - Create the daily log file if the RTC time is trusted, or delay file creation
- *   until time is confirmed when connected to a GUI.
- * - Perform a battery diagnostic and enforce @ref STATE_ENDOFLIFE if voltage is critical.
- * - Load assembly metadata from the SD card.
- * - Load the factory identity from MCU flash via @ref loggerIdentity_init().
- * - Initialize system identifiers (Feather UID, RTC UID, sensor UIDs).
- *
- * ### Behavior Summary
- * - If SD or RTC initialization fails → transitions to @ref STATE_ENDOFLIFE.
- * - If RTC time is invalid and a GUI is connected → waits for GUI-provided time
- *   before creating the daily log file.
- * - On success → sets @ref currentState to @ref STATE_INIT.
- *
- * @note This function interacts heavily with the logging system. If no daily file
- *       exists yet, logging may be buffered in RAM and flushed once the daily file
- *       is created.
- *
- * @warning If RTC time remains unverified and no GUI time is provided, the system
- *          may fall back to firmware build time (see @ref STATE_CONNECTED handling).
- *
- * @see initSD()
- * @see initRTC()
- * @see rtc_bootRecover()
- * @see check_and_create_new_daily_file()
- * @see batteryBootDiagnostic()
- * @see loggerIdentity_init()
- */
-void runBootSequence() {
-    LOG_INFO("------------------------------------------------------------");
-    LOG_INFO("Great tit Logger — Boot sequence started");
-    LOG_INFO("Firmware: vx.x.x");
-    LOG_INFO("Board: Feather M0 Adalogger");
-    LOG_INFO("------------------------------------------------------------");
+ **/
+static SystemState runBootSequence() {
 
-    /* Initialize SD card */
-    if (!initSD(PIN_SD_CS))
-        {
-            currentState = STATE_ENDOFLIFE;
-            return;
+    logWidgetTwice();
+
+    static bool ir_enabled = true;
+    delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
+
+    LOG_INFO("Boot sequence started");
+    String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
+    LOG_INFO(buildDateTime.c_str());
+#ifdef __PIO_BOARD_NAME__
+    String board = "Board: " + String(__PIO_BOARD_NAME__);
+#else
+    String board = "Board: unknown";
+#endif
+    LOG_INFO(board.c_str());
+    log_flush();
+
+    /*
+    Initialize the built-in LED for visual feedback during boot.
+    */
+    signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
+    // led_start_blink_isr(3, blink_mode::fast);
+
+    /*
+    Initialize SD card
+     */
+    LOG_INFO(string_widget.c_str());
+    LOG_INFO("Initializing SD card");
+    if (!sd_initialization(PIN_SD_CS)) {
+        return STATE_ENDOFLIFE;
     }
 
-    /* Initialize RTC */
-    if (!init_rtc())
-        {
-            currentState = STATE_ENDOFLIFE;
-            return;
+    // --- Load existing hw_assembly.cfg ---
+    if (!assembly_load(hw_assembly)) {
+        return STATE_ENDOFLIFE;
     }
+    // initialize RTC for logging file creation and timestamping
 
-    /* Check if external detector is connected */
-    const bool connectedNow = DET_EXT_Connected();
-
-    /* Check any fault on RTC*/
-    rtc_boot_recover(connectedNow);
-
-    /* If everything is ok */
-    if (!connectedNow || !rtc_state.time_unverified)
-        {
-            DateTime now = rtc.now();
-            // TODO sd_manager
-            check_and_create_new_daily_file(now);
-            LOG_INFO("Daily data file created at boot");
-    } else
-        {
-            LOG_INFO("RTC time unverified and logger connected — waiting for GUI time before creating daily data file");
+    /*
+    RTC initialization and sanity check
+     */
+    LOG_INFO(string_widget.c_str());
+    if (hw_assembly.rtc_type == "ds3231" and i2c_ok == true) {
+        LOG_INFO("RTC used\tDS3231");
+        // // Register RTC ISR callback
+        // rtc_set_alarm_callback(nullptr);
+        // Initialize RTC
+        if (!rtc_initialization(RTC_INTERRUPT_PIN)) {
+            LOG_ERROR("RTC initialization failed");
+            return STATE_ENDOFLIFE;
         }
+        // Boot-time sanity check
+        rtc_boot_recover();
+        // // dev fix: should not be needed here as rtc_boot_recover() already sets a valid time if the RTC was lost, but just in case, ensure that the RTC is set to a valid time before proceeding with file creation and timestamping
+        // rtc_apply_external_time(DateTime(__DATE__, __TIME__));
+        rtc_available = true;
+    } else {
+        LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
+        return STATE_ENDOFLIFE;  // TODO: consider allowing operation without RTC, but with limited functionality (e.g., limited timestamping, limited daily file management)
+    }
 
-    // TODO ?
-    /* Battery diagnostic */
-    // uint32_t vbat_mv = read_battery_voltage(PIN_VBAT);
-    // if (!battery_boot_diagnostic(vbat_mv))
+    if (rtc_available) {
+        /*
+        Check and create the daily log file on SD card
+        */
+        // TODO: add rtc_available in rtc module
+        DateTime now = rtc().now();
+        if (!check_and_create_new_daily_file(now)) {
+            LOG_ERROR("Failed to create daily log file at boot");
+            return STATE_ENDOFLIFE;
+        }
+    } else {
+        LOG_WARN("Skipping daily log file creation: no RTC available");
+    }
+
+    /*
+    Load hardware assembly information (UIDs, etc.) and sync with SD card.
+    */
+    LOG_INFO(string_widget.c_str());
+    // Read all hardware UIDs (in RAM only) ---
+    bool uid_updated = false;
+    if (hw_assembly.uid_mainboard == "$uid_mainboard$") {
+        hw_assembly.uid_mainboard = mcu_uid_read();
+        uid_updated               = true;
+    }
+    // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
     //     {
-    //         currentState = STATE_ENDOFLIFE;
-    //         return;
+    //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
+    // uid_updated               = true;
+    // }
+    // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
+    //     {
+    //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
+    // uid_updated               = true;
     // }
 
-    // --- Load existing assembly.cfg ---
-    loadAssembly(assembly);
-    LOG_INFO("Assembly information loaded from assembly.cfg");
+    if (uid_updated) {
+        LOG_INFO("Hardware UIDs updated by software at boot");
+        LOG_DEBUG("\tMainboard UID: %s", hw_assembly.uid_mainboard.c_str());
+        LOG_DEBUG("Hardware assembly information:");
+        LOG_DEBUG("\tLight sensor 1 UID: %s", hw_assembly.uid_light_sensor1.c_str());
+        LOG_DEBUG("\tLight sensor 2 UID: %s", hw_assembly.uid_light_sensor2.c_str());
+        LOG_DEBUG("\tSoftware UID: %s", hw_assembly.uid_software.c_str());
+        LOG_DEBUG("\tExperiment UID: %s", hw_assembly.uid_experiment.c_str());
+        LOG_DEBUG("\tBattery type: %s", hw_assembly.battery_type.c_str());
+    }
 
-    loggerIdentity_init();
-    const auto& idFlash = loggerIdentity_get();
+    // --- Sync Serial Number ---
+    LOG_DEBUG("Trying to synchronize SN from factory identity to assembly configuration");
+    if (assembly_sync_sn(hw_assembly) or uid_updated) {
 
-    LOG_INFO("Factory identity: %s / %s / %s / %s", idFlash.manufacturer, idFlash.logger_type, idFlash.date_fab, idFlash.serial_number);
+        if (!assembly_save(hw_assembly)) {
+            LOG_WARN("Failed to synchronize SN to assembly configuration file");
+        }
+    }
+    /*
+    Load configuration from SD card
+    */
+    if (!load_configuration(config)) {
+        LOG_WARN("Using default compiled configuration");
+    }
 
-    // --- Read all hardware UIDs (in RAM only) ---
-    readFeatherUID();
-    // readAS7341DeviceID();
-    // readTSL2591DeviceID();
+    // --- Load factory identity from flash ---
+    device_id_init();
+    const auto& idFlash = device_id_get();
+    LOG_INFO("Factory identity loaded from flash");
+    LOG_INFO("\tManufacturer: %s", idFlash.manufacturer);
+    LOG_INFO("\tLogger type: %s", idFlash.logger_type);
+    LOG_INFO("\tDate of fabrication: %s", idFlash.date_fab);
+    LOG_INFO("\tSerial number: %s", idFlash.serial_number);
 
-    // --- Complete missing “meta” fields ---
-    if (assembly.uid_software.length() == 0) assembly.uid_software = "DefaultSoftware_v1.0.0";
-    if (assembly.uid_experiment.length() == 0) assembly.uid_experiment = "DefaultExperiment";
+    /*
+     Battery initialization
+     */
+    LOG_INFO(string_widget.c_str());
+    battery_service_config_t batt_serv_cfg{};
 
-    // --- Sync SD assembly with factory identity (SN, etc.) ---
-    syncAssemblyWithFactoryIdentity();
+    // Hardware configuration
+    batt_serv_cfg.hw.pin = PIN_VBAT;
+    // ADC configuration - defaults as a reminder, can be overridden if needed
+    batt_serv_cfg.hw.adc_cfg.ratio      = 2.0f;
+    batt_serv_cfg.hw.adc_cfg.adc_ref_mv = 3300;
+    batt_serv_cfg.hw.adc_cfg.adc_max    = 4095;
 
-    // --- Persist assembly metadata once everything is coherent ---
-    // @todo Consider persisting assembly.cfg at boot once the write policy is finalized.
-    // if (saveAssembly(assembly))
-    // {
-    //     LOG_INFO("assembly.cfg updated at boot");
-    // }
-    // else
-    // {
-    //     LOG_WARN("Failed to save assembly.cfg at boot");
-    // }
+    // Get configuration policy from configuration file
+    battery_thresholds_t batt_thr = battery_service_apply_type_string(hw_assembly.battery_type);
+    batt_serv_cfg.policy.plausible_min_mv = batt_thr.low_warn_mv;   // e.g. 3300mV for LiPo 1S
+    batt_serv_cfg.policy.plausible_max_mv = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
 
-    // --- Log runtime configuration summary (independent from assembly) ---
-    LOG_DEBUG("Config summary at boot:");
-    LOG_DEBUG(config.use_buffer ? "  use_buffer: true" : "  use_buffer: false");
-    LOG_DEBUG(config.enable_light1 ? "  light1: true" : "  light1: false");
-    LOG_DEBUG(config.enable_light2 ? "  light2: true" : "  light2: false");
-    LOG_DEBUG(config.enable_vbat ? "  vbat: true" : "  vbat: false");
+    // Remplir batt_serv_cfg.filter
+    batt_serv_cfg.filter.ema_alpha          = 0.2;  // Smoothing factor for EMA (0..1).
+    batt_serv_cfg.filter.delta_threshold_mv = 10;   // Change in mV for a battery level "changed".
 
-    Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
-    LOG_INFO("Boot sequence completed — entering INIT state");
-    currentState = STATE_INIT;
+    // Init service
+    if (!battery_service_init(batt_serv_cfg)) {
+        // Handle battery initialization failure
+        LOG_ERROR("Battery service initialization failed");
+        return STATE_ENDOFLIFE;
+    }
+
+    // Vérification initiale boot
+    int32_t vbat_mv = 0;
+    bool changed    = false;
+    if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+        battery_set_available(true);
+        if (!battery_service_decision("Boot", vbat_mv)) {
+            // Log and blink error led
+            error_signal(ERR_BATTERY_CRITICAL);
+            return STATE_ENDOFLIFE;
+        }
+    } else {
+        LOG_WARN("Initial battery reading failed");
+        battery_set_available(false);
+    }
+
+    // --- Initialize IR PWM module ---
+    LOG_INFO(string_widget.c_str());
+    if (ir_enabled) {
+
+        // Enable both sensors and provide the ISR callback
+        ir_driver.begin(true, true, nullptr, nullptr);
+        LOG_INFO("IR PWM driver initialized");
+    } else {
+        LOG_INFO("IR PWM driver disabled by configuration");
+    }
+
+    // --- Initialize RFID driver ---
+    LOG_INFO(string_widget.c_str());
+    if (config.enable_rfid) {
+        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
+        LOG_INFO("RFID driver initialized");
+    } else {
+        LOG_INFO("RFID driver disabled by configuration");
+    }
+    LOG_INFO(string_widget.c_str());
+    // led_start_blink_isr(3, blink_mode::fast);
+    LOG_INFO("Boot sequence completed");
+
+    DET_EXT_Init();
+    if (DET_EXT_Connected()) {
+        LOG_INFO("Entering CONNECTED mode");
+        logWidgetTwice();
+        return STATE_CONNECTED;
+    }
+
+    LOG_INFO("Entering INIT mode");
+
+    return STATE_INIT;
 }
 
 /**
  * @brief Arduino setup routine — performs one-time boot sequence and starts runtime.
- *
- * This function:
- * - Initializes serial communication (`Serial1`) for debug output.
- * - Configures the built-in LED for visual feedback.
- * - Initializes I²C (`Wire.begin()`) and external detector input (@ref DET_EXT_Init()).
- * - Runs the one-time boot sequence via @ref runBootSequence().
- *
- * After @ref runBootSequence(), the global state machine starts in @ref loop()
- * using the value set in @ref currentState (typically @ref STATE_INIT).
- *
- * @see runBootSequence()
- * @see loop()
  */
 
 void setup() {
-    Serial1.begin(115200);
-    delay(100);
+    // Initialize logging system first to capture all subsequent logs
+    logInit();
+    delay(1000);
 
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW);
-
+    // Initialize I²C for RTC and sensors
     Wire.begin();
-    DET_EXT_Init();
-    runBootSequence();
+    i2c_ok = scanI2CBus();
+
+    // Initialize switch and power relay
+    pwr_manager::begin();
+
+    // Run the boot sequence
+    currentState = runBootSequence();
+    logWidgetTwice();
 }
 
 /**
@@ -255,91 +338,77 @@ void setup() {
  * | **STATE_DEPLOY**    | Periodic low-power data logging of sensors and battery. |
  * | **STATE_STOCK**     | Storage/idle state for pre-deployment conservation. |
  * | **STATE_ENDOFLIFE** | Safe shutdown when a critical error or low battery occurs. |
- * | **STATE_WAIT**      | Default fallback / placeholder state. |
+ * | **STATE_ERROR**      | Default fallback / placeholder state. |
  *
  * ## Power Management
  * Uses `ArduinoLowPower` to minimize energy usage between acquisitions.
  *
  * @see runConnectedMode()
- * @see runDeployState()
  */
 
 void loop() {
+    switch (currentState) {
+        case STATE_INIT:
+            LOG_DEBUG("INIT mode active");
+            if (load_configuration(config)) {
+                LOG_INFO("Configuration re-loaded from SD");
+            } else {
+                LOG_WARN("Using default compiled configuration");
+            }
 
-    switch (currentState)
-        {
-            case STATE_INIT:
-                if (DET_EXT_Connected())
-                    {
-                        LOG_INFO("External detector detected: entering CONNECTED mode");
+            Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
-                        // If time is unverified, CONNECTED mode may wait for GUI-provided time.
-                        currentState = STATE_CONNECTED;
-                } else
-                    {
-                        if (loadConfiguration(config))
-                            {
-                                LOG_INFO("Configuration loaded from SD");
-                        } else
-                            {
-                                LOG_WARN("Using default compiled configuration");
-                            }
+            LOG_DEBUG("Initializing DEPLOY mode");
+            deploy_enter(ir_driver);
 
-                        rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
+            LOG_INFO("Entering DEPLOY mode");
+            currentState = STATE_DEPLOY;
+            LOG_INFO(string_widget.c_str());
+            LOG_INFO(string_widget.c_str());
+            blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
+            break;
 
-                        // Initialize sensors once before entering DEPLOY
-                        Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
+        case STATE_CONNECTED:
+            runConnectedMode(currentState);
+            break;
 
-                        LOG_INFO("Entering DEPLOY mode");
-                        currentState = STATE_DEPLOY;
-                    }
-                break;
+        case STATE_DEPLOY:
+            run_deploy_state(currentState, rfid_driver, ir_driver);
+            break;
 
-                case STATE_CONNECTED: {
-                    if (rtc_state.time_unverified && millis() > rtc_state.wait_deadline_ms)
-                        {
-                            const DateTime build(F(__DATE__), F(__TIME__));
-                            rtc.adjust(build);
-                            rtc_state.time_unverified = false;
-                            LOG_WARN("GUI time timeout — using build time");
-                            // TODO sd_manager
-                            // check_and_create_new_daily_file(rtc.now());
-                    }
+        case STATE_STOCK:
+            LOG_DEBUG("Stock mode active. Sleeping...");
+            digitalWrite(LED_BUILTIN, LOW);
+            LowPower.sleep();
+            break;
 
-                    runConnectedMode(currentState);
-                    break;
-                }
+        case STATE_ENDOFLIFE:
+            // @todo Factorize shutdown steps into a dedicated shutdown function.
+            LOG_ERROR("Entering END OF LIFE mode");
+            deploy_exit(ir_driver);
+            SD.end();
+            // led_start_blink_isr(1, blink_mode::slow);
+            // led_start_blink_isr(10, blink_mode::fast);
+            // Blink fast 10 times before switching off
+            blink_blocking_safe(PIN_BUZZER_LED, 100, 100, 10);
+            pwr_manager::request_shutdown();
+            delay(2000);
 
-            case STATE_DEPLOY:
-                runDeployState(currentState);
-                break;
+            while (true) {
+                LowPower.deepSleep();
+            }
+            break;
 
-            case STATE_STOCK:
-                LOG_DEBUG("Stock mode active. Sleeping...");
-                digitalWrite(LED_BUILTIN, LOW);
-                LowPower.sleep();
-                break;
+        case STATE_ERROR:
+            LOG_ERROR("Error, unexpected STATE_ERROR mode reached.");
+            currentState = STATE_INIT;
+            break;
 
-            case STATE_ENDOFLIFE:
-                // @todo Factorize shutdown steps into a dedicated shutdown function.
-                LOG_DEBUG("Entering END OF LIFE mode: shutting down sensors and SD card.");
-
-                SD.end();
-                LOG_INFO("All peripherals powered off");
-                Led_Blink(LED_BUILTIN, BlinkMode::Slow, 1);
-                Led_Blink(LED_BUILTIN, BlinkMode::Fast, 3);
-                LOG_DEBUG("System halted. LED off. Entering infinite sleep.");
-
-                while (true)
-                    {
-                        LowPower.deepSleep();
-                    }
-                break;
-
-            default:
-                currentState = STATE_WAIT;
-                break;
-        }
+        default:
+            LOG_ERROR("Error, unexpected default mode reached.");
+            currentState = STATE_ERROR;
+            break;
+    }
 }
 
 /** @} */  // end of MainApplication group

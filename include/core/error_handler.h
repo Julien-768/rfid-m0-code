@@ -14,10 +14,7 @@
  */
 
 #pragma once
-
-#ifndef
-#define PIN_ERROR PIN_LEDBUILTIN
-#endif
+#include <stdint.h>
 
 /**
  * @enum ErrorCode
@@ -31,8 +28,7 @@
  *
  * @ingroup SystemModules
  */
-enum ErrorCode : uint8_t
-{
+enum ErrorCode : uint8_t {
     ERR_NONE             = 0,  ///< No error
     ERR_SD_NOT_FOUND     = 2,  ///< SD card not detected
     ERR_SD_WRITE_FAIL    = 3,  ///< Failed to write on SD card (possible corruption)
@@ -60,4 +56,4 @@ enum ErrorCode : uint8_t
  *
  * @ingroup SystemModules
  */
-void error_signal(ErrorCode code, bool halt_system, uint8_t blink_pin = PIN_ERROR);
+void error_signal(ErrorCode code);

@@ -2,22 +2,21 @@
 
 #include <Arduino.h>
 #include <RTClib.h>
-#include "drivers/battery.h"
-#include "hal/sensors_hal.h"
+#include "battery.h"
+#include "sensors_hal.h"
 
 /**
  * @brief Unified frame holding all sensor readings and validity flags.
  */
-struct SensorFrame
-{
+struct SensorFrame {
     // AS7341Reading as7341;
     // bool valid_as7341 = false;
 
     // TSL2591Reading tsl2591;
     // bool valid_tsl2591 = false;
 
-    int32_t vbat_mv = 0.0f;
-    bool valid_vbat = false;
+    bool battery_valid = false;
+    int32_t vbat_mv    = 0.0f;
 };
 
 /**

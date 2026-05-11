@@ -1,8 +1,8 @@
 /**
  * @file system_state.h
- * @brief Global state machine definitions for Moonraker.
+ * @brief Global state machine definitions.
  *
- * Defines all operational states used by the Moonraker main application loop.
+ * Defines all operational states used by the logger main application loop.
  *
  * ## State overview
  *
@@ -13,7 +13,7 @@
  * | STATE_DEPLOY | Autonomous low-power data logging mode. |
  * | STATE_STOCK | Storage / idle mode before deployment. |
  * | STATE_ENDOFLIFE | Permanent shutdown after critical error or battery failure. |
- * | STATE_WAIT | Fallback / placeholder idle state. |
+ * | STATE_ERROR | Fallback / placeholder idle state. |
  *
  * ## Boot model
  * The hardware boot and diagnostic sequence is executed once in `setup()`
@@ -29,14 +29,13 @@
 #include <stdint.h>
 
 /**
- * @brief Global runtime states of the Moonraker logger.
+ * @brief Global runtime states of the logger.
  */
-enum SystemState : uint8_t
-{
-    STATE_INIT,       ///< Runtime initialization and mode selection
-    STATE_CONNECTED,  ///< Host / GUI communication mode
-    STATE_DEPLOY,     ///< Autonomous data acquisition mode
-    STATE_STOCK,      ///< Low-power storage / idle mode
-    STATE_ENDOFLIFE,  ///< Permanent shutdown / deep sleep
-    STATE_WAIT        ///< Idle fallback state
+enum SystemState : uint8_t {
+    STATE_INIT      = 0x00,  ///< Runtime initialization and mode selection
+    STATE_CONNECTED = 0x01,  ///< Host / GUI communication mode
+    STATE_DEPLOY    = 0x02,  ///< Autonomous data acquisition mode
+    STATE_STOCK     = 0x03,  ///< Low-power storage / idle mode
+    STATE_ENDOFLIFE = 0x04,  ///< Permanent shutdown / deep sleep
+    STATE_ERROR     = 0x05   ///< Fallback / placeholder idle state.
 };

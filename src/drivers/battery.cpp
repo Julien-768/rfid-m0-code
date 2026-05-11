@@ -26,8 +26,22 @@
  */
 
 #include "battery.h"
-#include <string.h>  // strcmp
-#include <unordered_map>
+#include "Arduino.h"
+
+namespace {
+uint8_t adc_resolution_bits_from_max(uint16_t adc_max) {
+    uint32_t levels = static_cast<uint32_t>(adc_max) + 1u;
+    uint8_t bits    = 0u;
+
+    while (levels > 1u && (levels % 2u) == 0u) {
+        levels /= 2u;
+        ++bits;
+    }
+
+    return (levels == 1u) ? bits : 0u;
+}
+
+}  // namespace
 
 // -----------------------------------------------------------------------------
 // Battery technology model (type + default thresholds)
@@ -48,17 +62,14 @@
  * @return Battery type enum (safe fallback on unknown input).
  */
 battery_type_t battery_type_from_string(const char* s) {
-    if (s == nullptr || s[0] == '\0') return battery_type_t::battery_lipo_1s;
+    if (s == nullptr || s[0] == '\0') return battery_type_t::battery_unknown;
 
-    static const std::unordered_map<std::string, battery_type_t> mapping = {
-        {"lipo_1s", battery_type_t::battery_lipo_1s},
-        {"liion_1s", battery_type_t::battery_liion_1s},
-        {"lifepo4_1s", battery_type_t::battery_lifepo4_1s},
-        {"lead_12v", battery_type_t::battery_lead_12v},
-    };
+    if (strcmp(s, "lipo_1s") == 0) return battery_type_t::battery_lipo_1s;
+    if (strcmp(s, "liion_1s") == 0) return battery_type_t::battery_liion_1s;
+    if (strcmp(s, "lifepo4_1s") == 0) return battery_type_t::battery_lifepo4_1s;
+    if (strcmp(s, "lead_12v") == 0) return battery_type_t::battery_lead_12v;
 
-    auto it = mapping.find(s);
-    return (it != mapping.end()) ? it->second : battery_type_t::battery_lipo_1s;
+    return battery_type_t::battery_lipo_1s;
 }
 
 /**
@@ -77,39 +88,104 @@ battery_type_t battery_type_from_string(const char* s) {
 battery_thresholds_t battery_thresholds_default(battery_type_t type) {
     battery_thresholds_t t{};
 
-    switch (type)
-        {
-            case battery_type_t::battery_lipo_1s:
-                t.low_warn_mv  = 3600u;
-                t.low_crit_mv  = 3300u;
-                t.high_crit_mv = 4400u;
-                return t;
+    switch (type) {
+        case battery_type_t::battery_lipo_1s:
+            t.low_warn_mv  = 3600u;
+            t.low_crit_mv  = 3300u;
+            t.high_crit_mv = 4400u;
+            return t;
 
-            case battery_type_t::battery_liion_1s:
-                t.low_warn_mv  = 3500u;
-                t.low_crit_mv  = 3200u;
-                t.high_crit_mv = 4400u;
-                return t;
+        case battery_type_t::battery_liion_1s:
+            t.low_warn_mv  = 3500u;
+            t.low_crit_mv  = 3200u;
+            t.high_crit_mv = 4400u;
+            return t;
 
-            case battery_type_t::battery_lifepo4_1s:
-                t.low_warn_mv  = 3200u;
-                t.low_crit_mv  = 3000u;
-                t.high_crit_mv = 3800u;
-                return t;
+        case battery_type_t::battery_lifepo4_1s:
+            t.low_warn_mv  = 3200u;
+            t.low_crit_mv  = 3000u;
+            t.high_crit_mv = 3800u;
+            return t;
 
-            case battery_type_t::battery_lead_12v:
-                t.low_warn_mv  = 11800u;
-                t.low_crit_mv  = 11400u;
-                t.high_crit_mv = 15000u;
-                return t;
+        case battery_type_t::battery_lead_12v:
+            t.low_warn_mv  = 11800u;
+            t.low_crit_mv  = 11400u;
+            t.high_crit_mv = 15000u;
+            return t;
 
-            default:
-                // Safe fallback
-                t.low_warn_mv  = 3600u;
-                t.low_crit_mv  = 3300u;
-                t.high_crit_mv = 4400u;
-                return t;
-        }
+        case battery_type_t::battery_unknown:
+        default:
+            // Safe fallback
+            t.low_warn_mv  = 3600u;
+            t.low_crit_mv  = 3300u;
+            t.high_crit_mv = 4400u;
+            return t;
+    }
+}
+
+bool battery_init(const battery_hw_config_t& hw_cfg) {
+    const uint8_t resolution_bits = adc_resolution_bits_from_max(hw_cfg.adc_cfg.adc_max);
+
+    if (resolution_bits != 0u) {
+        analogReadResolution(resolution_bits);
+    }
+
+    pinMode(hw_cfg.pin, INPUT);
+
+    // ⚠️ volontairement conservé minimal (pas de changement de ref ADC)
+    return true;
+}
+
+/**
+ * @brief Read the battery voltage from an ADC pin.
+ *
+ * @param pin ADC pin to read.
+ * @param cfg ADC configuration (reference voltage, max value, optional divider ratio).
+ * @return Battery voltage in millivolts (mV), or -1 if an error occurs.
+ */
+int32_t read_battery_voltage(uint32_t pin, const battery_adc_config_t& cfg) {
+    if (cfg.ratio <= 0.0f || cfg.adc_ref_mv == 0u || cfg.adc_max == 0u) {
+        return -1;  // negative value on error
+    }
+
+    const uint32_t raw = analogRead(pin);
+
+    if (raw > cfg.adc_max) {
+        return -1;  // invalid ADC reading/config mismatch
+    }
+
+    const float mv = (static_cast<float>(raw) / static_cast<float>(cfg.adc_max)) *
+                     static_cast<float>(cfg.adc_ref_mv) * cfg.ratio;
+
+    // round to nearest mV
+    return static_cast<int32_t>(mv + 0.5f);
+}
+
+/**
+ * @brief Check if the battery voltage is within plausible bounds.
+ *
+ * @param vbat_mv Battery voltage in millivolts (mV).
+ * @param plausible_min_mv Minimum plausible voltage (mV).
+ * @param plausible_max_mv Maximum plausible voltage (mV).
+ * @return true if the voltage is plausible, false otherwise
+ */
+bool check_battery_voltage_plausibility(int32_t mv, uint16_t min_mv, uint16_t max_mv) {
+    if (mv < 0) {
+        return false;
+    }
+
+    const bool min_enabled = (min_mv != 0u);
+    const bool max_enabled = (max_mv != 0u);
+
+    if (min_enabled && mv < static_cast<int32_t>(min_mv)) {
+        return false;
+    }
+
+    if (max_enabled && mv > static_cast<int32_t>(max_mv)) {
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -126,87 +202,23 @@ battery_thresholds_t battery_thresholds_default(battery_type_t type) {
  * @param thr Thresholds used for classification.
  * @return Battery level classification.
  */
-battery_level_t battery_classify_mv(int32_t vbat_mv, const battery_thresholds_t& thr) {
-    if (vbat_mv < 0)
-        {
-            return battery_level_t::battery_invalid;
+battery_state_t battery_classify_mv(int32_t mv, const battery_thresholds_t& thr) {
+    if (mv < 0) {
+        return battery_invalid;
     }
 
-    if (thr.high_crit_mv != 0 && vbat_mv > thr.high_crit_mv)
-        {
-            return battery_level_t::battery_critical_high;
+    if (thr.high_crit_mv != 0u && mv > static_cast<int32_t>(thr.high_crit_mv)) {
+        return battery_critical_high;
     }
 
-    if (thr.low_crit_mv != 0 && vbat_mv < thr.low_crit_mv)
-        {
-            return battery_level_t::battery_critical_low;
+    if (thr.low_crit_mv != 0u && mv < static_cast<int32_t>(thr.low_crit_mv)) {
+        return battery_critical_low;
     }
 
-    if (thr.low_warn_mv != 0 && vbat_mv < thr.low_warn_mv)
-        {
-            return battery_level_t::battery_warning_low;
+    if (thr.low_warn_mv != 0u && mv < static_cast<int32_t>(thr.low_warn_mv)) {
+        return battery_warning_low;
     }
 
-    return battery_level_t::battery_normal;
+    return battery_normal;
 }
-
-bool battery_init() {
-    // Configuration de l'ADC (optionnel mais recommandé pour des mesures précises)
-    analogReadResolution(12);     // Passe en 12 bits (0-4095) si nécessaire
-    analogReference(AR_DEFAULT);  // Utilise la référence par défaut (3.3V)
-
-    // Si vous utilisez une broche spécifique, vous pouvez aussi la configurer en entrée (optionnel)
-    pinMode(A0, INPUT);
-    return true;
-}
-
-/**
- * @brief Read the battery voltage from an ADC pin.
- *
- * @param pin ADC pin to read.
- * @param ratio Scaling factor (e.g. 2.0f for a /2 voltage divider).
- * @param adc_ref_mv ADC reference voltage in millivolts (mV).
- * @param adc_max Maximum ADC value (default: 1023 for 10-bit ADC).
- * @return Battery voltage in millivolts (mV), or 0 if an error occurs.
- */
-int32_t read_battery_voltage(uint32_t pin, battery_adc_config_t cfg) {
-    if (cfg.ratio <= 0.0f || cfg.adc_ref_mv == 0u || cfg.adc_max == 0u)
-        {
-            return 0;
-    }
-
-    const uint32_t raw    = (uint32_t)analogRead(pin);
-    const float adc_mv_f  = ((float)raw * (float)cfg.adc_ref_mv) / (float)cfg.adc_max;
-    const float vbat_mv_f = adc_mv_f * cfg.ratio;
-
-    return (int32_t)roundf(vbat_mv_f);
-}
-
-/**
- * @brief Check if the battery voltage is within plausible bounds.
- *
- * @param vbat_mv Battery voltage in millivolts (mV).
- * @param plausible_min_mv Minimum plausible voltage (mV).
- * @param plausible_max_mv Maximum plausible voltage (mV).
- * @return true if the voltage is plausible, false otherwise.
- */
-bool check_battery_voltage_plausibility(int32_t vbat_mv, uint16_t plausible_min_mv, uint16_t plausible_max_mv) {
-    if (plausible_min_mv == 0u || plausible_max_mv == 0u)
-        {
-            return true;  // Check disabled
-    }
-
-    if (plausible_min_mv >= plausible_max_mv)
-        {
-            return false;  // Invalid configuration
-    }
-
-    if (vbat_mv < (int32_t)plausible_min_mv || vbat_mv > (int32_t)plausible_max_mv)
-        {
-            return false;  // Out of range
-    }
-
-    return true;  // OK
-}
-
 /** @} */  // end of Battery group

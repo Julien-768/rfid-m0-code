@@ -2,11 +2,11 @@
  * @file battery_service.h
  * @defgroup BatteryService Battery Service
  * @ingroup SystemModules
- * @brief Battery orchestration layer for Moonraker (tick/logs/actions).
+ * @brief Battery orchestration layer (tick/logs/actions).
  *
  * This module sits above the reusable battery driver (`drivers/battery.*`) and
  * is responsible for:
- * - call cadence (periodic checks / boot checks)
+ * - call cadence (periodic checks)
  * - logging and telemetry
  * - triggering system actions on critical battery state (error handler)
  *
@@ -19,11 +19,10 @@
  * ## Unit convention
  * All voltages handled by this module are expressed in **millivolts (mV)**:
  * - readings returned by @ref battery_service_read_vbat_mv()
- * - thresholds exposed by @ref BatteryThresholds
+ * - thresholds exposed by @ref battery_thresholds_t
  *
  * @note The service stores a board-level measurement configuration and converts it
- *       to the driver configuration types (see @ref battery_measure_config_t and
- *       @ref BatteryAdcConfig) when calling the driver.
+ *       to the driver configuration types when calling the driver.
  *
  * @see drivers/battery.h
  * @see core/battery_service.cpp
@@ -35,51 +34,65 @@
 #pragma once
 
 #include <Arduino.h>
-#include <stdint.h>
+#include "battery.h"
 
-#include "battery.h"  // battery_* types + battery_read_mv()
+bool battery_is_available();
 
-// /**
-//  * @struct BatteryMeasureConfig
-//  * @brief Board-level measurement configuration for VBAT (service API).
-//  *
-//  * Provided by the integration/HAL layer. Defines:
-//  * - which ADC pin is used for VBAT
-//  * - which divider ratio is applied (if any)
-//  * - ADC reference and resolution for conversion
-//  * - plausibility bounds (sanity check after scaling)
-//  *
-//  * This service-level configuration is intentionally simple and stable.
-//  * Internally, it is converted to the driver configuration structures
-//  * (@ref battery_measure_config_t and @ref BatteryAdcConfig).
-//  *
-//  * @ingroup BatteryService
-//  */
-// struct BatteryMeasureConfig
-// {
-//     battery_measure_config_t battery_config_t;
-// };
+void battery_set_available(bool available);
 
 /**
- * @struct BatteryThresholds
- * @brief Voltage thresholds exposed by the battery service (mV).
+ * @brief Configuration of the battery signal filtering stage.
  *
- * The driver owns the default thresholds per battery technology.
- * This struct allows:
- * - reading back the active thresholds (telemetry / GUI)
- * - overriding thresholds (tests or explicit configuration)
+ * This filter is applied at the service layer, after ADC conversion
+ * and plausibility validation.
  *
- * - `warn_mv`: below this value => WARNING
- * - `critical_mv`: below this value => CRITICAL (low battery)
- * - `high_crit_mv`: above this value => CRITICAL (unexpected high voltage)
+ * The filtering pipeline is:
+ *   raw ADC -> plausibility -> median(3) -> EMA -> output
  *
- * @ingroup BatteryService
+ * - Median filter removes spikes (robust to outliers).
+ * - EMA (Exponential Moving Average) smooths remaining noise.
+ * - Delta threshold avoids micro-variations triggering updates.
  */
-struct BatteryThresholds
-{
-    uint16_t warn_mv      = 0;  ///< Warning threshold (mV).
-    uint16_t critical_mv  = 0;  ///< Critical low threshold (mV).
-    uint16_t high_crit_mv = 0;  ///< Critical high threshold (mV).
+struct battery_filter_config_t {
+    float ema_alpha =
+        0.25f;  ///< EMA smoothing factor (0..1). Lower = smoother, higher = more reactive.
+    uint16_t delta_threshold_mv = 30;  ///< Minimum change (mV) to consider output as updated.
+};
+
+/**
+ * @brief Runtime state of the battery filter.
+ *
+ * This structure holds the internal state required by the filtering
+ * algorithm. It must be persistent across calls.
+ *
+ * It is fully managed by the battery service and should not be accessed
+ * directly by user code.
+ */
+struct battery_filter_state_t {
+    int32_t raw_samples[3] = {0, 0, 0};  ///< Last 3 raw plausible samples (mV).
+    int32_t median_mv      = 0;          ///< Last median output (mV).
+    int32_t ema_mv         = 0;          ///< Current EMA filtered value (mV).
+    int32_t published_mv   = 0;      ///< Last value considered "significant" (deadband applied).
+    bool initialized       = false;  ///< Initialization flag (first sample handling).
+};
+
+struct battery_policy_config_t {
+    uint16_t plausible_min_mv = 0;  ///< 0 = disable lower bound.
+    uint16_t plausible_max_mv = 0;  ///< 0 = disable upper bound.
+};
+
+/**
+ * @brief Full battery service configuration.
+ *
+ * Combines:
+ * - hardware configuration (ADC + pin)
+ * - plausibility policy
+ * - filtering configuration
+ */
+struct battery_service_config_t {
+    battery_hw_config_t hw;          ///< Hardware/ADC configuration.
+    battery_policy_config_t policy;  ///< Plausibility bounds configuration.
+    battery_filter_config_t filter;  ///< Filtering configuration.
 };
 
 /**
@@ -90,11 +103,11 @@ struct BatteryThresholds
  * @param cfg Measurement configuration (pin/ratio/ADC params/plausibility).
  *
  * @ingroup BatteryService
- * @see BatteryMeasureConfig
+ * @see battery_service_config_t
  * @see battery_service_apply_type_string()
  * @see battery_service_read_vbat_mv()
  */
-bool battery_service_init(const battery_measure_config_t& cfg = {});
+bool battery_service_init(const battery_service_config_t& cfg);
 
 /**
  * @brief Apply battery defaults based on a battery type string.
@@ -108,42 +121,25 @@ bool battery_service_init(const battery_measure_config_t& cfg = {});
  * @see battery_type_from_string()
  * @see battery_thresholds_default()
  */
-void battery_service_apply_type_string(const String& battery_type);
+battery_thresholds_t battery_service_apply_type_string(const String& battery_type);
 
 /**
- * @brief Override the active thresholds (service-level override).
+ * @brief Read filtered VBAT and detect significant change.
  *
- * Useful for tests or for a configuration path that provides explicit thresholds.
+ * Same processing as @ref battery_service_read_vbat_mv(), but also reports
+ * whether the filtered value changed beyond the configured deadband.
  *
- * @param t Threshold values in mV.
+ * @param[out] vbat_mv Filtered battery voltage (mV)
+ * @param[out] changed True if value changed significantly since last update
  *
- * @ingroup BatteryService
+ * @return true if measurement is valid
+ *         false if error occurred (vbat_mv contains error code)
+ *
+ * Error codes:
+ *   -1 = ADC/config error
+ *   -2 = plausibility error
  */
-void battery_service_set_thresholds(const BatteryThresholds& t);
-
-/**
- * @brief Return the currently active thresholds.
- *
- * @return Active @ref BatteryThresholds.
- *
- * @ingroup BatteryService
- */
-BatteryThresholds battery_service_get_thresholds();
-
-/**
- * @brief One-shot VBAT measurement (mV) using configured measurement parameters.
- *
- * Wraps the driver ADC->mV conversion with board config provided via
- * @ref battery_service_init().
- *
- * @return Battery voltage in mV, or a negative error code from the driver.
- *
- * @ingroup BatteryService
- * @see battery_read_mv()
- * @see battery_measure_config_t
- * @see BatteryAdcConfig
- */
-int32_t battery_service_read_vbat_mv();
+bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed);
 
 /**
  * @brief Periodic battery check with downsampling.
@@ -159,5 +155,7 @@ int32_t battery_service_read_vbat_mv();
  * @ingroup BatteryService
  */
 bool battery_service_periodic_check(int32_t vbat_mv, uint8_t& counter, uint8_t period);
+
+bool battery_service_decision(const char* context, int32_t vbat_mv);
 
 /** @} */  // end of BatteryService group

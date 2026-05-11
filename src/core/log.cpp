@@ -1,171 +1,302 @@
 /**
  * @file log.cpp
- * @brief Centralized logging backend for the Moonraker data logger.
- *
- * This module implements the core logging pipeline:
- * - Adds a textual log level tag (ERROR, WARN, INFO, DEBUG)
- * - Formats user messages using printf-style formatting
- * - Sends the final message to logSystemEvent() for timestamped SD storage
- * - Optionally mirrors logs to Serial1, depending on compile-time settings
- *
- * User code should only call the LOG_ERROR / LOG_WARN / LOG_INFO / LOG_DEBUG
- * macros, which route into logPrintf().
+ * @brief Logger backend for serial and SD output.
+ */
+
+/**
+ * @section platform_info Platform Information
+ * - Platform: Adafruit Feather M0 (ATSAMD21G18)
+ * - MCU: ARM Cortex-M0+ @ 48 MHz
+ * - Framework: Arduino (SAMD core)
+ * - Logic Level: 3.3V
  */
 
 #include "log.h"
 #include "rtc.h"
 #include "sd_manager.h"
+#include "hardware.h"
+#include "SoftTx.h"
 
 #include <SD.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <string.h>  // for strcpy, strlen
+#include <string.h>
+
+#if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+SoftTx SerialAlt(SerialAlt_TX, 9600);
+#endif
 
 // ---------------------------------------------------------------------------
-// Map numeric log level to printable tag string
+// Serial logger initialization
 // ---------------------------------------------------------------------------
-/**
- * @brief Converts a numeric log level into its textual representation.
- *
- * @param level One of LOG_LEVEL_ERROR, LOG_LEVEL_WARN, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG.
- * @return A constant string such as "ERROR" or "DEBUG".
- */
+void logInit() {
+#if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
+    Serial.begin(115200);
+
+    uint32_t start = millis();
+    while (!Serial && (millis() - start < 3000)) {}
+
+    Serial.println("USB Serial OK");
+
+#elif (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
+    Serial1.begin(115200);
+    delay(100);
+    Serial1.println("Serial1 OK");
+
+#elif (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    SerialAlt.begin();
+    SerialAlt.print("Soft TX on D");
+    SerialAlt.print(SerialAlt_TX);
+    SerialAlt.println(" OK");
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// Log level helpers
+// Convention assumed:
+// ERROR   = most important
+// WARNING
+// INFO
+// DEBUG   = least important
+//
+// Therefore: a message is emitted if level <= configured threshold.
+// ---------------------------------------------------------------------------
+static bool logLevelEnabled(uint8_t level, uint8_t threshold) {
+    return level >= threshold;
+}
+
 static const char* logLevelTag(uint8_t level) {
-    switch (level)
-        {
-            case LOG_LEVEL_ERROR:
-                return "ERROR";
-            case LOG_LEVEL_WARN:
-                return "WARN";
-            case LOG_LEVEL_INFO:
-                return "INFO";
-            case LOG_LEVEL_DEBUG:
-                return "DEBUG";
-            default:
-                return "LOG";
+    switch (level) {
+        case LOG_LEVEL_ERROR:
+            return "ERROR";
+        case LOG_LEVEL_WARNING:
+            return "WARNING";
+        case LOG_LEVEL_INFO:
+            return "INFO";
+        case LOG_LEVEL_DEBUG:
+            return "DEBUG";
+        default:
+            return "LOG";
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Safe append helper
+// ---------------------------------------------------------------------------
+static void appendText(char* out, size_t size, size_t* pos, const char* text) {
+    if (!out || !pos || size == 0) return;
+    if (!text) text = "";
+
+    while (*text && *pos < size - 1) {
+        out[(*pos)++] = *text++;
+    }
+
+    out[*pos] = '\0';
+}
+
+static void appendPaddedLevel(char* out, size_t size, size_t* pos, const char* level) {
+    if (!level) level = "";
+
+    const uint8_t width = 7;
+    uint8_t len         = strlen(level);
+
+    appendText(out, size, pos, level);
+
+    while (len < width && *pos < size - 1) {
+        out[(*pos)++] = ' ';
+        len++;
+    }
+
+    out[*pos] = '\0';
+}
+
+// ---------------------------------------------------------------------------
+// Format log line
+// Supported placeholders:
+// %T = timestamp
+// %L = padded log level
+// %M = message
+// %S = source
+// %% = literal percent
+// ---------------------------------------------------------------------------
+static void formatLogLine(char* out,
+                          size_t size,
+                          const char* format,
+                          const char* timestamp,
+                          const char* level,
+                          const char* message,
+                          const char* source) {
+    if (!out || size == 0) return;
+
+    out[0] = '\0';
+
+    if (!format) {
+        format = "%T [%L] %S: %M";
+    }
+
+    if (!timestamp) timestamp = "";
+    if (!level) level = "";
+    if (!message) message = "";
+    if (!source) source = "";
+
+    size_t pos = 0;
+
+    for (const char* p = format; *p && pos < size - 1; ++p) {
+        if (*p != '%') {
+            out[pos++] = *p;
+            out[pos]   = '\0';
+            continue;
         }
+
+        ++p;
+
+        if (*p == '\0') {
+            appendText(out, size, &pos, "%");
+            break;
+        }
+
+        switch (*p) {
+            case 'T':
+                appendText(out, size, &pos, timestamp);
+                break;
+
+            case 'L':
+                appendPaddedLevel(out, size, &pos, level);
+                break;
+
+            case 'M':
+                appendText(out, size, &pos, message);
+                break;
+
+            case 'S':
+                appendText(out, size, &pos, source);
+                break;
+
+            case '%':
+                appendText(out, size, &pos, "%");
+                break;
+
+            default:
+                appendText(out, size, &pos, "?");
+                break;
+        }
+    }
+
+    out[pos] = '\0';
+}
+
+// ---------------------------------------------------------------------------
+// Timestamp formatting
+// ---------------------------------------------------------------------------
+static void formatTimestamp(char* timestamp, size_t size) {
+    if (!timestamp || size == 0) return;
+
+    if (rtc_available) {
+        DateTime now = rtc().now();
+
+        // Note: millis() is not phase-locked to the RTC second.
+        // This gives useful sub-second ordering, but not true RTC milliseconds.
+        uint16_t ms = millis() % 1000;
+
+        snprintf(timestamp,
+                 size,
+                 "%04d-%02d-%02d %02d:%02d:%02d.%03u",
+                 now.year(),
+                 now.month(),
+                 now.day(),
+                 now.hour(),
+                 now.minute(),
+                 now.second(),
+                 ms);
+    } else {
+        uint32_t uptime_ms = millis();
+        uint32_t seconds   = uptime_ms / 1000UL;
+
+        uint32_t hours  = seconds / 3600UL;
+        uint8_t minutes = (seconds % 3600UL) / 60UL;
+        uint8_t secs    = seconds % 60UL;
+        uint16_t ms     = uptime_ms % 1000UL;
+
+        snprintf(timestamp,
+                 size,
+                 "UPTIME %lu:%02u:%02u.%03u",
+                 (unsigned long)hours,
+                 minutes,
+                 secs,
+                 ms);
+    }
 }
 
 // ---------------------------------------------------------------------------
 // printf-like logger backend
 // ---------------------------------------------------------------------------
-/**
- * @brief Formats a log message and dispatches it to the logging system.
- *
- * This function builds a single log line of the form:
- * @code
- * [LEVEL] formatted user message...
- * @endcode
- *
- * The resulting line is:
- * 1. Sent to @ref logSystemEvent() for timestamping and SD card storage.
- * 2. Optionally duplicated to Serial1 (debug output), depending on
- *    LOG_ENABLE_SERIAL1 and LOG_SERIAL1_MIN_LEVEL.
- *
- * @param level Numeric log level.
- * @param fmt   printf-style format string. Must not be nullptr.
- * @param ...   Arguments matching @p fmt.
- *
- * @note This function is normally not called directly.
- *       Use LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG.
- */
 void logPrintf(uint8_t level, const char* fmt, ...) {
-    char buffer[192];
-
-    // Safety: ignore nullptr format string
     if (!fmt) return;
 
-    // Build "[LEVEL] " prefix
-    const char* tag = logLevelTag(level);
-    int offset      = snprintf(buffer, sizeof(buffer), "[%s] ", tag);
+    // Early exit if neither SD nor serial needs this level.
+#if defined(LOG_SD_LEVEL)
+    const bool sd_enabled = logLevelEnabled(level, LOG_SD_LEVEL);
+#else
+    const bool sd_enabled = true;
+#endif
 
-    if (offset < 0 || offset >= (int)sizeof(buffer))
-        {
-            // Highly unlikely, fallback to a safe prefix
-            strcpy(buffer, "[LOG] ");
-            offset = (int)strlen(buffer);
+    const bool serial_enabled = logLevelEnabled(level, LOG_SERIAL_LEVEL);
+
+    if (!sd_enabled && !serial_enabled) {
+        return;
     }
 
-    // Format user message after prefix
+    char message[192];
+
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buffer + offset, sizeof(buffer) - offset, fmt, args);
+    vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // Dispatch to SD + timestamp
-    logSystemEvent(buffer);
+    char timestamp[40];
+    formatTimestamp(timestamp, sizeof(timestamp));
 
-    // Optional debug mirroring on Serial1
-#if LOG_ENABLE_SERIAL1
-    if (level <= LOG_LEVEL && level >= LOG_SERIAL1_MIN_LEVEL)
-        {
-            Serial1.println(buffer);
+    char final[256];
+    formatLogLine(final,
+                  sizeof(final),
+                  LOG_FORMAT,
+                  timestamp,
+                  logLevelTag(level),
+                  message,
+                  "SYSTEM");
+
+#if defined(LOG_SD_LEVEL)
+    if (sd_enabled) {
+        log_event(final);
+    }
+#else
+    log_event(final);
+#endif
+
+#if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
+    if (serial_enabled) {
+        Serial.println(final);
+    }
+#elif (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
+    if (serial_enabled) {
+        Serial1.println(final);
+    }
+#elif (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    if (serial_enabled) {
+        SerialAlt.println(final);
     }
 #endif
 }
 
 // ---------------------------------------------------------------------------
-// Final SD writer with timestamp
+// Flush logger outputs
 // ---------------------------------------------------------------------------
-/**
- * @brief Writes a fully formatted log message to the SD card.
- *
- * This is the final stage of the logging pipeline. It prepends a timestamp
- * from the RTC and writes the line to the current daily log file.
- *
- * The final on-disk format is:
- * @code
- * YYYY-MM-DD HH:MM:SS;SYSTEM;<message>
- * @endcode
- *
- * If the daily file name is not yet available (very early at boot), the last
- * message is buffered in RAM and written once the filename is assigned.
- *
- * @param message User-formatted log payload (without timestamp).
- */
-void logSystemEvent(const char* message) {
-    static char pending[192] = {0};
-    static bool hasPending   = false;
-
-    // If log file name is not yet available, store message temporarily
-    // TODO filename
-    if (get_filename()[0] == '\0')
-        {
-            snprintf(pending, sizeof(pending), "%s", message);
-            hasPending = true;
-            return;
-    }
-
-    File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log)
-        {
-            // Could not write; keep last message for later flush
-            snprintf(pending, sizeof(pending), "%s", message);
-            hasPending = true;
-            return;
-    }
-
-    // Build timestamp prefix
-    DateTime now = rtc.now();
-    char timestamp[32];
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", now.year(), now.month(), now.day(), now.hour(), now.minute(),
-             now.second());
-
-    // If a message was pending, flush it first
-    if (hasPending)
-        {
-            char linePending[256];
-            snprintf(linePending, sizeof(linePending), "%s;SYSTEM;%s", timestamp, pending);
-            log.println(linePending);
-
-            hasPending = false;
-            pending[0] = '\0';
-    }
-
-    // Write current message
-    char line[256];
-    snprintf(line, sizeof(line), "%s;SYSTEM;%s", timestamp, message);
-    log.println(line);
-
-    log.close();
+void log_flush() {
+#if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
+    Serial.flush();
+#elif (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
+    Serial1.flush();
+#elif (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+    SerialAlt.flush();
+#endif
 }

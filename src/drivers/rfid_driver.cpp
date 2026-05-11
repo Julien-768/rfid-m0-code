@@ -1,10 +1,11 @@
 /**
- * @file rfid_reader.cpp
- * @brief Robust RFID driver implementation for SAMD21 (Feather M0).
+ * @file rfid_driver.cpp
+ * @brief Robust non-blocking RFID driver implementation for SAMD21.
  *
  * This module implements a non-blocking RFID driver supporting FDX, HDX,
  * and EM4102 tag types. It features:
  *  - Periodic polling of the reader
+ *  - Explicit immediate polling on demand
  *  - Robust CR-terminated line parsing with overflow protection
  *  - Input sanitization and HEX validation
  *  - Optional FDX decoding to NIC format
@@ -14,10 +15,11 @@
  */
 
 /**
- * Platform: Adafruit Feather M0 (ATSAMD21G18)
- * MCU: ARM Cortex-M0+ @ 48 MHz
- * Framework: Arduino (SAMD core)
- * Logic level: 3.3V
+ * @section platform_info Platform Information
+ * - Platform: Adafruit Feather M0 (ATSAMD21G18)
+ * - MCU: ARM Cortex-M0+ @ 48 MHz
+ * - Framework: Arduino (SAMD core)
+ * - Logic Level: 3.3V
  */
 
 #ifndef ARDUINO_ARCH_SAMD
@@ -26,10 +28,10 @@
 
 #include "rfid_driver.h"
 
-#include <string.h>
 #include <ctype.h>
+#include <string.h>
+#include "log.h"
 
-// Your existing decoder lives here:
 #include "utils_rfid.h"  // provides: rfid_tag_hex_to_nic(...), RFID_FDX_HEX_LEN, etc.
 
 /* ------------------------ Small safe string helpers ------------------------ */
@@ -37,19 +39,17 @@
 /**
  * @brief Safely copy a string into a fixed-size buffer.
  *
- * Always guarantees NUL-termination (if dst_sz > 0).
- * Acts as a replacement for strlcpy.
+ * Always guarantees NUL-termination if dst_sz > 0.
  *
  * @param dst Destination buffer.
  * @param dst_sz Size of destination buffer.
- * @param src Source string (can be NULL).
+ * @param src Source string, may be null.
  */
 static void safe_strcpy(char* dst, size_t dst_sz, const char* src) {
     if (!dst || dst_sz == 0) return;
-    if (!src)
-        {
-            dst[0] = '\0';
-            return;
+    if (!src) {
+        dst[0] = '\0';
+        return;
     }
     strncpy(dst, src, dst_sz - 1);
     dst[dst_sz - 1] = '\0';
@@ -75,46 +75,39 @@ static void line_reader_init(line_reader_t* lr) {
  * Non-blocking. Returns true if a full line is ready.
  *
  * @param lr Line reader instance.
- * @param s  Arduino Stream source.
+ * @param s Arduino Stream source.
  * @return true if a complete line is available.
  */
 static bool line_reader_poll(line_reader_t* lr, Stream* s) {
     if (lr->line_ready) return true;
 
-    while (s->available())
-        {
-            char c = (char)s->read();
+    while (s->available()) {
+        char c = (char)s->read();
 
-            if (lr->discarding)
-                {
-                    if (c == '\r')
-                        {
-                            lr->discarding = false;
-                            lr->len        = 0;
-                    }
-                    continue;
+        if (lr->discarding) {
+            if (c == '\r') {
+                lr->discarding = false;
+                lr->len        = 0;
             }
-
-            if (c == '\n') continue;
-
-            if (c == '\r')
-                {
-                    lr->buf[lr->len] = '\0';
-                    lr->line_ready   = true;
-                    lr->len          = 0;
-                    return true;
-            }
-
-            if (lr->len < sizeof(lr->buf) - 1)
-                {
-                    lr->buf[lr->len++] = c;
-            } else
-                {
-                    // overflow -> discard until CR
-                    lr->discarding = true;
-                    lr->len        = 0;
-                }
+            continue;
         }
+
+        if (c == '\n') continue;
+
+        if (c == '\r') {
+            lr->buf[lr->len] = '\0';
+            lr->line_ready   = true;
+            lr->len          = 0;
+            return true;
+        }
+
+        if (lr->len < sizeof(lr->buf) - 1) {
+            lr->buf[lr->len++] = c;
+        } else {
+            lr->discarding = true;
+            lr->len        = 0;
+        }
+    }
 
     return false;
 }
@@ -146,20 +139,16 @@ static bool line_reader_get(line_reader_t* lr, char* out, size_t out_sz) {
 static void trim_inplace(char* s) {
     if (!s) return;
 
-    // Skip leading whitespace (spaces and tabs)
     char* p = s;
     while (*p == ' ' || *p == '\t') p++;
 
-    // If we found leading whitespace, shift the string left to remove it
     if (p != s) memmove(s, p, strlen(p) + 1);
 
-    // Remove trailing whitespace (spaces and tabs)
     size_t n = strlen(s);
-    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t'))
-        {
-            s[n - 1] = '\0';
-            n--;
-        }
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t')) {
+        s[n - 1] = '\0';
+        n--;
+    }
 }
 
 /**
@@ -181,27 +170,23 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
     char* w          = dst;
     size_t remaining = dst_sz - 1;
 
-    while (*r && remaining)
-        {
-            if (*r == '+' && r[1] == ' ')
-                {
-                    r += 2;
-                    continue;
-            }
-            *w++ = *r++;
-            remaining--;
+    while (*r && remaining) {
+        if (*r == '+' && r[1] == ' ') {
+            r += 2;
+            continue;
         }
+        *w++ = *r++;
+        remaining--;
+    }
     *w = '\0';
 
     size_t len = strlen(dst);
-    if (len >= 2)
-        {
-            char a = (char)tolower((unsigned char)dst[0]);
-            char b = (char)tolower((unsigned char)dst[1]);
-            if (a == 'r' && (b == 'q' || b == 'u'))
-                {
-                    memmove(dst, dst + 2, len - 2 + 1);
-            }
+    if (len >= 2) {
+        char a = (char)tolower((unsigned char)dst[0]);
+        char b = (char)tolower((unsigned char)dst[1]);
+        if (a == 'r' && (b == 'q' || b == 'u')) {
+            memmove(dst, dst + 2, len - 2 + 1);
+        }
     }
 
     return true;
@@ -211,14 +196,13 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
  * @brief Check whether a character is a valid hexadecimal digit.
  *
  * @param c Character to test.
- * @return true if valid HEX digit.
+ * @return true if valid hexadecimal digit.
  */
 static bool is_hex_char(char c) {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
 
-typedef struct
-{
+typedef struct {
     size_t min_len;
     size_t exact_len;
 } HexLengthConstraints;
@@ -227,44 +211,42 @@ typedef struct
  * @brief Validate a string as hexadecimal with optional length constraints.
  *
  * @param s Input string.
- * @param constraints Length constraints (min_len, exact_len).
+ * @param constraints Length constraints.
  * @return true if valid.
  */
 static bool is_valid_hex(const char* s, HexLengthConstraints constraints) {
     if (!s) return false;
 
     size_t len = 0;
-    while (*s)
-        {
-            if (!is_hex_char(*s++)) return false;
-            len++;
-        }
+    while (*s) {
+        if (!is_hex_char(*s++)) return false;
+        len++;
+    }
 
     if (len < constraints.min_len) return false;
     if (constraints.exact_len != 0 && len != constraints.exact_len) return false;
     return true;
 }
 
-/* ------------------------ Driver instance + FIFO queue ------------------------ */
+/* ------------------------ Driver helpers ------------------------ */
 
 /**
  * @brief Get the poll command string for a given tag type.
  *
  * @param t Tag type.
- * @return Command string to send to reader.
+ * @return Command string to send to the reader, or null if unsupported.
  */
 static const char* cmd_for(tag_type_t t) {
-    switch (t)
-        {
-            case TAG_TYPE_FDX:
-                return "@rq\r";
-            case TAG_TYPE_HDX:
-                return "@todo\r";
-            case TAG_TYPE_EM4102:
-                return "@ru\r";
-            default:
-                return NULL;
-        }
+    switch (t) {
+        case TAG_TYPE_FDX:
+            return "@rq\r";
+        case TAG_TYPE_HDX:
+            return "@todo\r";
+        case TAG_TYPE_EM4102:
+            return "@ru\r";
+        default:
+            return NULL;
+    }
 }
 
 /**
@@ -276,13 +258,12 @@ static const char* cmd_for(tag_type_t t) {
  * @param t Tag info to push.
  */
 static void queue_push(rfid_driver_t* d, const tag_info_t* t) {
-    if (d->count == rfid_driver::QSIZE)
-        {
-            d->head = (uint8_t)((d->head + 1) % rfid_driver::QSIZE);
-            d->count--;
+    if (d->count == rfid_driver_t::QSIZE) {
+        d->head = (uint8_t)((d->head + 1) % rfid_driver_t::QSIZE);
+        d->count--;
     }
     d->q[d->tail] = *t;
-    d->tail       = (uint8_t)((d->tail + 1) % rfid_driver::QSIZE);
+    d->tail       = (uint8_t)((d->tail + 1) % rfid_driver_t::QSIZE);
     d->count++;
 }
 
@@ -296,7 +277,7 @@ static void queue_push(rfid_driver_t* d, const tag_info_t* t) {
 static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
     if (d->count == 0) return false;
     *out    = d->q[d->head];
-    d->head = (uint8_t)((d->head + 1) % rfid_driver::QSIZE);
+    d->head = (uint8_t)((d->head + 1) % rfid_driver_t::QSIZE);
     d->count--;
     return true;
 }
@@ -311,7 +292,10 @@ static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
  * @param type Tag type.
  * @param poll_interval_ms Polling interval in milliseconds.
  */
-void rfid_driver_init(rfid_driver_t* drv, Stream* port, tag_type_t type, uint32_t poll_interval_ms) {
+void rfid_driver::init(rfid_driver_t* drv,
+                       Stream* port,
+                       tag_type_t type,
+                       uint32_t poll_interval_ms) {
     if (!drv) return;
 
     drv->port = port;
@@ -328,58 +312,92 @@ void rfid_driver_init(rfid_driver_t* drv, Stream* port, tag_type_t type, uint32_
 }
 
 /**
- * @brief Periodic non-blocking driver update function.
+ * @brief Send a poll command immediately.
  *
- * Must be called regularly from the main loop.
- * Handles polling, line parsing, validation, decoding, and queueing.
+ * This function writes directly to the configured serial stream and does not
+ * wait for the periodic polling interval.
  *
  * @param drv Driver instance.
  */
-void rfid_driver_tick(rfid_driver_t* drv) {
+void rfid_driver::poll_now(rfid_driver_t* drv) {
+    if (!drv || !drv->port) return;
+
+    const char* cmd = cmd_for(drv->type);
+    if (!cmd) return;
+
+    drv->port->print(cmd);
+
+    LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
+}
+
+/**
+ * @brief Non-blocking RFID driver update function.
+ *
+ * This function implements the full RFID acquisition pipeline and must be
+ * called regularly from the main loop. It does NOT block and processes only
+ * a limited amount of work per call.
+ *
+ * Behavior:
+ *  1. Periodically sends a poll command to the RFID reader based on
+ *     poll_interval_ms.
+ *  2. Reads incoming serial data character-by-character from the reader.
+ *  3. Reconstructs CR-terminated lines using an internal line reader.
+ *  4. Sanitizes each line (removes protocol artifacts such as "+ ", "rq", "ru").
+ *  5. Validates the cleaned data as a proper hexadecimal tag.
+ *  6. Decodes the tag if required (e.g., FDX to NIC format).
+ *  7. Pushes valid tags into an internal FIFO queue.
+ *
+ * Notes:
+ *  - The function is non-blocking: it only processes available data and returns immediately.
+ *  - A small fixed number of lines are processed per call to ensure real-time behavior.
+ *  - Tag retrieval must be done separately using rfid_driver::get_tag().
+ *  - This function acts as a background processing engine and does not return tags directly.
+ *
+ * @param drv Driver instance (must be initialized).
+ */
+void rfid_driver::tick(rfid_driver_t* drv) {
     if (!drv || !drv->port) return;
 
     const uint32_t now = millis();
 
-    if ((uint32_t)(now - drv->last_poll) >= drv->poll_interval_ms)
-        {
-            drv->last_poll = now;
-            drv->port->print(cmd_for(drv->type));
+    if ((uint32_t)(now - drv->last_poll) >= drv->poll_interval_ms) {
+        drv->last_poll  = now;
+        const char* cmd = cmd_for(drv->type);
+        if (cmd) {
+            drv->port->print(cmd);
+            LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
+        }
     }
 
     uint8_t max_lines = 2;
-    while (max_lines-- && line_reader_poll(&drv->lr, drv->port))
-        {
-            char raw[64];
-            char cleaned[64];
-            char decoded[32];
+    while (max_lines-- && line_reader_poll(&drv->lr, drv->port)) {
+        char raw[64];
+        char cleaned[64];
+        char decoded[32];
 
-            if (!line_reader_get(&drv->lr, raw, sizeof(raw))) break;
+        if (!line_reader_get(&drv->lr, raw, sizeof(raw))) break;
 
-            trim_inplace(raw);
-            if (!sanitize_tag(raw, cleaned, sizeof(cleaned))) continue;
-            trim_inplace(cleaned);
+        trim_inplace(raw);
+        if (!sanitize_tag(raw, cleaned, sizeof(cleaned))) continue;
+        trim_inplace(cleaned);
 
-            if (drv->type == TAG_TYPE_FDX)
-                {
-                    if (!is_valid_hex(cleaned, {RFID_FDX_HEX_LEN, RFID_FDX_HEX_LEN})) continue;
-            } else
-                {
-                    if (!is_valid_hex(cleaned, {5, 0})) continue;
-                }
-
-            if (drv->type == TAG_TYPE_FDX)
-                {
-                    if (!rfid_tag_hex_to_nic(cleaned, decoded, sizeof(decoded))) continue;
-            } else
-                {
-                    safe_strcpy(decoded, sizeof(decoded), cleaned);
-                }
-
-            tag_info_t ti;
-            safe_strcpy(ti.tag, sizeof(ti.tag), decoded);
-            ti.time_ms = millis();
-            queue_push(drv, &ti);
+        if (drv->type == TAG_TYPE_FDX) {
+            if (!is_valid_hex(cleaned, {RFID_FDX_HEX_LEN, RFID_FDX_HEX_LEN})) continue;
+        } else {
+            if (!is_valid_hex(cleaned, {5, 0})) continue;
         }
+
+        if (drv->type == TAG_TYPE_FDX) {
+            if (!rfid_tag_hex_to_nic(cleaned, decoded, sizeof(decoded))) continue;
+        } else {
+            safe_strcpy(decoded, sizeof(decoded), cleaned);
+        }
+
+        tag_info_t ti;
+        safe_strcpy(ti.tag, sizeof(ti.tag), decoded);
+        ti.time_ms = millis();
+        queue_push(drv, &ti);
+    }
 }
 
 /**
@@ -389,7 +407,7 @@ void rfid_driver_tick(rfid_driver_t* drv) {
  * @param out Output tag structure.
  * @return true if a tag was available.
  */
-bool rfid_driver_get_tag(rfid_driver_t* drv, tag_info_t* out) {
+bool rfid_driver::get_tag(rfid_driver_t* drv, tag_info_t* out) {
     if (!drv || !out) return false;
     return queue_pop(drv, out);
 }
@@ -404,13 +422,14 @@ bool rfid_driver_get_tag(rfid_driver_t* drv, tag_info_t* out) {
  * @param delay_ms Minimum delay between identical tags.
  * @return true if the tag should be recorded.
  */
-bool rfid_should_record_tag(const tag_info_t* previous, const tag_info_t* current, uint32_t delay_ms) {
+bool rfid_driver::should_record_tag(const tag_info_t* previous,
+                                    const tag_info_t* current,
+                                    uint32_t delay_ms) {
     if (!previous || !current) return false;
 
-    if (strcmp(previous->tag, current->tag) == 0)
-        {
-            const uint32_t dt = (uint32_t)(current->time_ms - previous->time_ms);
-            return dt >= delay_ms;
+    if (strcmp(previous->tag, current->tag) == 0) {
+        const uint32_t dt = (uint32_t)(current->time_ms - previous->time_ms);
+        return dt >= delay_ms;
     }
     return true;
 }

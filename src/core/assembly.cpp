@@ -1,10 +1,10 @@
 /**
- * @file assembly.cpp
+ * @file hw_assembly.cpp
  * @defgroup Assembly_Manager Assembly Manager
  * @ingroup SystemModules
- * @brief SD-card persistent metadata for logger hardware/software identity (assembly.cfg).
+ * @brief SD-card persistent metadata for logger hardware/software identity (hw_assembly.cfg).
  *
- * This module manages the `assembly.cfg` JSON file stored on the SD card.
+ * This module manages the `hw_assembly.cfg` JSON file stored on the SD card.
  * It stores non-volatile metadata describing the logger unit:
  * - Mainboard UID (MCU / Feather UID)
  * - Sensor UIDs (AS7341, TSL2591)
@@ -14,7 +14,7 @@
  * ## Relationship with factory identity (Flash)
  * The factory identity (manufacturer / type / date / serial number) is stored
  * in the SAMD21 non-volatile memory (Flash / NVM) via the `logger_identity` module.
- * At boot, this module can synchronize `assembly.cfg` with that factory identity,
+ * At boot, this module can synchronize `hw_assembly.cfg` with that factory identity,
  * mainly to ensure `sn_logger` matches the factory-programmed serial number.
  *
  * ## File format
@@ -31,7 +31,7 @@
  * @endcode
  *
  * @note JSON I/O is handled via ArduinoJson.
- * @warning SD card must be initialized (e.g., via initSD()) before using any function
+ * @warning SD card must be initialized (e.g., via sd_initialization()) before using any function
  *          in this module.
  *
  * @see assembly.h
@@ -39,73 +39,117 @@
  * @{
  */
 
-#include <SD.h>
+#include "assembly.h"
 #include <ArduinoJson.h>
-#include "core/assembly.h"
-#include "core/log.h"
-#include "app/logger_identity.h"
+#include <SD.h>
+#include "log.h"
+#include "logger_identity.h"
 
 /**
- * @brief Global instance of the assembly metadata.
- *
- * This object is populated by @ref loadAssembly() and may be updated at runtime.
+ * @brief Path to the hw_assembly configuration file on the SD card.
+ * maximum path length is 31 chars for 8.3 filename + null terminator, so this fits.
  */
-Assembly assembly;
+constexpr const char* kAssemblyFilename = "/hw_assem.cfg";
 
 /**
- * @brief Path to the assembly configuration file on the SD card.
- */
-const char* filename_assembly = "/assembly.cfg";
-
-/**
- * @brief Create a new `assembly.cfg` file on the SD card using current @ref assembly values.
+ * @brief Global instance of the hw_assembly metadata.
  *
- * Serializes the global @ref assembly structure into a JSON document and writes it to
+ * This object is populated by @ref assembly_load() and may be updated at runtime.
+ */
+Assembly hw_assembly;
+
+static bool is_placeholder(const String& value) {
+    return value.startsWith("$") && value.endsWith("$");
+}
+
+static uint8_t assembly_count_unprovisioned_fields(const Assembly& a) {
+    uint8_t count = 0;
+
+    if (is_placeholder(a.uid_light_sensor1)) count++;
+    if (is_placeholder(a.uid_light_sensor2)) count++;
+    if (is_placeholder(a.uid_software)) count++;
+    if (is_placeholder(a.uid_experiment)) count++;
+    if (is_placeholder(a.battery_type)) count++;
+
+    return count;
+}
+
+static void assembly_log_unprovisioned_fields(const Assembly& a) {
+    uint8_t count = assembly_count_unprovisioned_fields(a);
+
+    if (count == 0) {
+        return;
+    }
+
+    LOG_WARN("Assembly config incomplete: %u unprovisioned field(s) remaining", count);
+
+    if (is_placeholder(a.uid_light_sensor1)) {
+        LOG_WARN("Unprovisioned: uid_light_sensor1");
+    }
+    if (is_placeholder(a.uid_light_sensor2)) {
+        LOG_WARN("Unprovisioned: uid_light_sensor2");
+    }
+    if (is_placeholder(a.uid_software)) {
+        LOG_WARN("Unprovisioned: uid_software");
+    }
+    if (is_placeholder(a.uid_experiment)) {
+        LOG_WARN("Unprovisioned: uid_experiment");
+    }
+    if (is_placeholder(a.battery_type)) {
+        LOG_WARN("Unprovisioned: battery_type");
+    }
+}
+
+/**
+ * @brief Create a new `hw_assembly.cfg` file on the SD card using current @ref hw_assembly values.
+ *
+ * Serializes the global @ref hw_assembly structure into a JSON document and writes it to
  * the SD card.
  * Intended for first boot or when re-initializing identity information.
  *
  * @note Requires SD card initialization before calling this function.
- * @note This function writes the current content of the global @ref assembly. Ensure
+ * @note This function writes the current content of the global @ref hw_assembly. Ensure
  *       fields are set to meaningful defaults before calling.
  *
- * @see saveAssembly()
- * @see loadAssembly()
+ * @see assembly_save()
+ * @see assembly_load()
  */
-void create_assembly_file() {
-    File file = SD.open(filename_assembly, FILE_WRITE);
-    if (!file)
-        {
-            LOG_ERROR("Failed to create assembly.cfg");
-            return;
+bool create_assembly_file() {
+    File file = SD.open(kAssemblyFilename, FILE_WRITE);
+    if (!file) {
+        LOG_ERROR("Failed to create %s", kAssemblyFilename);
+        return false;
     }
 
     StaticJsonDocument<512> doc;
-    doc["uid_mainboard"]     = assembly.uid_mainboard;
-    doc["uid_light_sensor1"] = assembly.uid_light_sensor1;  // AS7341 sensor
-    doc["uid_light_sensor2"] = assembly.uid_light_sensor2;  // TSL2591 sensor
-    doc["uid_software"]      = assembly.uid_software;
-    doc["uid_experiment"]    = assembly.uid_experiment;
-    doc["sn_logger"]         = assembly.sn_logger;
-
-    if (serializeJson(doc, file) == 0)
-        {
-            LOG_ERROR("Failed to write JSON to assembly.cfg");
-    } else
-        {
-            LOG_INFO("assembly.cfg created successfully");
-        }
-
-    file.close();
+    doc["uid_mainboard"]     = hw_assembly.uid_mainboard;
+    doc["uid_light_sensor1"] = hw_assembly.uid_light_sensor1;  // AS7341 sensor
+    doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;  // TSL2591 sensor
+    doc["uid_software"]      = hw_assembly.uid_software;
+    doc["uid_experiment"]    = hw_assembly.uid_experiment;
+    doc["sn_logger"]         = hw_assembly.sn_logger;
+    doc["battery_type"]      = hw_assembly.battery_type;
+    doc["rtc_type"]          = hw_assembly.rtc_type;
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
+    if (serializeJson(doc, file) == 0) {
+        LOG_ERROR("Failed to write JSON to %s", kAssemblyFilename);
+        file.close();
+        return false;
+    } else {
+        LOG_INFO("%s created successfully", kAssemblyFilename);
+        file.close();
+        return true;
+    }
 }
 
 /**
- * @brief Load assembly metadata from `assembly.cfg` stored on the SD card.
+ * @brief Load hw_assembly metadata from `hw_assembly.cfg` stored on the SD card.
  *
  * Attempts to open and parse the existing configuration file.
- * If parsing succeeds, updates the provided @p assembly reference with loaded values.
+ * If parsing succeeds, updates the provided @p hw_assembly reference with loaded values.
  *
  * If the file does not exist, a new one is created using @ref create_assembly_file()
- * (based on the global @ref assembly values).
+ * (based on the global @ref hw_assembly values).
  *
  * @code{.json}
  * {
@@ -118,49 +162,78 @@ void create_assembly_file() {
  * }
  * @endcode
  *
- * @param assembly Reference to an @ref Assembly struct to populate with values read from file.
+ * @param hw_assembly Reference to an @ref Assembly struct to populate with values read from file.
  *
- * @note On JSON parse error, this function keeps existing values in @p assembly.
+ * @note On JSON parse error, this function keeps existing values in @p hw_assembly.
  * @warning If the file is missing, @ref create_assembly_file() writes from the global
- *          @ref assembly, not from the @p assembly argument.
+ *          @ref hw_assembly, not from the @p hw_assembly argument.
  *
  * @see create_assembly_file()
- * @see saveAssembly()
+ * @see assembly_save()
  */
-void loadAssembly(Assembly& assembly) {
-    File file_c = SD.open(filename_assembly);
-    if (file_c)
-        {
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, file_c);
-            if (error)
-                {
-                    LOG_ERROR("Failed to read assembly.cfg — keeping defaults");
-            } else
-                {
-                    assembly.uid_mainboard     = doc["uid_mainboard"].as<String>();
-                    assembly.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
-                    assembly.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
-                    assembly.uid_software      = doc["uid_software"].as<String>();
-                    assembly.uid_experiment    = doc["uid_experiment"].as<String>();
-                    assembly.sn_logger         = doc["sn_logger"] | String("");
-                }
-            file_c.close();
-    } else
-        {
-            LOG_WARN("assembly.cfg not found — creating default file");
-            create_assembly_file();
+bool assembly_load(Assembly& hw_assembly_local) {
+    if (!SD.exists(kAssemblyFilename)) {
+        LOG_ERROR("%s not found", kAssemblyFilename);
+
+        return false;
+    }
+
+    File file_c = SD.open(kAssemblyFilename, FILE_READ);
+    if (!file_c) {
+        LOG_ERROR("Failed to open %s", kAssemblyFilename);
+        return false;
+    }
+
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, file_c);
+    file_c.close();
+
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
+
+    if (error) {
+        LOG_ERROR("JSON parse error in %s: %s", kAssemblyFilename, error.c_str());
+        return false;
+    }
+
+    const char* required[] = {"uid_mainboard",
+                              "uid_light_sensor1",
+                              "uid_light_sensor2",
+                              "uid_software",
+                              "uid_experiment",
+                              "sn_logger",
+                              "battery_type",
+                              "rtc_type"};
+
+    for (const char* key : required) {
+        if (!doc.containsKey(key)) {
+            LOG_ERROR("Missing key in %s: %s", kAssemblyFilename, key);
+            return false;
         }
+    }
+
+    hw_assembly_local.uid_mainboard     = doc["uid_mainboard"].as<String>();
+    hw_assembly_local.uid_light_sensor1 = doc["uid_light_sensor1"].as<String>();
+    hw_assembly_local.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
+    hw_assembly_local.uid_software      = doc["uid_software"].as<String>();
+    hw_assembly_local.uid_experiment    = doc["uid_experiment"].as<String>();
+    hw_assembly_local.sn_logger         = doc["sn_logger"].as<String>();
+    hw_assembly_local.battery_type      = doc["battery_type"].as<String>();
+    hw_assembly_local.rtc_type          = doc["rtc_type"].as<String>();
+
+    assembly_log_unprovisioned_fields(hw_assembly_local);
+
+    LOG_INFO("%s loaded successfully", kAssemblyFilename);
+    return true;
 }
 
 /**
- * @brief Save an @ref Assembly instance to `assembly.cfg` on the SD card.
+ * @brief Save an @ref Assembly instance to `hw_assembly.cfg` on the SD card.
  *
  * Rewrites the complete JSON file in pretty-printed format for readability.
  * The current file is removed then recreated to reduce the chance of leaving
  * partially updated content.
  *
- * @param assembly The @ref Assembly instance to save.
+ * @param hw_assembly The @ref Assembly instance to save.
  * @return true if the operation succeeds, false otherwise.
  *
  * @note This function deletes the existing file before writing a new one.
@@ -170,109 +243,90 @@ void loadAssembly(Assembly& assembly) {
  * @todo Consider writing to a temporary file then renaming for better atomicity
  *       (if filesystem constraints allow).
  *
- * @see loadAssembly()
+ * @see assembly_load()
  * @see create_assembly_file()
  */
-bool saveAssembly(const Assembly& assembly) {
-    const char* filename_assembly = "/assembly.cfg";  // local shadowing of global
+bool assembly_save(const Assembly& hw_assembly) {
 
     // Delete previous version if it exists
-    if (SD.exists(filename_assembly))
-        {
-            SD.remove(filename_assembly);
+    if (SD.exists(kAssemblyFilename)) {
+        SD.remove(kAssemblyFilename);
     }
 
-    File file = SD.open(filename_assembly, FILE_WRITE);
-    if (!file)
-        {
-            LOG_ERROR("Failed to open assembly.cfg for write");
-            return false;
+    File file = SD.open(kAssemblyFilename, FILE_WRITE);
+    if (!file) {
+        LOG_ERROR("Failed to open %s for write", kAssemblyFilename);
+        return false;
     }
 
     StaticJsonDocument<512> doc;
-    doc["uid_mainboard"]     = assembly.uid_mainboard;
-    doc["uid_light_sensor1"] = assembly.uid_light_sensor1;
-    doc["uid_light_sensor2"] = assembly.uid_light_sensor2;
-    doc["uid_software"]      = assembly.uid_software;
-    doc["uid_experiment"]    = assembly.uid_experiment;
-    doc["sn_logger"]         = assembly.sn_logger;
+    doc["uid_mainboard"]     = hw_assembly.uid_mainboard;
+    doc["uid_light_sensor1"] = hw_assembly.uid_light_sensor1;
+    doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;
+    doc["uid_software"]      = hw_assembly.uid_software;
+    doc["uid_experiment"]    = hw_assembly.uid_experiment;
+    doc["sn_logger"]         = hw_assembly.sn_logger;
+    doc["battery_type"]      = hw_assembly.battery_type;
+    doc["rtc_type"]          = hw_assembly.rtc_type;
+    LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
 
-    if (serializeJsonPretty(doc, file) == 0)
-        {
-            LOG_ERROR("Failed to write JSON to assembly.cfg");
-            file.close();
-            return false;
+    if (serializeJsonPretty(doc, file) == 0) {
+        LOG_ERROR("Failed to write JSON to %s", kAssemblyFilename);
+        file.close();
+        return false;
     }
 
     file.close();
-    LOG_INFO("assembly.cfg saved successfully");
+    LOG_INFO("%s saved successfully", kAssemblyFilename);
     return true;
 }
 
 /**
- * @brief Synchronize SD assembly metadata with factory identity stored in MCU flash.
+ * @brief Synchronize SD hw_assembly metadata with factory identity stored in MCU flash.
  *
- * Ensures that the SD card `assembly.cfg` reflects the identity programmed in
- * SAMD21 flash (via @ref loggerIdentity_get()).
+ * Ensures that the SD card `hw_assembly.cfg` reflects the identity programmed in
+ * SAMD21 flash (via @ref device_id_get()).
  *
  * Fields synchronized:
  * - `sn_logger` (only if the factory SN is not "UNKNOWN")
- * - `uid_software` (set to a default if empty)
- * - `uid_experiment` (set to a default if empty)
  *
- * The function rewrites `assembly.cfg` only if at least one field changes.
+ * The function rewrites `hw_assembly.cfg` only if at least one field changes.
  *
- * @return true if `assembly.cfg` was modified and saved, false otherwise.
+ * @return true if `hw_assembly.cfg` was modified and saved, false otherwise.
  *
- * @note This function updates the global @ref assembly instance.
+ * @note This function updates the global @ref hw_assembly instance.
  * @warning This function performs SD writes and should not be called frequently.
  *
- * @see loggerIdentity_get()
- * @see saveAssembly()
+ * @see device_id_get()
+ * @see assembly_save()
  */
-bool syncAssemblyWithFactoryIdentity() {
-    const LoggerIdentityFlash& idFlash = loggerIdentity_get();
-    bool modified                      = false;
+bool assembly_sync_sn(Assembly& hw_assembly) {
+    const LoggerIdentityFlash& id_flash = device_id_get();
+    // bool modified                       = false;
 
     // --- Serial number sync ---
-    if (strcmp(idFlash.serial_number, "UNKNOWN") != 0)
-        {
-            if (assembly.sn_logger != idFlash.serial_number)
-                {
-                    LOG_INFO("Updating SN from flash: %s -> %s", assembly.sn_logger.c_str(), idFlash.serial_number);
-                    assembly.sn_logger = idFlash.serial_number;
-                    modified           = true;
-            }
-    } else
-        {
-            LOG_WARN("Factory SN is UNKNOWN — assembly SN unchanged");
+    if (strcmp(id_flash.serial_number, "UNKNOWN") != 0) {
+        if (hw_assembly.sn_logger != id_flash.serial_number) {
+            LOG_INFO("Updating SN from flash: %s -> %s",
+                     hw_assembly.sn_logger.c_str(),
+                     id_flash.serial_number);
+            hw_assembly.sn_logger = id_flash.serial_number;
+            return true;
         }
-
-    // --- Optional: defaults for experiment and software ---
-    if (assembly.uid_software.length() == 0)
-        {
-            assembly.uid_software = "Moonraker_v1.0.0";
-            modified              = true;
+    } else {
+        LOG_WARN("Factory SN is UNKNOWN — hw_assembly SN unchanged");
+        return false;
     }
 
-    if (assembly.uid_experiment.length() == 0)
-        {
-            assembly.uid_experiment = "Moonraker";
-            modified                = true;
-    }
-
-    // --- Save if anything changed ---
-    if (modified)
-        {
-            if (saveAssembly(assembly))
-                {
-                    LOG_INFO("assembly.cfg synced with factory identity.");
-                    return true;
-            } else
-                {
-                    LOG_ERROR("Failed to save assembly.cfg during identity sync.");
-                }
-    }
+    // // --- Save if anything changed ---
+    // if (modified) {
+    //     if (assembly_save(hw_assembly)) {
+    //         LOG_INFO("hw_assembly.cfg synced with factory identity.");
+    //         return true;
+    //     } else {
+    //         LOG_ERROR("Failed to save hw_assembly.cfg during identity sync.");
+    //     }
+    // }
 
     LOG_DEBUG("Assembly already up-to-date with factory identity.");
     return false;

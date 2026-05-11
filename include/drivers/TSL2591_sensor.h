@@ -4,7 +4,7 @@
  *
  * This header declares initialization, data acquisition, and CSV formatting
  * functions for the Adafruit TSL2591 ambient light sensor.
- * It is designed to integrate seamlessly with the Moonraker logger architecture
+ * It is designed to integrate seamlessly with the logger architecture
  * (similar to the AS7341 sensor module).
  *
  * The TSL2591 provides high dynamic range ambient light measurement using
@@ -30,8 +30,7 @@
  * Serial.println(r.lux);
  * @endcode
  */
-struct TSL2591Reading
-{
+struct TSL2591Reading {
     float lux;      ///< Calculated ambient light level in lux.
     uint16_t full;  ///< Raw full-spectrum ADC channel count.
     uint16_t ir;    ///< Raw infrared ADC channel count.
@@ -42,19 +41,20 @@ struct TSL2591Reading
  *
  * This function sets the gain and integration time and automatically
  * logs the hardware Device ID to the system log and updates the
- * @ref assembly.cfg configuration file.
+ * @ref hw_assembly.cfg configuration file.
  *
  * @return true if the sensor was initialized successfully, false otherwise.
  */
 bool initTSL2591();
 
 /**
- * @brief Reads the TSL2591 hardware Device ID and updates assembly configuration.
+ * @brief Reads the TSL2591 hardware Device ID and updates hw_assembly configuration.
  *
  * Queries the I²C register 0x12 to identify the connected TSL2591 sensor.
  * The identifier is logged and stored in the configuration as
  * `"uid_light_sensor2": "TSL2591_0xXX"`.
  */
+// TODO should return uid instead of modifying global variable
 void readTSL2591DeviceID();
 
 /**

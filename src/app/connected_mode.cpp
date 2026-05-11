@@ -2,9 +2,9 @@
  * @file connected_mode.cpp
  * @defgroup Connected_Mode Connected Mode
  * @ingroup SystemModules
- * @brief UART JSON command handling for Moonraker (CONNECTED mode).
+ * @brief UART JSON command handling for (CONNECTED mode).
  *
- * This module implements the **CONNECTED** state logic of the Moonraker logger.
+ * This module implements the **CONNECTED** state logic of the logger.
  * In this mode, the device communicates with an external GUI/tool over UART
  * (`Serial1`) using a line-based JSON protocol.
  *
@@ -19,7 +19,7 @@
  *   - Returns firmware version and build metadata.
  * - **GET_ID**
  *   - Returns logger identification data:
- *     - MCU UID (from @ref assembly.cfg / @ref Assembly::uid_mainboard)
+ *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
  * - **GET_VBAT**
  *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
@@ -30,7 +30,7 @@
  *     schedules next wake-up, initializes sensors, and transitions to DEPLOY.
  * - **SET_IDENTITY** (factory)
  *   - Programs the factory identity into **SAMD21 internal flash**
- *     via @ref loggerIdentity_program.
+ *     via @ref device_id_program.
  *
  * ## Factory identity storage
  * Factory identity (manufacturer / logger type / fabrication date / serial number)
@@ -56,7 +56,7 @@
 #include "logger_identity.h"
 #include "sd_manager.h"
 #include "utils.h"
-#include "battery.h"
+#include "battery_service.h"
 
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
@@ -74,14 +74,14 @@
  *
  * ### Factory identity programming
  * - On **SET_IDENTITY**, the function builds a @ref LoggerIdentityFlash record
- *   from the received JSON payload and calls @ref loggerIdentity_program.
+ *   from the received JSON payload and calls @ref device_id_program.
  * - On failure, a JSON error is returned.
  *
  * @param[in,out] state Current system state reference. May be updated to
  *                      @ref STATE_DEPLOY when SET_CONFIG is accepted.
  *
- * @see loggerIdentity_get
- * @see loggerIdentity_program
+ * @see device_id_get
+ * @see device_id_program
  * @see rtc_applyExternalTime
  * @see rtc_scheduleNextWake
  */
@@ -96,96 +96,157 @@ void runConnectedMode(SystemState& state) {
     char errorJson[96] = {0};
 
     // Parse JSON into a high-level command structure
-    if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson)))
-        {
-            if (errorJson[0] != '\0')
-                {
-                    // Return a small JSON error message to the GUI
-                    Serial1.println(errorJson);
-            }
-            return;
+    if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson))) {
+        if (errorJson[0] != '\0') {
+            // Return a small JSON error message to the GUI
+            Serial1.println(errorJson);
+        }
+        return;
     }
 
     // Dispatch command
-    switch (parsed.type)
-        {
-                case CommandType::GET_INFO: {
-                    // Firmware version / compile date
-                    const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::GET_ID: {
-                    // Factory identity stored in SAMD21 flash
-                    const auto& id = loggerIdentity_get();
-
-                    SetIdentityPayload payload{};
-                    strncpy(payload.UID, assembly.uid_mainboard.c_str(), sizeof(payload.UID));
-                    strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer));
-                    strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab));
-                    strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type));
-                    strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn));
-
-                    const char* json = JsonProtocol::buildIdJSON(payload);
-
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::GET_VBAT: {
-                    // One-shot battery measurement for GUI request (not used in DEPLOY loop)
-                    uint16_t vbat_mv = read_battery_voltage(PIN_VBAT);  // volts in mV (e.g. 3700)
-                    const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::GET_CONFIG: {
-                    const char* json = JsonProtocol::buildConfigJSON();
-                    Serial1.println(json);
-                    break;
-                }
-
-                case CommandType::SET_CONFIG: {
-                    LOG_INFO("Configuration received from GUI");
-
-                    DateTime dt = applyGuiConfigAndBuildDateTime(parsed.cfg);
-
-                    rtc_apply_external_time(dt);
-                    // If no daily file exists yet, create it now
-                    if (strlen(get_filename()) == 0)
-                        {
-                            check_and_create_new_daily_file(rtc.now());
-                            LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
-                    }
-                    LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
-
-                    rtc_schedule_next_wake(rtc.now(), config.acquisition_interval_s);
-                    LOG_INFO("RTC alarm scheduled from GUI config");
-
-                    Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
-                    LOG_INFO("Sensors initialized from GUI configuration");
-
-                    Serial1.println("{\"config\":\"ACK\"}");
-
-                    LOG_INFO("Deploy mode started from GUI");
-                    state = STATE_DEPLOY;
-                    break;
-                }
-
-                case CommandType::SET_IDENTITY: {
-                    LOG_INFO("Factory SET_IDENTITY command received");
-
-                    loggerIdentity_applyFromFields(parsed.identity.manufacturer, parsed.identity.logger_type, parsed.identity.date_fab,
-                                                   parsed.identity.logger_sn);
-
-                    Serial1.println("{\"identity\":\"ACK\"}");
-                    break;
-                }
-
-            default:
-                // CommandType::NONE or commands not handled here
-                break;
+    switch (parsed.type) {
+        case CommandType::GET_INFO: {
+            // Firmware version / compile date
+            // TODO
+            const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
+            Serial1.println(json);
+            break;
         }
+
+        case CommandType::GET_ID: {
+            // Factory identity stored in SAMD21 flash
+            const auto& id = device_id_get();
+
+            SetIdentityPayload payload{};
+            strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID) - 1);
+            strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer) - 1);
+            strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab) - 1);
+            strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type) - 1);
+            strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn) - 1);
+
+            const char* json = JsonProtocol::buildIdJSON(payload);
+
+            Serial1.println(json);
+            break;
+        }
+
+        case CommandType::GET_VBAT: {
+            if (!battery_is_available()) {
+                Serial1.println("{\"error\":\"Battery measurement not available\"}");
+                break;
+            } else {
+                int32_t vbat_mv;
+                bool changed;
+                if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+                    Serial1.println("{\"error\":\"Failed to read battery voltage\"}");
+                    break;
+                }
+                const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
+                Serial1.println(json);
+            }
+            break;
+        }
+
+        case CommandType::GET_CONFIG: {
+            ConfigResponsePayload payload{};
+
+            DateTime now = rtc().now();
+
+            snprintf(payload.dateCurrentIso,
+                     sizeof(payload.dateCurrentIso),
+                     "%04d-%02d-%02dT%02d:%02d:%02d",
+                     now.year(),
+                     now.month(),
+                     now.day(),
+                     now.hour(),
+                     now.minute(),
+                     now.second());
+            payload.use_buffer             = config.use_buffer;
+            payload.acquisition_interval_s = config.acquisition_interval_s;
+            payload.enable_light1          = config.enable_light1;
+            payload.enable_light2          = config.enable_light2;
+            payload.enable_rfid            = config.enable_rfid;
+            payload.rfid_mode              = rfidModeToUint(config.rfid_mode);
+            payload.enable_vbat            = config.enable_vbat;
+            payload.schedule_start_hour    = config.schedule_start_hour;
+            payload.schedule_start_minute  = config.schedule_start_minute;
+            payload.schedule_end_hour      = config.schedule_end_hour;
+            payload.schedule_end_minute    = config.schedule_end_minute;
+
+            const char* json = JsonProtocol::buildConfigJSON(payload);
+
+            Serial1.println(json);
+            break;
+        }
+
+        case CommandType::SET_CONFIG: {
+            LOG_INFO("Configuration received from GUI");
+
+            DateTime dt;
+            if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
+                LOG_ERROR("Invalid date received from GUI");
+                Serial1.println("{\"error\":\"Invalid date_current\"}");
+                break;
+            }
+
+            config.use_buffer             = parsed.cfg.use_buffer;
+            config.acquisition_interval_s = parsed.cfg.acquisition_interval_s;
+            config.enable_light1          = parsed.cfg.enable_light1;
+            config.enable_light2          = parsed.cfg.enable_light2;
+            config.enable_rfid            = parsed.cfg.enable_rfid;
+            config.rfid_mode              = rfidModeFromUint(parsed.cfg.rfid_mode);
+            config.enable_vbat            = parsed.cfg.enable_vbat;
+            config.schedule_start_hour    = parsed.cfg.schedule_start_hour;
+            config.schedule_start_minute  = parsed.cfg.schedule_start_minute;
+            config.schedule_end_hour      = parsed.cfg.schedule_end_hour;
+            config.schedule_end_minute    = parsed.cfg.schedule_end_minute;
+
+            validateConfig(config);
+
+            if (hw_assembly.rtc_type == "ds3231") {
+                rtc_apply_external_time(dt);
+                LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
+            }
+
+            if (strlen(get_filename()) == 0) {
+                check_and_create_new_daily_file(rtc().now());
+                LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
+            }
+
+            Serial1.println("{\"config\":\"ACK\"}");
+
+            LOG_INFO("Deploy mode started from GUI");
+            state = STATE_INIT;
+            break;
+        }
+
+        case CommandType::SET_RUN_START: {
+            Serial1.println("{\"config\":\"ACK\"}");
+
+            LOG_INFO("Deploy mode started from GUI");
+            state = STATE_INIT;
+            break;
+        }
+        case CommandType::SET_IDENTITY: {
+            LOG_INFO("Factory SET_IDENTITY command received");
+
+            device_id_applyFromFields(parsed.identity.manufacturer,
+                                      parsed.identity.logger_type,
+                                      parsed.identity.date_fab,
+                                      parsed.identity.logger_sn);
+
+            Serial1.println("{\"identity\":\"ACK\"}");
+            break;
+        }
+
+        case CommandType::SET_STORAGE: {
+            Serial1.println("{\"storage\":\"ACK\"}");
+            break;
+        }
+
+        default:
+            // CommandType::NONE or commands not handled here
+            break;
+    }
 }

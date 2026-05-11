@@ -15,16 +15,42 @@
 #include <string.h>
 #include <stdlib.h>
 
-uint32_t synchro_offset_ms, previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
-uint32_t synchro_slope = 0;                              // Slope that represents the drift of the offet over the time
+uint32_t synchro_offset_ms,
+    previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
+uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet over the time
 
-void check_and_create_new_daily_file(const DateTime& now) {
-    if (now.day() != rtc_state.last_log_day)
-        {
-            char file_name[16];
-            strcpy(file_name, get_filename());
-            daily_data_file(file_name, now);
-            rtc_state.last_log_day = now.day();
+#include "utils.h"
+#include "rtc.h"
+#include "sd_manager.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include "Wire.h"
+#include "log.h"
+
+bool scanI2CBus() {
+    uint8_t count = 0;
+
+    LOG_DEBUG("Scanning I2C bus...");
+
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        uint8_t error = Wire.endTransmission();
+
+        if (error == 0) {
+            LOG_DEBUG("I2C device found at 0x%02X", addr);
+            count++;
+        } else if (error == 4) {
+            LOG_DEBUG("Unknown error at 0x%02X", addr);
+        }
+    }
+
+    if (count == 0) {
+        LOG_DEBUG("No I2C devices found");
+        return false;
+    } else {
+        LOG_DEBUG("Scan complete. %d device(s) found.", count);
+        return true;
     }
 }
 
@@ -37,17 +63,34 @@ void check_and_create_new_daily_file(const DateTime& now) {
  * @param include_ms If true, milliseconds are included; otherwise only full seconds are shown.
  * @return Formatted timestamp string.
  */
-String isoformat(const DateTime& t, int ms, const String& separator, bool include_ms) {
-    char buffer[48];  // plus grand pour inclure option ms
-    if (include_ms)
-        {
-            snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d.%03d%s", t.year(), t.month(), t.day(), separator.c_str(), t.hour(),
-                     t.minute(), t.second(), ms, separator.c_str());
-    } else
-        {
-            snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d%s%02d:%02d:%02d%s", t.year(), t.month(), t.day(), separator.c_str(), t.hour(),
-                     t.minute(), t.second(), separator.c_str());
-        }
+String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
+    char buffer[48];
+
+    if (opts.include_ms) {
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "%04d-%02d-%02d%s%02d:%02d:%02d.%03d",
+                 t.year(),
+                 t.month(),
+                 t.day(),
+                 opts.separator,
+                 t.hour(),
+                 t.minute(),
+                 t.second(),
+                 opts.ms);
+    } else {
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "%04d-%02d-%02d%s%02d:%02d:%02d",
+                 t.year(),
+                 t.month(),
+                 t.day(),
+                 opts.separator,
+                 t.hour(),
+                 t.minute(),
+                 t.second());
+    }
+
     return String(buffer);
 }
 
@@ -65,8 +108,7 @@ String isoformat_date(const DateTime& t) {
     return String(buffer);
 }
 
-struct SynchroParams
-{
+struct SynchroParams {
     u_long synchro_offset_ms;
     u_long synchro_slope;
 };
@@ -148,20 +190,61 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
  * @param len Length of @p out (recommend at least 20 bytes).
  */
 void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
-    snprintf(out, len, "20%02x-%02x-%02xT%02x:%02x:%02x", in->year, in->month, in->day, in->hour, in->minute, in->second);
+    snprintf(out,
+             len,
+             "20%02x-%02x-%02xT%02x:%02x:%02x",
+             in->year,
+             in->month,
+             in->day,
+             in->hour,
+             in->minute,
+             in->second);
 }
 
 /**
  * @brief Write the firmware compilation timestamp in ISO8601 to @p out.
  *
- * Uses the C macros `__DATE__` (e.g., "Jul 23 2025") and `__TIME__` ("HH:MM:SS"),
- * and converts them to `"YYYY-MM-DDTHH:MM:SS"`.
+ * "Jul 23 2025" ;  "14:30:00"
+ * Convert to format like "2025-07-23T14:30:00"
  *
  * @param out Output buffer.
  * @param len Size of @p out. (Recommend at least 20 bytes)
  */
+// TODO should take a DateTime as arg instead of using __DATE__ and __TIME__
 void convertDateToISO8601(char* out, size_t len) {
     snprintf(out, len, "20%.*sT%.*s:00", 6, __DATE__ + 7, 5, __TIME__);
-    // __DATE__ → "Jul 23 2025" ; __TIME__ → "14:30:00"
-    // Convert to format like "2025-07-23T14:30:00"
+}
+
+/**
+ * @brief Convert an ISO8601 datetime string to a DateTime object.
+ *
+ * Expected format:
+ * `"YYYY-MM-DDTHH:MM:SS"`
+ *
+ * Example:
+ * `"2025-07-23T14:30:00"`
+ *
+ * @param iso8601 Null-terminated ISO8601 string.
+ * @param out Pointer to the destination DateTime object.
+ * @return true if parsing succeeded, false otherwise.
+ */
+bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
+    if (!iso8601 || !out) {
+        return false;
+    }
+
+    LoggerTime_t t{};
+
+    if (!convertDatetoBcd(iso8601, &t)) {
+        return false;
+    }
+
+    *out = DateTime(2000 + bcdToDec(t.year),
+                    bcdToDec(t.month),
+                    bcdToDec(t.day),
+                    bcdToDec(t.hour),
+                    bcdToDec(t.minute),
+                    bcdToDec(t.second));
+
+    return true;
 }

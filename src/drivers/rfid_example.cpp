@@ -10,7 +10,7 @@ void rfid_example_setup() {
     Serial.begin(115200);
 
     Serial1.begin(9600);
-    rfid_driver_init(&rfid1, &Serial1, TAG_TYPE_FDX, 100);
+    rfid_driver::init(&rfid1, &Serial1, TAG_TYPE_FDX, 100);
 
     // If you have a second port/reader:
     // Serial2.begin(9600);
@@ -18,17 +18,15 @@ void rfid_example_setup() {
 }
 
 void rfid_example_loop() {
-    rfid_driver_tick(&rfid1);
-    // rfid_driver_tick(&rfid2);
+    rfid_driver::tick(&rfid1);
+    // rfid_driver::tick(&rfid2);
 
     tag_info_t t;
-    if (rfid_driver_get_tag(&rfid1, &t))
-        {
-            if (rfid_should_record_tag(&prev1, &t, 2000))
-                {
-                    Serial.print("RFID1: ");
-                    Serial.println(t.tag);
-                    prev1 = t;
-            }
+    if (rfid_driver::get_tag(&rfid1, &t)) {
+        if (rfid_driver::should_record_tag(&prev1, &t, 2000)) {
+            Serial.print("RFID1: ");
+            Serial.println(t.tag);
+            prev1 = t;
+        }
     }
 }
