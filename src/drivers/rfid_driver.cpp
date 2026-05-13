@@ -83,6 +83,7 @@ static bool line_reader_poll(line_reader_t* lr, Stream* s) {
 
     while (s->available()) {
         char c = (char)s->read();
+        LOG_WARN("RFID RX char: 0x%02X '%c'", (uint8_t)c, (c >= 32 && c <= 126) ? c : '.');
 
         if (lr->discarding) {
             if (c == '\r') {
@@ -188,7 +189,12 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
             memmove(dst, dst + 2, len - 2 + 1);
         }
     }
+    trim_inplace(dst);
 
+    if (dst[0] == '>') {
+        memmove(dst, dst + 1, strlen(dst));
+        trim_inplace(dst);
+    }
     return true;
 }
 
@@ -370,16 +376,27 @@ void rfid_driver::tick(rfid_driver_t* drv) {
     }
 
     uint8_t max_lines = 2;
+    int avail         = drv->port->available();
+    if (avail > 0) {
+        LOG_WARN("RFID RX available=%d", avail);
+    }
     while (max_lines-- && line_reader_poll(&drv->lr, drv->port)) {
         char raw[64];
         char cleaned[64];
         char decoded[32];
 
         if (!line_reader_get(&drv->lr, raw, sizeof(raw))) break;
-
+        LOG_WARN("RFID raw line: '%s'", raw);
         trim_inplace(raw);
         if (!sanitize_tag(raw, cleaned, sizeof(cleaned))) continue;
         trim_inplace(cleaned);
+
+        LOG_WARN("RFID cleaned line: '%s'", cleaned);
+
+        if (strcmp(cleaned, "- 1") == 0) {
+            LOG_WARN("RFID reader response: no tag/read failed");
+            continue;
+        }
 
         if (drv->type == TAG_TYPE_FDX) {
             if (!is_valid_hex(cleaned, {RFID_FDX_HEX_LEN, RFID_FDX_HEX_LEN})) continue;
@@ -432,4 +449,23 @@ bool rfid_driver::should_record_tag(const tag_info_t* previous,
         return dt >= delay_ms;
     }
     return true;
+}
+
+void rfid_driver::flush_rx(rfid_driver_t* drv) {
+    if (!drv || !drv->port) return;
+    while (drv->port->available()) {
+        drv->port->read();
+    }
+}
+
+void rfid_driver::blocking_debug_read(rfid_driver_t* drv) {
+    if (!drv || !drv->port) return;
+
+    drv->port->print(cmd_for(drv->type));
+    delay(10);
+
+    String trx = drv->port->readStringUntil('\r');
+    trx.trim();
+
+    LOG_WARN("RFID blocking trx='%s'", trx.c_str());
 }
