@@ -292,22 +292,14 @@ void deploy_enter(ir_pwm& ir_driver) {
     rtc_period   = config.acquisition_interval_s;
     vbat_counter = 0;
 
-    // TEMP TEST RFID CONTINUOUS
-    // g_rfid_mode = (rfid_runtime_mode)config.rfid_mode;
-    g_rfid_mode     = RFID_RT_CONTINUOUS;
+    g_rfid_mode     = (rfid_runtime_mode)config.rfid_mode;
     in_awake_window = false;
 
-    g_last_rfid_tag          = {{0}, 0};
-    g_has_last_rfid_tag      = false;
-    g_rfid_tag_detected      = false;
-    g_rfid_triggered_ms      = 0;
-    g_rfid_deadline_ms       = 0;
-    g_sensor_wakeups_enabled = false;
-
-    // TEMP TEST RFID CONTINUOUS
-    pwr_manager::rfid_pwr_on(g_rfid_mode);
-    delay(1500);
-
+    g_last_rfid_tag     = {{0}, 0};
+    g_has_last_rfid_tag = false;
+    g_rfid_tag_detected = false;
+    g_rfid_triggered_ms = 0;
+    g_rfid_deadline_ms  = 0;
     log_flush();
 
     LOG_DEBUG("Checking initial schedule window at startup");
@@ -595,8 +587,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     if (pwr_manager::rfid_is_on()) {
         // Poll RFID driver and process and queue tags.
-        //rfid_driver::tick(&rfid_driver);
-        rfid_driver::blocking_debug_read(&rfid_driver);
+        rfid_driver::tick(&rfid_driver);
 
         tag_info_t tag;
         // Process all available tags in the FIFO.
@@ -620,19 +611,23 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         }
 
         if (!rfid_continuous) {
-            now_ms  = millis();
-            elapsed = now_ms - rfid_start_time;
-            if (g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms) {
+            now_ms                         = millis();
+            elapsed                        = now_ms - rfid_start_time;
+            const bool should_power_off    = g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms;
+            const int32_t deadline_left_ms = (int32_t)(g_rfid_deadline_ms - now_ms);
+
+            LOG_DEBUG("RFID active for %lu ms, tag detected: %d, deadline in %ld ms",
+                      elapsed,
+                      g_rfid_tag_detected,
+                      deadline_left_ms);
+
+            if (should_power_off) {
                 pwr_manager::rfid_pwr_off(g_rfid_mode);
 
                 g_rfid_tag_detected = false;
                 g_rfid_triggered_ms = 0;
                 g_rfid_deadline_ms  = 0;
             }
-            LOG_DEBUG("RFID active for %d ms, tag detected: %d, deadline in %d ms",
-                      elapsed,
-                      g_rfid_tag_detected,
-                      g_rfid_deadline_ms - now_ms);
         }
     }
 }
