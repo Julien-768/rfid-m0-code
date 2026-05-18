@@ -325,6 +325,7 @@ void setup() {
 
     // Initialize switch and power relay
     pwr_manager::begin();
+    blink_blocking_safe(PIN_BUZZER_LED, 50, 50, 2);
 
     // Run the boot sequence
     currentState = runBootSequence();
@@ -371,7 +372,7 @@ void loop() {
             currentState = STATE_DEPLOY;
             LOG_INFO(string_widget.c_str());
             LOG_INFO(string_widget.c_str());
-            blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
+            //blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
             break;
 
         case STATE_CONNECTED:
