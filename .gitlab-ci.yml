@@ -13,20 +13,21 @@
 # --------------------------------------------------
 include:
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/clang.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/clang/template.yml'
 
-- project: 'iphc/ci-templates'
-  file: '/ci-templates/platformio.gitlab-ci.yml'
   ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
 
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/doxygen.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/platformio/template.yml'
+  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
 
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/release.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/doxygen/template.yml'
+  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
+
+- project: 'iphc/ci-templates'
+  file: '/templates/release/template.yml'
+  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
 
 # --------------------------------------------------
 # Project-specific variables used by the CI templates
