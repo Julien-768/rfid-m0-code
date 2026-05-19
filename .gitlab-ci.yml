@@ -14,20 +14,21 @@
 include:
 - project: 'iphc/ci-templates'
   file: '/templates/clang/template.yml'
-
-  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
+  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
 
 - project: 'iphc/ci-templates'
   file: '/templates/platformio/template.yml'
-  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
+  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
+  inputs:
+    environments: "clangtidy"
 
 - project: 'iphc/ci-templates'
   file: '/templates/doxygen/template.yml'
-  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
+  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
 
 - project: 'iphc/ci-templates'
   file: '/templates/release/template.yml'
-  ref: '327f7427b319e949574807c798b88bc5d8adaf0f'
+  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
 
 # --------------------------------------------------
 # Project-specific variables used by the CI templates
