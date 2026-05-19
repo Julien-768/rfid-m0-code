@@ -20,7 +20,7 @@ include:
   file: '/templates/platformio/template.yml'
   ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
   inputs:
-    environments: "clangtidy"
+  environments: "clangtidy"
 
 - project: 'iphc/ci-templates'
   file: '/templates/doxygen/template.yml'
