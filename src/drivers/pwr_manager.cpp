@@ -108,7 +108,7 @@ void begin() {
     write_power_pin(PIN_PWR_3V, false, PWR_3V_ACTIVE_HIGH);
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     write_power_pin(PIN_PW_EN, true, PWR_EN_ACTIVE_HIGH);
-    LOG_INFO("Power hold relay ON on PIN_PW_EN");
+    LOG_DEBUG("Power hold relay ON on PIN_PW_EN");
 
     g_ir_on              = false;
     g_rfid_on            = false;
@@ -205,7 +205,6 @@ void request_shutdown() {
     g_shutdown_requested = true;
 
     delay(1000);
-    LOG_WARN("Shutdown: releasing power hold relay on PIN_PW_EN");
     write_power_pin(PIN_PW_EN, false, PWR_EN_ACTIVE_HIGH);
 
     while (true) {
