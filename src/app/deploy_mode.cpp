@@ -295,11 +295,12 @@ void deploy_enter(ir_pwm& ir_driver) {
     g_rfid_mode     = (rfid_runtime_mode)config.rfid_mode;
     in_awake_window = false;
 
-    g_last_rfid_tag     = {{0}, 0};
-    g_has_last_rfid_tag = false;
-    g_rfid_tag_detected = false;
-    g_rfid_triggered_ms = 0;
-    g_rfid_deadline_ms  = 0;
+    g_last_rfid_tag          = {{0}, 0};
+    g_has_last_rfid_tag      = false;
+    g_rfid_tag_detected      = false;
+    g_rfid_triggered_ms      = 0;
+    g_rfid_deadline_ms       = 0;
+    g_sensor_wakeups_enabled = false;
     log_flush();
 
     LOG_DEBUG("Checking initial schedule window at startup");
@@ -571,7 +572,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     // Switch on RFID if needed.
     if (rfid_trigger && !pwr_manager::rfid_is_on()) {
-        LOG_WARN("RFID trigger from IR event: power ON");
+        LOG_DEBUG("RFID trigger from IR event: power ON");
         pwr_manager::rfid_pwr_on(g_rfid_mode);
         rfid_start_time     = millis();
         g_rfid_tag_detected = false;
