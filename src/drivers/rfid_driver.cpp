@@ -79,7 +79,9 @@ static void line_reader_init(line_reader_t* lr) {
  * @return true if a complete line is available.
  */
 static bool line_reader_poll(line_reader_t* lr, Stream* s) {
-    if (lr->line_ready) return true;
+    if (lr->line_ready) {
+        return true;
+    }
 
     while (s->available()) {
         char c = (char)s->read();
@@ -92,8 +94,12 @@ static bool line_reader_poll(line_reader_t* lr, Stream* s) {
             continue;
         }
 
-        if (c == '\n') continue;
+        // Ignore LF
+        if (c == '\n') {
+            continue;
+        }
 
+        // End of line
         if (c == '\r') {
             lr->buf[lr->len] = '\0';
             lr->line_ready   = true;
@@ -101,11 +107,14 @@ static bool line_reader_poll(line_reader_t* lr, Stream* s) {
             return true;
         }
 
+        // Store character if buffer has room
         if (lr->len < sizeof(lr->buf) - 1) {
             lr->buf[lr->len++] = c;
         } else {
+            // Overflow protection
             lr->discarding = true;
             lr->len        = 0;
+            LOG_WARN("RFID line buffer overflow, discarding line");
         }
     }
 
@@ -188,7 +197,12 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
             memmove(dst, dst + 2, len - 2 + 1);
         }
     }
+    trim_inplace(dst);
 
+    if (dst[0] == '>') {
+        memmove(dst, dst + 1, strlen(dst));
+        trim_inplace(dst);
+    }
     return true;
 }
 
@@ -361,41 +375,62 @@ void rfid_driver::tick(rfid_driver_t* drv) {
     const uint32_t now = millis();
 
     if ((uint32_t)(now - drv->last_poll) >= drv->poll_interval_ms) {
-        drv->last_poll  = now;
+        drv->last_poll = now;
+
         const char* cmd = cmd_for(drv->type);
         if (cmd) {
             drv->port->print(cmd);
-            LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
+            LOG_DEBUG("RFID type=%d, poll command sent: %s", drv->type, cmd);
         }
     }
 
     uint8_t max_lines = 2;
+
     while (max_lines-- && line_reader_poll(&drv->lr, drv->port)) {
         char raw[64];
         char cleaned[64];
         char decoded[32];
 
-        if (!line_reader_get(&drv->lr, raw, sizeof(raw))) break;
+        if (!line_reader_get(&drv->lr, raw, sizeof(raw))) {
+            break;
+        }
 
         trim_inplace(raw);
-        if (!sanitize_tag(raw, cleaned, sizeof(cleaned))) continue;
+
+        if (!sanitize_tag(raw, cleaned, sizeof(cleaned))) {
+            continue;
+        }
+
         trim_inplace(cleaned);
 
-        if (drv->type == TAG_TYPE_FDX) {
-            if (!is_valid_hex(cleaned, {RFID_FDX_HEX_LEN, RFID_FDX_HEX_LEN})) continue;
-        } else {
-            if (!is_valid_hex(cleaned, {5, 0})) continue;
+        if (strcmp(cleaned, "- 1") == 0) {
+            LOG_DEBUG("RFID reader response: no tag/read failed");
+            continue;
         }
 
         if (drv->type == TAG_TYPE_FDX) {
-            if (!rfid_tag_hex_to_nic(cleaned, decoded, sizeof(decoded))) continue;
+            if (!is_valid_hex(cleaned, {RFID_FDX_HEX_LEN, RFID_FDX_HEX_LEN})) {
+                LOG_WARN("RFID invalid FDX response: '%s'", cleaned);
+                continue;
+            }
+
+            if (!rfid_tag_hex_to_nic(cleaned, decoded, sizeof(decoded))) {
+                LOG_WARN("RFID FDX decode failed: '%s'", cleaned);
+                continue;
+            }
         } else {
+            if (!is_valid_hex(cleaned, {5, 0})) {
+                LOG_WARN("RFID invalid tag response: '%s'", cleaned);
+                continue;
+            }
+
             safe_strcpy(decoded, sizeof(decoded), cleaned);
         }
 
         tag_info_t ti;
         safe_strcpy(ti.tag, sizeof(ti.tag), decoded);
         ti.time_ms = millis();
+
         queue_push(drv, &ti);
     }
 }
@@ -432,4 +467,11 @@ bool rfid_driver::should_record_tag(const tag_info_t* previous,
         return dt >= delay_ms;
     }
     return true;
+}
+
+void rfid_driver::flush_rx(rfid_driver_t* drv) {
+    if (!drv || !drv->port) return;
+    while (drv->port->available()) {
+        drv->port->read();
+    }
 }

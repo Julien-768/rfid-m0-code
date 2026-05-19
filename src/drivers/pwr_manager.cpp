@@ -108,6 +108,7 @@ void begin() {
     write_power_pin(PIN_PWR_3V, false, PWR_3V_ACTIVE_HIGH);
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     write_power_pin(PIN_PW_EN, true, PWR_EN_ACTIVE_HIGH);
+    LOG_DEBUG("Power hold relay ON on PIN_PW_EN");
 
     g_ir_on              = false;
     g_rfid_on            = false;
@@ -295,7 +296,10 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     }
 
     write_power_pin(PIN_PWR_5V, true, PWR_5V_ACTIVE_HIGH);
-    delay(10);
+
+    LOG_DEBUG("RFID 5V enabled, waiting reader startup");
+    delay(500);
+
     g_rfid_on = true;
 
     LOG_DEBUG("RFID power ON");

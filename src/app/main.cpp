@@ -148,7 +148,7 @@ static SystemState runBootSequence() {
         // Boot-time sanity check
         rtc_boot_recover();
         // // dev fix: should not be needed here as rtc_boot_recover() already sets a valid time if the RTC was lost, but just in case, ensure that the RTC is set to a valid time before proceeding with file creation and timestamping
-        // rtc_apply_external_time(DateTime(__DATE__, __TIME__));
+        rtc_apply_external_time(DateTime(__DATE__, __TIME__));
         rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
@@ -283,11 +283,17 @@ static SystemState runBootSequence() {
     // --- Initialize RFID driver ---
     LOG_INFO(string_widget.c_str());
     if (config.enable_rfid) {
-        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_FDX, 100);
-        LOG_INFO("RFID driver initialized");
+        Serial1.begin(9600);
+        delay(100);
+
+        LOG_INFO("RFID Serial1 started");
+
+        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
+        LOG_INFO("RFID driver initialized with EM4102 tag type");
     } else {
         LOG_INFO("RFID driver disabled by configuration");
     }
+
     LOG_INFO(string_widget.c_str());
     // led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
@@ -319,6 +325,7 @@ void setup() {
 
     // Initialize switch and power relay
     pwr_manager::begin();
+    blink_blocking_safe(PIN_BUZZER_LED, 50, 50, 2);
 
     // Run the boot sequence
     currentState = runBootSequence();
@@ -365,7 +372,7 @@ void loop() {
             currentState = STATE_DEPLOY;
             LOG_INFO(string_widget.c_str());
             LOG_INFO(string_widget.c_str());
-            blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
+            //blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
             break;
 
         case STATE_CONNECTED:

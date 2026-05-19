@@ -130,6 +130,8 @@ class rfid_driver {
      */
     static void poll_now(rfid_driver_t* drv);
 
+    static void flush_rx(rfid_driver_t* drv);
+
     /**
      * @brief Pop one ready tag from the FIFO.
      *

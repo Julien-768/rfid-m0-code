@@ -288,9 +288,10 @@ static void apply_awake_window(ir_pwm& ir_driver,
 void deploy_enter(ir_pwm& ir_driver) {
     LOG_DEBUG("Initializing DEPLOY mode: setting up callbacks and initial state");
 
-    g_schedule.setWindow({8, 0, 18, 0});  // temporary, should come from config
-    rtc_period      = config.acquisition_interval_s;
-    vbat_counter    = 0;
+    g_schedule.setWindow({8, 0, 18, 0});
+    rtc_period   = config.acquisition_interval_s;
+    vbat_counter = 0;
+
     g_rfid_mode     = (rfid_runtime_mode)config.rfid_mode;
     in_awake_window = false;
 
@@ -300,15 +301,12 @@ void deploy_enter(ir_pwm& ir_driver) {
     g_rfid_triggered_ms      = 0;
     g_rfid_deadline_ms       = 0;
     g_sensor_wakeups_enabled = false;
-
-    // {config.deploy_start_hour, config.deploy_start_minute, config.deploy_end_hour,
-    //  config.deploy_end_minute}
-
     log_flush();
 
     LOG_DEBUG("Checking initial schedule window at startup");
     rtc_clear_alarm_flag();
-    delay(100);  // Ensure RTC alarm flag is cleared before setting
+    delay(100);
+
     DateTime now = rtc().now();
     apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
 
@@ -326,7 +324,6 @@ void deploy_enter(ir_pwm& ir_driver) {
 
     LOG_DEBUG("Setting up DEPLOY mode callbacks");
     pwr_manager::reset_power_button_tracking();
-    // pwr_manager::button_interrupt_attach(callback_button);
 
     rtc_set_alarm_callback(callback_rtc);
     set_next_deploy_alarm(now, in_awake_window);
@@ -575,9 +572,12 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     // Switch on RFID if needed.
     if (rfid_trigger && !pwr_manager::rfid_is_on()) {
+        LOG_DEBUG("RFID trigger from IR event: power ON");
         pwr_manager::rfid_pwr_on(g_rfid_mode);
         rfid_start_time     = millis();
         g_rfid_tag_detected = false;
+        delay(1000);
+        rfid_driver::flush_rx(&rfid_driver);
         rfid_driver::poll_now(&rfid_driver);
     }
     // prolong RFID active time if already on and another IR event occurs.
@@ -612,19 +612,23 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         }
 
         if (!rfid_continuous) {
-            now_ms  = millis();
-            elapsed = now_ms - rfid_start_time;
-            if (g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms) {
+            now_ms                         = millis();
+            elapsed                        = now_ms - rfid_start_time;
+            const bool should_power_off    = g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms;
+            const int32_t deadline_left_ms = (int32_t)(g_rfid_deadline_ms - now_ms);
+
+            LOG_DEBUG("RFID active for %lu ms, tag detected: %d, deadline in %ld ms",
+                      elapsed,
+                      g_rfid_tag_detected,
+                      deadline_left_ms);
+
+            if (should_power_off) {
                 pwr_manager::rfid_pwr_off(g_rfid_mode);
 
                 g_rfid_tag_detected = false;
                 g_rfid_triggered_ms = 0;
                 g_rfid_deadline_ms  = 0;
             }
-            LOG_DEBUG("RFID active for %d ms, tag detected: %d, deadline in %d ms",
-                      elapsed,
-                      g_rfid_tag_detected,
-                      g_rfid_deadline_ms - now_ms);
         }
     }
 }
