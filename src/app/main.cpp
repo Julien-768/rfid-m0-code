@@ -15,17 +15,25 @@
  *   - Configuration and assembly metadata
  *   - Battery monitor
  *   - Sensors
- * - Execute boot-time diagnostics and handle hardware failures.
- * - Manage operational modes via a global state machine:
- *   - **INIT** → Decide between CONNECTED or DEPLOY after boot sequence.
- *   - **CONNECTED** → User interaction via serial link and GUI.
+ *   - Execute boot-time diagnostics and handle hardware failures.
+ *   - Manage operational modes via a global state machine:
+ *   - **CONNECTED** → Temporary UART/GUI configuration window after boot.
+ *   - **INIT** → Runtime hardware initialization before deployment.
  *   - **DEPLOY** → Periodic low-power data logging.
  *   - **STOCK** → Storage/idle state before deployment.
  *   - **END-OF-LIFE** → Safe shutdown on critical error or low battery.
  *
  * ## Boot model
- * The boot sequence is executed **once in `setup()`** via @ref runBootSequence().
- * It performs all critical checks and sets the initial runtime state.
+ * The boot sequence is executed once in @c setup() via
+ * @ref runBootSequence().
+ *
+ * After boot:
+ * - The logger first enters @ref STATE_CONNECTED for a short UART/GUI
+ *   configuration window.
+ * - If no UART activity is detected before the timeout expires,
+ *   the system automatically transitions to @ref STATE_INIT.
+ * - @ref STATE_INIT initializes runtime services and enters
+ *   @ref STATE_DEPLOY.
  *
  * ## Power management
  * - Uses the `ArduinoLowPower` library for SAMD21 sleep/deep sleep.
@@ -298,16 +306,18 @@ static SystemState runBootSequence() {
     // led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
 
-    DET_EXT_Init();
-    if (DET_EXT_Connected()) {
-        LOG_INFO("Entering CONNECTED mode");
-        logWidgetTwice();
-        return STATE_CONNECTED;
-    }
+    //DET_EXT_Init();
+    // if (DET_EXT_Connected()) {
+    //     LOG_INFO("Entering CONNECTED mode");
+    //     logWidgetTwice();
+    //     return STATE_CONNECTED;
+    // }
 
-    LOG_INFO("Entering INIT mode");
+    //LOG_INFO("Entering INIT mode");
+    LOG_INFO("Entering CONNECTED mode");
 
-    return STATE_INIT;
+    //return STATE_INIT;
+    return STATE_CONNECTED;
 }
 
 /**
@@ -340,12 +350,12 @@ void setup() {
  * ## State Overview
  * | State               | Description |
  * |:--------------------|:------------|
- * | **STATE_INIT**      | Decide between CONNECTED (GUI) or DEPLOY (autonomous logging). |
- * | **STATE_CONNECTED** | Serial/GUI interactive configuration mode (@ref runConnectedMode). |
+ * | **STATE_CONNECTED** | Temporary GUI/UART configuration window after boot.
+ * | **STATE_INIT**      | Runtime hardware initialization before deployment.
  * | **STATE_DEPLOY**    | Periodic low-power data logging of sensors and battery. |
  * | **STATE_STOCK**     | Storage/idle state for pre-deployment conservation. |
  * | **STATE_ENDOFLIFE** | Safe shutdown when a critical error or low battery occurs. |
- * | **STATE_ERROR**      | Default fallback / placeholder state. |
+ * | **STATE_ERROR**     | Default fallback / placeholder state. |
  *
  * ## Power Management
  * Uses `ArduinoLowPower` to minimize energy usage between acquisitions.

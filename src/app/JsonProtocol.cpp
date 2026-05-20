@@ -20,8 +20,7 @@
  *         "date_current": "2025-12-08T14:30:00",
  *         "use_buffer": false,
  *         "acquisition_interval_s": 60,
- *         "enable_light1": true,
- *         "enable_light2": false,
+ *         "enable_ir": true,
  *         "enable_rfid": true,
  *         "rfid_mode": 2,
  *         "enable_vbat": true,
@@ -33,6 +32,9 @@
  *     }
  *   }
  *   @endcode
+ *
+ * @note The GUI exposes a single @c enable_ir field. Internally this value is
+ * mapped to both IR channels: @c enable_light1 and @c enable_light2.
  *
  * - Factory identity command (SET_IDENTITY, factory tool only):
  *   @code
@@ -48,7 +50,6 @@
  *   }
  *   @endcode
  */
-
 #include <ArduinoJson.h>
 #include <string.h>
 
@@ -160,13 +161,10 @@ bool JsonProtocol::parseCommand(const char* json_string,
                     ? jsonConfig["acquisition_interval_s"].as<uint16_t>()
                     : 120;
 
-            out.cfg.enable_light1 = jsonConfig.containsKey("enable_light1")
-                                        ? jsonConfig["enable_light1"].as<bool>()
-                                        : false;
+            const bool enable_ir = jsonConfig["enable_ir"].as<bool>();
 
-            out.cfg.enable_light2 = jsonConfig.containsKey("enable_light2")
-                                        ? jsonConfig["enable_light2"].as<bool>()
-                                        : false;
+            out.cfg.enable_light1 = enable_ir;
+            out.cfg.enable_light2 = enable_ir;
 
             out.cfg.enable_rfid =
                 jsonConfig.containsKey("enable_rfid") ? jsonConfig["enable_rfid"].as<bool>() : true;
@@ -290,15 +288,20 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
 }
 
 /**
- * @brief Build a JSON snapshot of the current configuration.
+ * @brief Build a JSON snapshot of the current logger configuration.
  *
- * Uses:
- * - @c gui_time_sync_rb.dateCurrent as the current date/time
- * - @c config as the runtime configuration
+ * Builds the response used by @c GET_CONFIG. The output format mirrors the GUI
+ * configuration payload so the same field names are used in both directions.
  *
- * The JSON includes the daily active schedule window so that the GUI can
- * display and edit the same values used by ScheduleManager.
+ * The two internal IR channels are exported as a single @c enable_ir field:
+ * @code
+ * enable_ir = enable_light1 || enable_light2
+ * @endcode
  *
+ * The JSON includes the current logger time, acquisition settings, enabled
+ * modules, RFID mode, VBAT logging state, and daily activation schedule window.
+ *
+ * @param payload Current configuration snapshot to serialize.
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
 const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) {
@@ -309,8 +312,7 @@ const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) 
     obj["date_current"]           = payload.dateCurrentIso;
     obj["use_buffer"]             = payload.use_buffer;
     obj["acquisition_interval_s"] = payload.acquisition_interval_s;
-    obj["enable_light1"]          = payload.enable_light1;
-    obj["enable_light2"]          = payload.enable_light2;
+    obj["enable_ir"]              = payload.enable_light1 || payload.enable_light2;
     obj["enable_rfid"]            = payload.enable_rfid;
     obj["rfid_mode"]              = payload.rfid_mode;
     obj["enable_vbat"]            = payload.enable_vbat;

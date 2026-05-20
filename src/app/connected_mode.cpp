@@ -58,39 +58,60 @@
 #include "utils.h"
 #include "battery_service.h"
 
+extern Uart SerialAlt;
+
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
  *
  * This function must be called repeatedly while the system is in
- * @ref STATE_CONNECTED. It performs a single iteration of the command loop:
+ * @ref STATE_CONNECTED. It provides a short GUI configuration window before
+ * normal deployment startup.
  *
- * 1. If no UART data is available, returns immediately.
- * 2. Reads one JSON message line (terminated by '\\n').
- * 3. Parses it into a @ref ParsedCommand using @ref JsonProtocol::parseCommand.
- * 4. Dispatches the command and writes the corresponding JSON response.
+ * If no UART activity is detected on @c Serial1 for a fixed timeout, the
+ * function transitions to @ref STATE_INIT so the logger can continue its normal
+ * boot sequence and enter DEPLOY mode.
+ *
+ * Processing steps:
+ * 1. If no UART data is available, check the CONNECTED timeout and return.
+ * 2. On UART activity, refresh the activity timestamp.
+ * 3. Read one JSON message line terminated by '\\n'.
+ * 4. Parse it into a @ref ParsedCommand using @ref JsonProtocol::parseCommand.
+ * 5. Dispatch the command and write the corresponding JSON response.
  *
  * ### State transitions
- * - On **SET_CONFIG** success, this function sets @p state to @ref STATE_DEPLOY.
- *
- * ### Factory identity programming
- * - On **SET_IDENTITY**, the function builds a @ref LoggerIdentityFlash record
- *   from the received JSON payload and calls @ref device_id_program.
- * - On failure, a JSON error is returned.
+ * - On CONNECTED timeout: @ref STATE_CONNECTED -> @ref STATE_INIT.
+ * - On **SET_CONFIG** success: @ref STATE_CONNECTED -> @ref STATE_INIT.
+ * - On **SET_RUN_START**: @ref STATE_CONNECTED -> @ref STATE_INIT.
  *
  * @param[in,out] state Current system state reference. May be updated to
- *                      @ref STATE_DEPLOY when SET_CONFIG is accepted.
+ *                      @ref STATE_INIT when the timeout expires or when a
+ *                      start/config command is accepted.
  *
- * @see device_id_get
- * @see device_id_program
- * @see rtc_applyExternalTime
- * @see rtc_scheduleNextWake
+ * @see JsonProtocol
+ * @see rtc_apply_external_time
  */
 
 void runConnectedMode(SystemState& state) {
-    if (!Serial1.available()) return;
+    static uint32_t last_activity_ms = millis();
+    static bool ready_sent           = false;
 
-    // Read a full JSON line from the GUI / external tool
-    String incoming = Serial1.readStringUntil('\n');
+    if (!ready_sent) {
+        SerialAlt.println("{\"status\":\"CONNECTED_READY\"}");
+        LOG_INFO("CONNECTED ready sent to GUI");
+        ready_sent = true;
+    }
+
+    if (!SerialAlt.available()) {
+        if ((millis() - last_activity_ms) > 5000) {
+            LOG_INFO("CONNECTED timeout -> INIT");
+            state = STATE_INIT;
+        }
+        return;
+    }
+
+    last_activity_ms = millis();
+
+    String incoming = SerialAlt.readStringUntil('\n');
 
     ParsedCommand parsed{};
     char errorJson[96] = {0};
@@ -99,7 +120,7 @@ void runConnectedMode(SystemState& state) {
     if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson))) {
         if (errorJson[0] != '\0') {
             // Return a small JSON error message to the GUI
-            Serial1.println(errorJson);
+            SerialAlt.println(errorJson);
         }
         return;
     }
@@ -110,7 +131,7 @@ void runConnectedMode(SystemState& state) {
             // Firmware version / compile date
             // TODO
             const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
-            Serial1.println(json);
+            SerialAlt.println(json);
             break;
         }
 
@@ -127,23 +148,23 @@ void runConnectedMode(SystemState& state) {
 
             const char* json = JsonProtocol::buildIdJSON(payload);
 
-            Serial1.println(json);
+            SerialAlt.println(json);
             break;
         }
 
         case CommandType::GET_VBAT: {
             if (!battery_is_available()) {
-                Serial1.println("{\"error\":\"Battery measurement not available\"}");
+                SerialAlt.println("{\"error\":\"Battery measurement not available\"}");
                 break;
             } else {
                 int32_t vbat_mv;
                 bool changed;
                 if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                    Serial1.println("{\"error\":\"Failed to read battery voltage\"}");
+                    SerialAlt.println("{\"error\":\"Failed to read battery voltage\"}");
                     break;
                 }
                 const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                Serial1.println(json);
+                SerialAlt.println(json);
             }
             break;
         }
@@ -176,7 +197,7 @@ void runConnectedMode(SystemState& state) {
 
             const char* json = JsonProtocol::buildConfigJSON(payload);
 
-            Serial1.println(json);
+            SerialAlt.println(json);
             break;
         }
 
@@ -186,7 +207,7 @@ void runConnectedMode(SystemState& state) {
             DateTime dt;
             if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
                 LOG_ERROR("Invalid date received from GUI");
-                Serial1.println("{\"error\":\"Invalid date_current\"}");
+                SerialAlt.println("{\"error\":\"Invalid date_current\"}");
                 break;
             }
 
@@ -214,7 +235,7 @@ void runConnectedMode(SystemState& state) {
                 LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
             }
 
-            Serial1.println("{\"config\":\"ACK\"}");
+            SerialAlt.println("{\"config\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
             state = STATE_INIT;
@@ -222,7 +243,7 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::SET_RUN_START: {
-            Serial1.println("{\"config\":\"ACK\"}");
+            SerialAlt.println("{\"config\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
             state = STATE_INIT;
@@ -236,12 +257,12 @@ void runConnectedMode(SystemState& state) {
                                       parsed.identity.date_fab,
                                       parsed.identity.logger_sn);
 
-            Serial1.println("{\"identity\":\"ACK\"}");
+            SerialAlt.println("{\"identity\":\"ACK\"}");
             break;
         }
 
         case CommandType::SET_STORAGE: {
-            Serial1.println("{\"storage\":\"ACK\"}");
+            SerialAlt.println("{\"storage\":\"ACK\"}");
             break;
         }
 
