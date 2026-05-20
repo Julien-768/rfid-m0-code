@@ -18,7 +18,7 @@ include:
 
 - project: 'iphc/ci-templates'
   file: '/templates/platformio/template.yml'
-  ref: 'update/pio'
+  ref: 'develop'
 
   inputs:
     environments: "clangtidy"
