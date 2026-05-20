@@ -18,9 +18,12 @@ include:
 
 - project: 'iphc/ci-templates'
   file: '/templates/platformio/template.yml'
-  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
+  ref: 'update/pio'
+
   inputs:
-  environments: "clangtidy"
+    environments: "clangtidy"
+    project_dir: "."
+    project_conf: "platformio.ini"
 
 - project: 'iphc/ci-templates'
   file: '/templates/doxygen/template.yml'
