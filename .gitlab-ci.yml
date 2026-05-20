@@ -14,7 +14,7 @@
 include:
 - project: 'iphc/ci-templates'
   file: '/templates/clang/template.yml'
-  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
+  ref: 'develop'
 
 - project: 'iphc/ci-templates'
   file: '/templates/platformio/template.yml'
@@ -27,11 +27,11 @@ include:
 
 - project: 'iphc/ci-templates'
   file: '/templates/doxygen/template.yml'
-  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
+  ref: 'develop'
 
 - project: 'iphc/ci-templates'
   file: '/templates/release/template.yml'
-  ref: 'ab3b0dc4b0bf5b06ba789826f0c721aa44409dea'
+  ref: 'develop'
 
 # --------------------------------------------------
 # Project-specific variables used by the CI templates
