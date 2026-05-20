@@ -13,20 +13,25 @@
 # --------------------------------------------------
 include:
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/clang.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/clang/template.yml'
+  ref: 'develop'
 
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/platformio.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/platformio/template.yml'
+  ref: 'update/pio'
+
+  inputs:
+    environments: "clangtidy"
+    project_dir: "."
+    project_conf: "platformio.ini"
 
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/doxygen.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/doxygen/template.yml'
+  ref: 'develop'
 
 - project: 'iphc/ci-templates'
-  file: '/ci-templates/release.gitlab-ci.yml'
-  ref: '4e1f16c12c676c0cc6d7a827e4bd0235170dbe13'
+  file: '/templates/release/template.yml'
+  ref: 'develop'
 
 # --------------------------------------------------
 # Project-specific variables used by the CI templates
