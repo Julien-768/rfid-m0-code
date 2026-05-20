@@ -57,6 +57,7 @@
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery_service.h"
+#include "fw_version.h"
 
 extern Uart SerialAlt;
 
@@ -92,17 +93,18 @@ extern Uart SerialAlt;
  */
 
 void runConnectedMode(SystemState& state) {
-    static uint32_t last_activity_ms = millis();
-    static bool ready_sent           = false;
+    static constexpr uint32_t CONNECTED_TIMEOUT_MS = 30000;
+    static uint32_t last_activity_ms               = millis();
+    static bool ready_sent                         = false;
 
     if (!ready_sent) {
         SerialAlt.println("{\"status\":\"CONNECTED_READY\"}");
-        LOG_INFO("CONNECTED ready sent to GUI");
-        ready_sent = true;
+        last_activity_ms = millis();
+        ready_sent       = true;
     }
 
     if (!SerialAlt.available()) {
-        if ((millis() - last_activity_ms) > 5000) {
+        if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
             LOG_INFO("CONNECTED timeout -> INIT");
             state = STATE_INIT;
         }
@@ -130,7 +132,8 @@ void runConnectedMode(SystemState& state) {
         case CommandType::GET_INFO: {
             // Firmware version / compile date
             // TODO
-            const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
+            LOG_INFO("GET_INFO received");
+            const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
             SerialAlt.println(json);
             break;
         }

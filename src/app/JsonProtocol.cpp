@@ -55,6 +55,7 @@
 
 #include "JsonProtocol.h"
 #include "utils.h"
+#include "log.h"
 
 namespace {
 /**
@@ -235,16 +236,18 @@ bool JsonProtocol::parseCommand(const char* json_string,
  * @return Pointer to a static internal buffer (overwritten at each call).
  */
 const char* JsonProtocol::buildInfoJSON(const char* version) {
-    static char buffer[128];
-    StaticJsonDocument<128> doc;
+    static char buffer[192];
+    StaticJsonDocument<192> doc;
 
     char dateCompil[23];
     convertDateToISO8601(dateCompil, sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
-    obj["version"]          = version ? version : "TODO";
+    obj["firmware_name"]    = "rfid_m0";
+    obj["firmware_version"] = version ? version : "UNKNOWN";
     obj["compilation_date"] = dateCompil;
-
+    obj["board"]            = __PIO_BOARD_NAME__;
+    LOG_INFO("%s", buffer);
     serializeJson(doc, buffer);
     return buffer;
 }

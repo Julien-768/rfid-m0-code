@@ -130,7 +130,32 @@ class rfid_driver {
      */
     static void poll_now(rfid_driver_t* drv);
 
+    /**
+     * @brief Clear all pending bytes from the RFID receive stream.
+     *
+     * @param drv Driver instance.
+     */
     static void flush_rx(rfid_driver_t* drv);
+
+    /**
+     * @brief Start the RFID driver on a hardware serial port.
+     *
+     * @param drv               Driver instance storage.
+     * @param serial            Hardware serial port connected to the RFID reader.
+     * @param type              RFID tag type.
+     * @param poll_interval_ms  Poll interval in milliseconds.
+     */
+    static void start(rfid_driver_t* drv,
+                      HardwareSerial* serial,
+                      tag_type_t type,
+                      uint32_t poll_interval_ms);
+
+    /**
+     * @brief Stop the RFID driver and release its serial port.
+     *
+     * @param drv Driver instance.
+     */
+    static void stop(rfid_driver_t* drv);
 
     /**
      * @brief Pop one ready tag from the FIFO.
