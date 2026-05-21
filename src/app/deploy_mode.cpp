@@ -421,10 +421,10 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         // LowPower.sleep();
 
         LowPower.idle();
-        for (int i = 0; i < 20; i++) {
-            // signal_engine_update();
-            delay(10);
-        }
+        // for (int i = 0; i < 20; i++) {
+        //     // signal_engine_update();
+        //     delay(10);
+        // }
 
         // LOG_DEBUG("After wake: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
         //           digitalRead(10), g_deploy_events);
@@ -576,7 +576,6 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         pwr_manager::rfid_pwr_on(g_rfid_mode);
         rfid_start_time     = millis();
         g_rfid_tag_detected = false;
-        delay(1000);
         rfid_driver::flush_rx(&rfid_driver);
         rfid_driver::poll_now(&rfid_driver);
     }

@@ -298,7 +298,6 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     write_power_pin(PIN_PWR_5V, true, PWR_5V_ACTIVE_HIGH);
 
     LOG_DEBUG("RFID 5V enabled, waiting reader startup");
-    delay(500);
 
     g_rfid_on = true;
 
