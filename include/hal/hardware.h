@@ -73,6 +73,13 @@
 #define PWR_5V_ACTIVE_HIGH false
 #define PWR_EN_ACTIVE_HIGH true
 
+/**
+ * @brief Hardware serial interface used by the GUI communication layer.
+ *
+ * In CONNECTED mode, Serial1 is assigned to GUI communication.
+ * In DEPLOY mode, Serial1 ownership is transferred to the RFID driver.
+ */
+#define GUI_SERIAL Serial1
 #else
 #error "Unsupported hardware configuration. Define RFID_DOOR or FEATHER_M0_ADALOGGER."
 #endif

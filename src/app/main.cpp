@@ -116,7 +116,7 @@ ir_pwm ir_driver(PIN_PWM_IR, PIN_PR_1, PIN_PR_2);
 /**
  * @brief RFID driver instance
  */
-rfid_driver_t rfid_driver;
+rfid_driver_t g_rfid_driver;
 
 /**
  * @brief Execute the full hardware initialization sequence at startup.
@@ -377,11 +377,11 @@ void loop() {
 
             LOG_DEBUG("Initializing DEPLOY mode");
 
-            // GUI no longer owns Serial1 from this point.
-            gui_serial_stop(&Serial1);
+            // GUI no longer owns GUI_SERIAL from this point.
+            gui_serial_stop(&GUI_SERIAL);
             // Serial1 is now acquired by the RFID driver for DEPLOY mode.
             if (config.enable_rfid) {
-                rfid_driver::start(&rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
+                rfid_driver::start(&g_rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
             }
 
             deploy_enter(ir_driver);
@@ -395,16 +395,16 @@ void loop() {
         case STATE_CONNECTED:
             // RFID must not own Serial1 in CONNECTED mode.
             if (config.enable_rfid) {
-                rfid_driver::stop(&rfid_driver);
+                rfid_driver::stop(&g_rfid_driver);
             }
 
-            // Serial1 is now used by the GUI communication layer.
-            gui_serial_start(&Serial1);
+            // GUI_SERIAL is now used by the GUI communication layer.
+            gui_serial_start(&GUI_SERIAL);
             runConnectedMode(currentState);
             break;
 
         case STATE_DEPLOY:
-            run_deploy_state(currentState, rfid_driver, ir_driver);
+            run_deploy_state(currentState, g_rfid_driver, ir_driver);
             break;
 
         case STATE_STOCK:

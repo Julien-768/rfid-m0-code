@@ -395,7 +395,7 @@ uint32_t elapsed         = 0;
 /**
  * @brief Main DEPLOY state handler.
  */
-void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir_driver) {
+void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_driver) {
     uint8_t events     = DEPLOY_EVT_NONE;
     uint32_t ir1_count = 0;
     uint32_t ir2_count = 0;
@@ -577,8 +577,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         rfid_start_time     = millis();
         g_rfid_tag_detected = false;
         delay(1000);
-        rfid_driver::flush_rx(&rfid_driver);
-        rfid_driver::poll_now(&rfid_driver);
+        rfid_driver::flush_rx(&rfid_drv);
+        rfid_driver::poll_now(&rfid_drv);
     }
     // prolong RFID active time if already on and another IR event occurs.
     if (rfid_trigger) {
@@ -588,11 +588,11 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     if (pwr_manager::rfid_is_on()) {
         // Poll RFID driver and process and queue tags.
-        rfid_driver::tick(&rfid_driver);
+        rfid_driver::tick(&rfid_drv);
 
         tag_info_t tag;
         // Process all available tags in the FIFO.
-        while (rfid_driver::get_tag(&rfid_driver, &tag)) {
+        while (rfid_driver::get_tag(&rfid_drv, &tag)) {
             LOG_DEBUG("Received RFID tag: %s (time since poll: %d ms)",
                       tag.tag,
                       millis() - tag.time_ms);

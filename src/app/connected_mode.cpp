@@ -6,13 +6,13 @@
  *
  * This module implements the **CONNECTED** state logic of the logger.
  * In this mode, the device communicates with an external GUI/tool over UART
- * (`Serial1`) using a line-based JSON protocol.
+ * (`GUI_SERIAL`) using a line-based JSON protocol.
  *
  * ## Responsibilities
  * - Read incoming JSON commands terminated by '\\n'
  * - Parse commands into high-level structures via @ref JsonProtocol
  * - Execute requested actions (info, id, config, identity)
- * - Send JSON responses/ACK/errors back on `Serial1`
+ * - Send JSON responses/ACK/errors back on `GUI_SERIAL`
  *
  * ## Supported commands
  * - **GET_INFO**
@@ -57,9 +57,8 @@
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery_service.h"
+#include "hardware.h"
 #include "fw_version.h"
-
-extern Uart SerialAlt;
 
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
@@ -68,7 +67,7 @@ extern Uart SerialAlt;
  * @ref STATE_CONNECTED. It provides a short GUI configuration window before
  * normal deployment startup.
  *
- * If no UART activity is detected on @c Serial1 for a fixed timeout, the
+ * If no UART activity is detected on @c GUI_SERIAL for a fixed timeout, the
  * function transitions to @ref STATE_INIT so the logger can continue its normal
  * boot sequence and enter DEPLOY mode.
  *
@@ -98,12 +97,12 @@ void runConnectedMode(SystemState& state) {
     static bool ready_sent                         = false;
 
     if (!ready_sent) {
-        SerialAlt.println("{\"status\":\"CONNECTED_READY\"}");
+        GUI_SERIAL.println("{\"status\":\"CONNECTED_READY\"}");
         last_activity_ms = millis();
         ready_sent       = true;
     }
 
-    if (!SerialAlt.available()) {
+    if (!GUI_SERIAL.available()) {
         if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
             LOG_INFO("CONNECTED timeout -> INIT");
             state = STATE_INIT;
@@ -113,7 +112,7 @@ void runConnectedMode(SystemState& state) {
 
     last_activity_ms = millis();
 
-    String incoming = SerialAlt.readStringUntil('\n');
+    String incoming = GUI_SERIAL.readStringUntil('\n');
 
     ParsedCommand parsed{};
     char errorJson[96] = {0};
@@ -122,7 +121,7 @@ void runConnectedMode(SystemState& state) {
     if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson))) {
         if (errorJson[0] != '\0') {
             // Return a small JSON error message to the GUI
-            SerialAlt.println(errorJson);
+            GUI_SERIAL.println(errorJson);
         }
         return;
     }
@@ -134,7 +133,7 @@ void runConnectedMode(SystemState& state) {
             // TODO
             LOG_INFO("GET_INFO received");
             const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
-            SerialAlt.println(json);
+            GUI_SERIAL.println(json);
             break;
         }
 
@@ -151,23 +150,23 @@ void runConnectedMode(SystemState& state) {
 
             const char* json = JsonProtocol::buildIdJSON(payload);
 
-            SerialAlt.println(json);
+            GUI_SERIAL.println(json);
             break;
         }
 
         case CommandType::GET_VBAT: {
             if (!battery_is_available()) {
-                SerialAlt.println("{\"error\":\"Battery measurement not available\"}");
+                GUI_SERIAL.println("{\"error\":\"Battery measurement not available\"}");
                 break;
             } else {
                 int32_t vbat_mv;
                 bool changed;
                 if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                    SerialAlt.println("{\"error\":\"Failed to read battery voltage\"}");
+                    GUI_SERIAL.println("{\"error\":\"Failed to read battery voltage\"}");
                     break;
                 }
                 const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                SerialAlt.println(json);
+                GUI_SERIAL.println(json);
             }
             break;
         }
@@ -200,7 +199,7 @@ void runConnectedMode(SystemState& state) {
 
             const char* json = JsonProtocol::buildConfigJSON(payload);
 
-            SerialAlt.println(json);
+            GUI_SERIAL.println(json);
             break;
         }
 
@@ -210,7 +209,7 @@ void runConnectedMode(SystemState& state) {
             DateTime dt;
             if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
                 LOG_ERROR("Invalid date received from GUI");
-                SerialAlt.println("{\"error\":\"Invalid date_current\"}");
+                GUI_SERIAL.println("{\"error\":\"Invalid date_current\"}");
                 break;
             }
 
@@ -238,7 +237,7 @@ void runConnectedMode(SystemState& state) {
                 LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
             }
 
-            SerialAlt.println("{\"config\":\"ACK\"}");
+            GUI_SERIAL.println("{\"config\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
             state = STATE_INIT;
@@ -246,7 +245,7 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::SET_RUN_START: {
-            SerialAlt.println("{\"config\":\"ACK\"}");
+            GUI_SERIAL.println("{\"config\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
             state = STATE_INIT;
@@ -260,12 +259,12 @@ void runConnectedMode(SystemState& state) {
                                       parsed.identity.date_fab,
                                       parsed.identity.logger_sn);
 
-            SerialAlt.println("{\"identity\":\"ACK\"}");
+            GUI_SERIAL.println("{\"identity\":\"ACK\"}");
             break;
         }
 
         case CommandType::SET_STORAGE: {
-            SerialAlt.println("{\"storage\":\"ACK\"}");
+            GUI_SERIAL.println("{\"storage\":\"ACK\"}");
             break;
         }
 
