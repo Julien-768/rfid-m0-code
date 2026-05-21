@@ -96,6 +96,7 @@
 #include "signal.h"
 #include "rfid_driver.h"
 #include "pwr_manager.h"
+#include "gui_serial.h"
 
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
@@ -377,6 +378,7 @@ void loop() {
             LOG_DEBUG("Initializing DEPLOY mode");
 
             // GUI no longer owns Serial1 from this point.
+            gui_serial_stop(&Serial1);
             // Serial1 is now acquired by the RFID driver for DEPLOY mode.
             if (config.enable_rfid) {
                 rfid_driver::start(&rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
@@ -391,6 +393,13 @@ void loop() {
             break;
 
         case STATE_CONNECTED:
+            // RFID must not own Serial1 in CONNECTED mode.
+            if (config.enable_rfid) {
+                rfid_driver::stop(&rfid_driver);
+            }
+
+            // Serial1 is now used by the GUI communication layer.
+            gui_serial_start(&Serial1);
             runConnectedMode(currentState);
             break;
 
