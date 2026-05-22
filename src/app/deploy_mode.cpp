@@ -127,7 +127,13 @@ static void log_user_battery_check() {
     LOG_INFO("Short power-button press: battery check requested");
     if (config.enable_vbat && battery_is_available() &&
         battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-        logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer);
+        if (!logMeasurement(rtc().now(),
+                            "VBAT_USER_CHECK",
+                            (float)vbat_mv,
+                            "mV",
+                            config.use_buffer)) {
+            LOG_ERROR("User battery check logging failed");
+        }
     }
 }
 
@@ -142,7 +148,9 @@ static void deploy_handle_power_button(SystemState& state) {
 
     if (button_event.type == pwr_manager::POWER_BUTTON_LONG_PRESS) {
         LOG_WARN("Long power-button press: user shutdown requested");
-        logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer);
+        if (!logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer)) {
+            LOG_ERROR("Shutdown logging failed");
+        }
         log_flush();
         state = STATE_ENDOFLIFE;
         pwr_manager::reset_power_button_tracking();
@@ -564,7 +572,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
                     return;
                 } else if (changed) {
                     LOG_INFO("VBAT changed: %d mV", vbat_mv);
-                    logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
+                    if (!logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer)) {
+                        LOG_ERROR("VBAT measurement logging failed");
+                    }
                 }
 
                 if (!battery_service_decision("Deployment", vbat_mv)) {
@@ -595,12 +605,16 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
         LOG_INFO("IR1 event detected (count: %d)", ir1_count);
-        logMeasurement(now, "IR1_EVENT", (float)ir1_count, "count", config.use_buffer);
+        if (!logMeasurement(now, "IR1_EVENT", (float)ir1_count, "count", config.use_buffer)) {
+            LOG_ERROR("IR1 event logging failed");
+        }
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR2) {
         LOG_INFO("IR2 event detected (count: %d)", ir2_count);
-        logMeasurement(now, "IR2_EVENT", (float)ir2_count, "count", config.use_buffer);
+        if (!logMeasurement(now, "IR2_EVENT", (float)ir2_count, "count", config.use_buffer)) {
+            LOG_ERROR("IR2 event logging failed");
+        }
     }
 
     // ===== RFID acquisition =====
@@ -637,7 +651,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
             if (should_log) {
                 LOG_INFO("RFID tag detected: %s", tag.tag);
                 DateTime tag_now = rtc().now();
-                logMeasurement(tag_now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer);
+                if (!logMeasurement(tag_now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer)) {
+                    LOG_ERROR("RFID tag logging failed");
+                }
 
                 g_last_rfid_tag     = tag;
                 g_has_last_rfid_tag = true;
