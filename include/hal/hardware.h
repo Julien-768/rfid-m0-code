@@ -34,7 +34,6 @@
 #endif
 #define PIN_PWR_5V A5  // 5V rail relay
 
-#define PIN_DET_EXT 12       // FTDI detection
 #define PIN_PWM_IR 11        // 36 kHz IR output
 #define PIN_PR_1 10          // IR receiver 1
 #define PIN_BUZZER_LED 9     // Buzzer or LED
@@ -52,7 +51,6 @@
 
 #define PWM_TIMER 1        // Timer 1 supports PWM on pins 9 and 10
 #define PIN_PWR_5V A0      // 5V rail relay
-#define PIN_DET_EXT A1     // FTDI detection // formerly PW_SERVO
 #define PIN_VBAT A2        // Battery voltage measurement
 #define PIN_PW_SW A3       // Power switch input
 #define PIN_PW_EN A4       // Low battery power relay

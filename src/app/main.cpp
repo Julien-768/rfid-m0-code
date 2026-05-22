@@ -83,7 +83,6 @@
 #include "log.h"
 #include "error_handler.h"
 #include "connected_mode.h"
-#include "det_ext.h"
 #include "deploy_mode.h"
 #include "sensors.h"
 #include "sensors_internal.h"
