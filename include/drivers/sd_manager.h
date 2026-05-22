@@ -36,8 +36,8 @@
 
 #include <RTClib.h>  ///< For DateTime support
 
-const char* get_filename();  // Déclaration de la fonction
-
+const char* get_data_filename();
+const char* get_log_filename();
 struct SensorFrame;  // Forward declaration
 
 /**
@@ -132,6 +132,12 @@ bool daily_data_file(const DateTime& now);
  * @param now Current DateTime instance.
  */
 bool check_and_create_new_daily_file(const DateTime& now);
+
+/**
+ * @brief Create or open the daily system log file based on the given timestamp.
+ *
+ */
+bool daily_log_file(const DateTime& now);
 
 /**
  * @brief Log a single measurement in semicolon-delimited format.
