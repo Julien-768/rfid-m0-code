@@ -59,7 +59,7 @@ void logInit() {
 // INFO
 // DEBUG   = least important
 //
-// Therefore: a message is emitted if level <= configured threshold.
+// Therefore: a message is emitted if level >= configured threshold.
 // ---------------------------------------------------------------------------
 static bool logLevelEnabled(uint8_t level, uint8_t threshold) {
     return level >= threshold;
