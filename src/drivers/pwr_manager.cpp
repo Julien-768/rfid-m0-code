@@ -296,12 +296,11 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     }
 
     write_power_pin(PIN_PWR_5V, true, PWR_5V_ACTIVE_HIGH);
-
-    LOG_DEBUG("RFID 5V enabled, waiting reader startup");
+    // delay(100);
 
     g_rfid_on = true;
 
-    LOG_DEBUG("RFID power ON");
+    LOG_INFO("RFID power ON");
     return true;
 }
 
@@ -315,7 +314,7 @@ void rfid_pwr_off(uint8_t rfid_mode) {
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     g_rfid_on = false;
 
-    LOG_DEBUG("RFID power OFF");
+    LOG_INFO("RFID power OFF");
 }
 
 bool rfid_is_on() {
