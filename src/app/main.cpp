@@ -392,16 +392,26 @@ void loop() {
             LOG_INFO(string_widget.c_str());
             break;
 
-        case STATE_CONNECTED:
-            // RFID must not own Serial1 in CONNECTED mode.
-            if (config.enable_rfid) {
-                rfid_driver::stop(&g_rfid_driver);
+        case STATE_CONNECTED: {
+            static bool gui_serial_started = false;
+
+            if (!gui_serial_started) {
+                if (config.enable_rfid) {
+                    rfid_driver::stop(&g_rfid_driver);
+                }
+
+                gui_serial_start(&GUI_SERIAL);
+                gui_serial_started = true;
             }
 
-            // GUI_SERIAL is now used by the GUI communication layer.
-            gui_serial_start(&GUI_SERIAL);
             runConnectedMode(currentState);
+
+            if (currentState != STATE_CONNECTED) {
+                gui_serial_started = false;
+            }
+
             break;
+        }
 
         case STATE_DEPLOY:
             run_deploy_state(currentState, g_rfid_driver, ir_driver);

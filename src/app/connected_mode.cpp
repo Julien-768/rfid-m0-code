@@ -2,39 +2,39 @@
  * @file connected_mode.cpp
  * @defgroup Connected_Mode Connected Mode
  * @ingroup SystemModules
- * @brief UART JSON command handling for (CONNECTED mode).
+ * @brief UART JSON command handling for CONNECTED mode.
  *
  * This module implements the **CONNECTED** state logic of the logger.
  * In this mode, the device communicates with an external GUI/tool over UART
- * (`GUI_SERIAL`) using a line-based JSON protocol.
+ * @c GUI_SERIAL using a line-based JSON protocol.
  *
- * ## Responsibilities
+ * Responsibilities
  * - Read incoming JSON commands terminated by '\\n'
  * - Parse commands into high-level structures via @ref JsonProtocol
  * - Execute requested actions (info, id, config, identity)
- * - Send JSON responses/ACK/errors back on `GUI_SERIAL`
+ * - Send JSON responses/ACK/errors back on @c GUI_SERIAL
  *
- * ## Supported commands
- * - **GET_INFO**
+ * Supported commands
+ * - GET_INFO
  *   - Returns firmware version and build metadata.
- * - **GET_ID**
+ * - GET_ID
  *   - Returns logger identification data:
  *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
- * - **GET_VBAT**
+ * - GET_VBAT
  *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
- * - **GET_CONFIG**
+ * - GET_CONFIG
  *   - Returns current configuration snapshot.
- * - **SET_CONFIG**
+ * - SET_CONFIG
  *   - Applies RTC time (from GUI), updates runtime configuration,
  *     schedules next wake-up, initializes sensors, and transitions to DEPLOY.
- * - **SET_IDENTITY** (factory)
- *   - Programs the factory identity into **SAMD21 internal flash**
+ * - SET_IDENTITY (factory)
+ *   - Programs the factory identity into SAMD21 internal flash
  *     via @ref device_id_program.
  *
- * ## Factory identity storage
+ * Factory identity storage
  * Factory identity (manufacturer / logger type / fabrication date / serial number)
- * is stored in **SAMD21 internal non-volatile memory (Flash)**.
+ * is stored in SAMD21 internal non-volatile memory (Flash).
  * This module does not access any EEPROM.
  *
  * @see JsonProtocol
@@ -78,10 +78,12 @@
  * 4. Parse it into a @ref ParsedCommand using @ref JsonProtocol::parseCommand.
  * 5. Dispatch the command and write the corresponding JSON response.
  *
- * ### State transitions
+ * State transitions
  * - On CONNECTED timeout: @ref STATE_CONNECTED -> @ref STATE_INIT.
- * - On **SET_CONFIG** success: @ref STATE_CONNECTED -> @ref STATE_INIT.
- * - On **SET_RUN_START**: @ref STATE_CONNECTED -> @ref STATE_INIT.
+ * - On SET_CONFIG
+ *   - Applies RTC time (from GUI), updates runtime configuration,
+ *     and transitions to INIT before deployment.
+ * - On SET_RUN_START: @ref STATE_CONNECTED -> @ref STATE_INIT.
  *
  * @param[in,out] state Current system state reference. May be updated to
  *                      @ref STATE_INIT when the timeout expires or when a
@@ -113,6 +115,11 @@ void runConnectedMode(SystemState& state) {
     last_activity_ms = millis();
 
     String incoming = GUI_SERIAL.readStringUntil('\n');
+    incoming.trim();
+
+    if (!JsonProtocol::isJsonObjectLine(incoming)) {
+        return;
+    }
 
     ParsedCommand parsed{};
     char errorJson[96] = {0};
@@ -129,8 +136,6 @@ void runConnectedMode(SystemState& state) {
     // Dispatch command
     switch (parsed.type) {
         case CommandType::GET_INFO: {
-            // Firmware version / compile date
-            // TODO
             LOG_INFO("GET_INFO received");
             const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
             GUI_SERIAL.println(json);

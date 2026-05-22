@@ -78,6 +78,21 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
 }  // namespace
 
 /**
+ * @brief Check whether a UART line looks like a JSON object.
+ *
+ * Used before parsing to ignore empty lines, startup noise, partial messages,
+ * or non-JSON log lines received on the shared serial link.
+ *
+ * @param line Trimmed UART line to validate.
+ *
+ * @retval true  Line starts with @c { and ends with @c }.
+ * @retval false Line should be ignored.
+ */
+bool JsonProtocol::isJsonObjectLine(const String& line) {
+    return line.length() > 0 && line.startsWith("{") && line.endsWith("}");
+}
+
+/**
  * @brief Parse an incoming JSON command into a ParsedCommand structure.
  *
  * @param json_string Null-terminated JSON input string.

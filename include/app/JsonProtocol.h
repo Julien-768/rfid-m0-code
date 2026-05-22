@@ -87,10 +87,69 @@ struct ParsedCommand {
 };
 
 namespace JsonProtocol {
+
+/**
+ * @brief Parse an incoming JSON command line.
+ *
+ * Decodes a UART JSON message into a structured @ref ParsedCommand.
+ *
+ * @param[in]  json_string Input JSON string.
+ * @param[out] out         Parsed command output structure.
+ * @param[out] errorBuf    Output error message buffer.
+ * @param[in]  errorBufLen Size of @p errorBuf.
+ *
+ * @retval true  JSON command successfully parsed.
+ * @retval false Invalid or unsupported JSON command.
+ */
 bool parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, size_t errorBufLen);
 
+/**
+ * @brief Check whether a UART line looks like a JSON object.
+ *
+ * Used before parsing to ignore empty lines, startup noise, partial
+ * messages, or non-JSON log lines received on the shared serial link.
+ *
+ * @param line Trimmed UART line to validate.
+ *
+ * @retval true  Line starts with @c { and ends with @c }.
+ * @retval false Line should be ignored.
+ */
+bool isJsonObjectLine(const String& line);
+
+/**
+ * @brief Build a GET_INFO JSON response.
+ *
+ * @param version Firmware version string.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
 const char* buildInfoJSON(const char* version);
+
+/**
+ * @brief Build a GET_ID JSON response.
+ *
+ * @param payload Identity payload structure.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
 const char* buildIdJSON(const SetIdentityPayload& payload);
+
+/**
+ * @brief Build a GET_VBAT JSON response.
+ *
+ * @param voltage_mV Battery voltage in millivolts.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
 const char* buildVbatJSON(unsigned int voltage_mV);
+
+/**
+ * @brief Build a GET_CONFIG JSON response.
+ *
+ * @param payload Configuration payload structure.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
 const char* buildConfigJSON(const ConfigResponsePayload& payload);
+
 }  // namespace JsonProtocol
