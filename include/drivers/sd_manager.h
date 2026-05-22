@@ -98,7 +98,7 @@ bool sd_initialization(uint8_t pin_cs);
  * @param cb   Pointer to a valid @ref CircularBuffer.
  * @param line C-string to add (without automatic newline).
  */
-void addToCircularBuffer(CircularBuffer* cb, const char* line);
+bool addToCircularBuffer(CircularBuffer* cb, const char* line);
 
 /**
  * @brief Flush the circular buffer contents to the SD card.
@@ -146,10 +146,10 @@ bool check_and_create_new_daily_file(const DateTime& now);
  * @param value  Floating-point measurement value.
  * @param unit   Unit string (e.g. `"count"`, `"lux"`, `"V"`).
  */
-u_int8_t logMeasurement(const DateTime& now,
-                        const char* sensor,
-                        float value,
-                        const char* unit,
-                        bool use_buffer = false);
+bool logMeasurement(const DateTime& now,
+                    const char* sensor,
+                    float value,
+                    const char* unit,
+                    bool use_buffer = false);
 
 void log_event(const char* message);

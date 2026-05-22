@@ -84,7 +84,7 @@ bool sd_initialization(uint8_t pin_cs) {
  *
  * @note A warning is logged on first overflow to avoid log spamming.
  */
-void addToCircularBuffer(CircularBuffer* cb, const char* line) {
+bool addToCircularBuffer(CircularBuffer* cb, const char* line) {
     static bool overflowWarned = false;
     size_t len                 = strlen(line);
 
@@ -100,6 +100,7 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
             cb->tail = (cb->tail + 1) % BUFFER_SIZE;
         }
     }
+    return true;
 }
 
 /**
@@ -221,23 +222,42 @@ bool check_and_create_new_daily_file(const DateTime& now) {
  * @param value  Measured value.
  * @param unit   Measurement unit (e.g. `"lux"`, `"count"`, `"V"`).
  */
-u_int8_t logMeasurement(
+bool logMeasurement(
     const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
-    IsoFormatOptions opts;
-    opts.separator    = " ";
-    String now_string = isoformat(now, {opts});
-    String line       = now_string + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
+    if (!sensor) sensor = "";
+    if (!unit) unit = "";
 
-    if (use_buffer) {
-        addToCircularBuffer(&sdBuffer, line.c_str());
-        return 0;
+    uint16_t ms = millis() % 1000;
+
+    char line[128];
+
+    int n = snprintf(line,
+                     sizeof(line),
+                     "%04d-%02d-%02d %02d:%02d:%02d.%03u;%s;%.3f;%s;",
+                     now.year(),
+                     now.month(),
+                     now.day(),
+                     now.hour(),
+                     now.minute(),
+                     now.second(),
+                     ms,
+                     sensor,
+                     value,
+                     unit);
+
+    if (n < 0 || n >= (int)sizeof(line)) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
     }
 
-    // LOG_DEBUG("logging on %s", get_filename());  // Ensure filename is up-to-date
+    if (use_buffer) {
+        return addToCircularBuffer(&sdBuffer, line);
+    }
+
     File log = SD.open(get_filename(), FILE_WRITE);
     if (!log) {
         error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
+        return false;
     }
 
     size_t written = log.println(line);
@@ -245,9 +265,10 @@ u_int8_t logMeasurement(
 
     if (written == 0) {
         error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
+        return false;
     }
-    return 0;
+
+    return true;
 }
 
 /**
