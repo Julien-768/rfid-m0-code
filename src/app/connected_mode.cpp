@@ -259,6 +259,28 @@ void runConnectedMode(SystemState& state) {
             break;
         }
 
+        case CommandType::GET_TIME: {
+            DateTime rtc_now = rtc().now();
+
+            char current[32];
+
+            snprintf(current,
+                     sizeof(current),
+                     "%04d-%02d-%02dT%02d:%02d:%02d",
+                     rtc_now.year(),
+                     rtc_now.month(),
+                     rtc_now.day(),
+                     rtc_now.hour(),
+                     rtc_now.minute(),
+                     rtc_now.second());
+
+            GUI_SERIAL.print("{\"time\":\"");
+            GUI_SERIAL.print(current);
+            GUI_SERIAL.println("\"}");
+
+            break;
+        }
+
         case CommandType::SET_CONFIG: {
             LOG_INFO("Configuration received from GUI");
 

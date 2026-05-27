@@ -180,6 +180,8 @@ bool JsonProtocol::parseCommand(const char* json_string,
             out.type = CommandType::GET_VBAT;
         else if (strcmp(cmd, "SET_TIME") == 0)
             out.type = CommandType::SET_TIME;
+        else if (strcmp(cmd, "GET_TIME") == 0)
+            out.type = CommandType::GET_TIME;
         else if (strcmp(cmd, "GET_CONFIG") == 0)
             out.type = CommandType::GET_CONFIG;
         else {

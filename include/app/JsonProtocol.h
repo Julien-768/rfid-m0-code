@@ -22,6 +22,7 @@ enum class CommandType : uint8_t {
     GET_ID,
     GET_VBAT,
     SET_TIME,
+    GET_TIME,
     GET_CONFIG,
     SET_CONFIG,
     SET_RUN_START,
