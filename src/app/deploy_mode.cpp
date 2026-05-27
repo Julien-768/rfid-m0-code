@@ -471,7 +471,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     // Outside active window, ignore non-RTC events defensively.
     now = rtc().now();
-    // apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
+    apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
 
     // If we woke up outside the active window due to a non-RTC event, ignore it and go back to sleep.
     if (!in_awake_window) {
@@ -665,8 +665,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
             now_ms                        = millis();
             elapsed                       = now_ms - rfid_start_time;
             const bool min_active_reached = elapsed >= RFID_MIN_ACTIVE_MS;
-            const bool should_power_off =
-                (g_rfid_tag_detected && min_active_reached) || now_ms >= g_rfid_deadline_ms;
+            // const bool should_power_off =
+            //     (g_rfid_tag_detected && min_active_reached) || now_ms >= g_rfid_deadline_ms;
             const int32_t deadline_left_ms = (int32_t)(g_rfid_deadline_ms - now_ms);
 
             LOG_DEBUG("RFID active for %lu ms, tag detected: %d, deadline in %ld ms",
@@ -674,7 +674,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
                       g_rfid_tag_detected,
                       deadline_left_ms);
 
-            if (should_power_off) {
+            // In ON_IR_EVENT mode, keep RFID powered while the schedule window is active.
+            // Power is cut only by deploy_leave_active_window(), i.e. outside active_window.
+            if (!in_awake_window) {
                 pwr_manager::rfid_pwr_off(g_rfid_mode);
 
                 g_rfid_requested    = false;
@@ -682,6 +684,10 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
                 g_rfid_tag_detected = false;
                 g_rfid_triggered_ms = 0;
                 g_rfid_deadline_ms  = 0;
+            } else if (g_rfid_tag_detected && min_active_reached) {
+                // Preserve the previous minimum active time before declaring the event handled,
+                // but do not power-cycle the RFID reader between IR events.
+                g_rfid_tag_detected = false;
             }
         }
     }
