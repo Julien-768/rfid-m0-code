@@ -209,7 +209,7 @@ void runConnectedMode(SystemState& state) {
                 LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
             }
 
-            if (strlen(get_filename()) == 0) {
+            if (strlen(get_data_filename()) == 0) {
                 check_and_create_new_daily_file(rtc().now());
                 LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
             }
