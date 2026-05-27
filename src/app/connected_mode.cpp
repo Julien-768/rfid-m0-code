@@ -157,6 +157,7 @@ void runConnectedMode(SystemState& state) {
     switch (parsed.type) {
         case CommandType::GET_INFO: {
             const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
+            GUI_SERIAL.println(json);
             break;
         }
 
@@ -223,6 +224,38 @@ void runConnectedMode(SystemState& state) {
             const char* json = JsonProtocol::buildConfigJSON(payload);
 
             GUI_SERIAL.println(json);
+            break;
+        }
+
+        case CommandType::SET_TIME: {
+            DateTime dt;
+
+            if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
+                GUI_SERIAL.println("{\"time\":\"ERROR\",\"reason\":\"invalid_date_current\"}");
+                break;
+            }
+
+            if (hw_assembly.rtc_type == "ds3231") {
+                rtc_apply_external_time(dt);
+
+                DateTime rtc_now = rtc().now();
+
+                char applied[32];
+                snprintf(applied,
+                         sizeof(applied),
+                         "%04d-%02d-%02dT%02d:%02d:%02d",
+                         rtc_now.year(),
+                         rtc_now.month(),
+                         rtc_now.day(),
+                         rtc_now.hour(),
+                         rtc_now.minute(),
+                         rtc_now.second());
+
+                GUI_SERIAL.print("{\"time\":\"ACK\",\"applied\":\"");
+                GUI_SERIAL.print(applied);
+                GUI_SERIAL.println("\"}");
+            }
+
             break;
         }
 

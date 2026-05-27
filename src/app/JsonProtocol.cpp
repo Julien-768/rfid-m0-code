@@ -178,6 +178,8 @@ bool JsonProtocol::parseCommand(const char* json_string,
             out.type = CommandType::GET_ID;
         else if (strcmp(cmd, "GET_VBAT") == 0)
             out.type = CommandType::GET_VBAT;
+        else if (strcmp(cmd, "SET_TIME") == 0)
+            out.type = CommandType::SET_TIME;
         else if (strcmp(cmd, "GET_CONFIG") == 0)
             out.type = CommandType::GET_CONFIG;
         else {
@@ -191,6 +193,25 @@ bool JsonProtocol::parseCommand(const char* json_string,
 
     if (command.is<JsonObject>()) {
         JsonObject cmdObj = command.as<JsonObject>();
+
+        if (cmdObj.containsKey("time")) {
+            JsonObject jsonTime = cmdObj["time"];
+
+            const char* date_current = jsonTime["date_current"];
+            if (!date_current) {
+                writeErrorJson(errorBuf, errorBufLen, "Missing 'date_current'");
+                return false;
+            }
+
+            memset(&out.cfg, 0, sizeof(out.cfg));
+            strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
+            out.cfg.dateCurrentIso[sizeof(out.cfg.dateCurrentIso) - 1] = '\0';
+
+            out.type = CommandType::SET_TIME;
+
+            if (errorBuf && errorBufLen) errorBuf[0] = '\0';
+            return true;
+        }
 
         if (cmdObj.containsKey("config")) {
             JsonObject jsonConfig = cmdObj["config"];
@@ -305,7 +326,7 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     obj["compilation_date"] = dateCompil;
     obj["board"]            = __PIO_BOARD_NAME__;
     serializeJson(doc, buffer);
-    LOG_INFO("%s", buffer);
+    //LOG_INFO("%s", buffer);
     return buffer;
 }
 
