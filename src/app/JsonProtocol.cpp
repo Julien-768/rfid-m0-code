@@ -42,7 +42,7 @@
  *     "command": {
  *       "identity": {
  *         "manufacturer": "CNRS",
- *         "logger_type":  "Moonraker",
+ *         "logger_type":  "RFID-M0",
  *         "date_fab":     "2025-01-01",
  *         "logger_sn":    "MRK-0001"
  *       }
@@ -50,12 +50,13 @@
  *   }
  *   @endcode
  */
+#include "JsonProtocol.h"
+
 #include <ArduinoJson.h>
 #include <string.h>
 
-#include "JsonProtocol.h"
-#include "utils.h"
 #include "log.h"
+#include "utils.h"
 
 namespace {
 /**
@@ -90,6 +91,47 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
  */
 bool JsonProtocol::isJsonObjectLine(const String& line) {
     return line.length() > 0 && line.startsWith("{") && line.endsWith("}");
+}
+
+/**
+ * @brief Clean and extract a JSON object line from UART input.
+ *
+ * Removes non-printable characters and extracts the substring delimited
+ * by the first @c { and the last @c } characters.
+ *
+ * This is used to tolerate UART startup noise and artifacts from the shared
+ * serial link.
+ *
+ * @param[in,out] line Raw UART line to sanitize.
+ *
+ * @retval true  A valid JSON object candidate was extracted.
+ * @retval false No valid JSON object found.
+ */
+bool JsonProtocol::sanitizeJsonLine(String& line) {
+    line.trim();
+
+    String cleaned;
+
+    for (size_t i = 0; i < line.length(); i++) {
+        const char c = line[i];
+
+        if (c >= 32 && c <= 126) {
+            cleaned += c;
+        }
+    }
+
+    line = cleaned;
+
+    const int json_start = line.indexOf('{');
+    const int json_end   = line.lastIndexOf('}');
+
+    if (json_start < 0 || json_end < json_start) {
+        return false;
+    }
+
+    line = line.substring(json_start, json_end + 1);
+
+    return isJsonObjectLine(line);
 }
 
 /**
@@ -254,16 +296,16 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     static char buffer[192];
     StaticJsonDocument<192> doc;
 
-    char dateCompil[23];
-    convertDateToISO8601(dateCompil, sizeof(dateCompil));
+    char dateCompil[24];
+    convertDateToDisplayString(dateCompil, sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
     obj["firmware_name"]    = "rfid_m0";
     obj["firmware_version"] = version ? version : "UNKNOWN";
     obj["compilation_date"] = dateCompil;
     obj["board"]            = __PIO_BOARD_NAME__;
-    LOG_INFO("%s", buffer);
     serializeJson(doc, buffer);
+    LOG_INFO("%s", buffer);
     return buffer;
 }
 

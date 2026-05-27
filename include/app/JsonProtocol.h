@@ -117,6 +117,22 @@ bool parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, s
 bool isJsonObjectLine(const String& line);
 
 /**
+ * @brief Clean and extract a JSON object line from UART input.
+ *
+ * Removes non-printable characters and extracts the substring delimited
+ * by the first @c { and the last @c } characters.
+ *
+ * This is used to tolerate UART startup noise and artifacts from the shared
+ * serial link.
+ *
+ * @param[in,out] line Raw UART line to sanitize.
+ *
+ * @retval true  A valid JSON object candidate was extracted.
+ * @retval false No valid JSON object found.
+ */
+bool sanitizeJsonLine(String& line);
+
+/**
  * @brief Build a GET_INFO JSON response.
  *
  * @param version Firmware version string.

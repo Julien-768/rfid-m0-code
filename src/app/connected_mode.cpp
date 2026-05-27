@@ -61,6 +61,32 @@
 #include "fw_version.h"
 
 /**
+ * @brief Send the CONNECTED ready notification once.
+ *
+ * Clears pending UART bytes before sending the ready message in order
+ * to avoid parsing startup noise as GUI commands.
+ *
+ * @param ready_sent Ready flag updated after transmission.
+ * @param ready_time_ms Timestamp recorded when READY is sent.
+ */
+static void sendConnectedReadyOnce(bool& ready_sent, uint32_t& ready_time_ms) {
+
+    if (ready_sent) {
+        return;
+    }
+
+    while (GUI_SERIAL.available()) {
+        GUI_SERIAL.read();
+    }
+
+    GUI_SERIAL.println("{\"status\":\"CONNECTED_READY\"}");
+
+    ready_time_ms = millis();
+
+    ready_sent = true;
+}
+
+/**
  * @brief Execute CONNECTED mode command processing (UART JSON).
  *
  * This function must be called repeatedly while the system is in
@@ -96,49 +122,41 @@
 void runConnectedMode(SystemState& state) {
     static constexpr uint32_t CONNECTED_TIMEOUT_MS = 30000;
     static uint32_t last_activity_ms               = millis();
-    static bool ready_sent                         = false;
 
-    if (!ready_sent) {
-        GUI_SERIAL.println("{\"status\":\"CONNECTED_READY\"}");
-        last_activity_ms = millis();
-        ready_sent       = true;
+    static bool ready_sent        = false;
+    static uint32_t ready_time_ms = 0;
+
+    sendConnectedReadyOnce(ready_sent, ready_time_ms);
+
+    if ((millis() - ready_time_ms) < 300) {
+        return;
     }
 
     if (!GUI_SERIAL.available()) {
-        if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
-            LOG_INFO("CONNECTED timeout -> INIT");
-            state = STATE_INIT;
-        }
         return;
     }
 
     last_activity_ms = millis();
-
+    // Read a full JSON line from the GUI / external tool.
     String incoming = GUI_SERIAL.readStringUntil('\n');
-    incoming.trim();
 
-    if (!JsonProtocol::isJsonObjectLine(incoming)) {
+    if (!JsonProtocol::sanitizeJsonLine(incoming)) {
         return;
     }
 
     ParsedCommand parsed{};
     char errorJson[96] = {0};
 
-    // Parse JSON into a high-level command structure
     if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson))) {
-        if (errorJson[0] != '\0') {
-            // Return a small JSON error message to the GUI
-            GUI_SERIAL.println(errorJson);
-        }
+
+        GUI_SERIAL.println(errorJson);
         return;
     }
 
     // Dispatch command
     switch (parsed.type) {
         case CommandType::GET_INFO: {
-            LOG_INFO("GET_INFO received");
             const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
-            GUI_SERIAL.println(json);
             break;
         }
 
