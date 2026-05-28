@@ -12,6 +12,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <RTClib.h>
 
 /**
  * @brief Supported communication commands for the JSON protocol.
@@ -169,5 +170,13 @@ const char* buildVbatJSON(unsigned int voltage_mV);
  * @return Pointer to a static JSON buffer.
  */
 const char* buildConfigJSON(const ConfigResponsePayload& payload);
+
+/**
+ * @brief Build JSON with the current RTC datetime.
+ *
+ * @param dt RTC datetime to serialize.
+ * @return Pointer to a static internal buffer (overwritten at each call).
+ */
+const char* buildTimeJSON(const DateTime& dt);
 
 }  // namespace JsonProtocol

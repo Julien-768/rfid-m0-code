@@ -9,6 +9,8 @@
  *   { "command": "GET_INFO"   }
  *   { "command": "GET_ID"     }
  *   { "command": "GET_VBAT"   }
+ *   { "command": "SET_TIME"   }
+ *   { "command": "GET_TIME"   }
  *   { "command": "GET_CONFIG" }
  *   @endcode
  *
@@ -405,5 +407,41 @@ const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) 
     obj["schedule_end_minute"]    = payload.schedule_end_minute;
 
     serializeJson(doc, buffer);
+    return buffer;
+}
+
+/**
+ * @brief Build a GET_TIME JSON response.
+ *
+ * Serializes a RTC datetime using ISO-8601 format:
+ * @code
+ * {"time":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime to serialize.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* JsonProtocol::buildTimeJSON(const DateTime& dt) {
+    static char buffer[96];
+
+    StaticJsonDocument<96> doc;
+
+    char current[32];
+
+    snprintf(current,
+             sizeof(current),
+             "%04d-%02d-%02dT%02d:%02d:%02d",
+             dt.year(),
+             dt.month(),
+             dt.day(),
+             dt.hour(),
+             dt.minute(),
+             dt.second());
+
+    doc["time"] = current;
+
+    serializeJson(doc, buffer);
+
     return buffer;
 }

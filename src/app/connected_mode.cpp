@@ -11,7 +11,7 @@
  * Responsibilities
  * - Read incoming JSON commands terminated by '\\n'
  * - Parse commands into high-level structures via @ref JsonProtocol
- * - Execute requested actions (info, id, config, identity)
+ * - Execute requested actions (info, id, time, config, identity)
  * - Send JSON responses/ACK/errors back on @c GUI_SERIAL
  *
  * Supported commands
@@ -23,6 +23,23 @@
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
  * - GET_VBAT
  *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
+ * - GET_TIME
+ *   - Returns the current RTC datetime in ISO-8601 format.
+ *   @code
+ *   { "cmd":"GET_TIME" }
+ *   @endcode
+ *
+ * - SET_TIME
+ *   - Updates the RTC time from the GUI and returns the applied datetime.
+ *   @code
+ *   {
+ *     "command": {
+ *       "time": {
+ *         "date_current": "2026-05-27T15:30:11"
+ *       }
+ *     }
+ *   }
+ *   @endcode
  * - GET_CONFIG
  *   - Returns current configuration snapshot.
  * - SET_CONFIG
@@ -254,29 +271,15 @@ void runConnectedMode(SystemState& state) {
                 GUI_SERIAL.print("{\"time\":\"ACK\",\"applied\":\"");
                 GUI_SERIAL.print(applied);
                 GUI_SERIAL.println("\"}");
+            } else {
+                GUI_SERIAL.println("{\"time\":\"ERROR\",\"reason\":\"unsupported_rtc\"}");
             }
 
             break;
         }
 
         case CommandType::GET_TIME: {
-            DateTime rtc_now = rtc().now();
-
-            char current[32];
-
-            snprintf(current,
-                     sizeof(current),
-                     "%04d-%02d-%02dT%02d:%02d:%02d",
-                     rtc_now.year(),
-                     rtc_now.month(),
-                     rtc_now.day(),
-                     rtc_now.hour(),
-                     rtc_now.minute(),
-                     rtc_now.second());
-
-            GUI_SERIAL.print("{\"time\":\"");
-            GUI_SERIAL.print(current);
-            GUI_SERIAL.println("\"}");
+            GUI_SERIAL.println(JsonProtocol::buildTimeJSON(rtc().now()));
 
             break;
         }
