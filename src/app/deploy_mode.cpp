@@ -236,6 +236,10 @@ static void set_next_deploy_alarm(const DateTime& now, bool active_window) {
     rtc_set_alarm_at(next);
 }
 
+static uint32_t rfid_start_time = 0;
+static uint32_t now_ms          = 0;
+static uint32_t elapsed         = 0;
+
 /**
  * @brief Apply power and wakeup policy according to the schedule window.
  *
@@ -255,8 +259,24 @@ static void deploy_enter_active_window(ir_pwm& ir_driver, rfid_runtime_mode rfid
         }
     }
 
+    LOG_DEBUG("ENTER ACTIVE: mode=%u, is_on_before=%d",
+              (uint8_t)rfid_rt_mode,
+              pwr_manager::rfid_is_on());
+
     if (rfid_rt_mode == RFID_RT_CONTINUOUS) {
+        LOG_DEBUG("RFID continuous: power ON and arm polling");
+
         pwr_manager::rfid_pwr_on(rfid_rt_mode);
+
+        g_rfid_requested    = true;
+        g_rfid_waiting_boot = true;
+        g_rfid_tag_detected = false;
+        rfid_start_time     = millis();
+        LOG_DEBUG("RFID continuous armed: is_on_after=%d, requested=%d, waiting_boot=%d, start=%lu",
+                  pwr_manager::rfid_is_on(),
+                  g_rfid_requested,
+                  g_rfid_waiting_boot,
+                  rfid_start_time);
     }
 }
 
@@ -408,10 +428,7 @@ void deploy_exit(ir_pwm& ir_driver) {
     LOG_DEBUG("Exiting DEPLOY mode: callbacks cleared and state reset");
 }
 
-int count_4_dot          = 0;
-uint32_t rfid_start_time = 0;
-uint32_t now_ms          = 0;
-uint32_t elapsed         = 0;
+int count_4_dot = 0;
 
 /**
  * @brief Main DEPLOY state handler.
@@ -515,7 +532,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     const bool rfid_on_ir_event = (g_rfid_mode == RFID_RT_ON_IR_EVENT);
     const bool ir_event = (events & DEPLOY_EVT_SENSOR_IR1) || (events & DEPLOY_EVT_SENSOR_IR2);
 
-    rfid_trigger = rfid_continuous || (rfid_on_ir_event && ir_event);
+    rfid_trigger = rfid_on_ir_event && ir_event;
 
     // Switch on RFID if needed.
     // Use g_rfid_requested as a software latch so repeated IR events cannot
@@ -544,7 +561,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         g_rfid_deadline_ms  = g_rfid_triggered_ms + RFID_MAX_ACTIVE_MS;
     }
 
-    // Common post-wake handling
+    // ===== Common post-wake handling =====
     if ((events != DEPLOY_EVT_NONE) || (g_rfid_mode == RFID_RT_CONTINUOUS)) {
         if (!check_and_create_new_daily_file(now)) {
             // handle shutdown in STATE_ENDOFLIFE
@@ -632,10 +649,11 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     const bool should_poll =
         pwr_manager::rfid_is_on() && (rfid_continuous || g_rfid_requested || g_rfid_waiting_boot);
     // LOG_DEBUG(
-    //     "RFID polling check: is_on=%d, continuous=%d, requested=%d, waiting_boot=%d, "
+    //     "RFID POLL CHECK: is_on=%d, continuous=%d, trigger=%d, requested=%d, waiting_boot=%d, "
     //     "should_poll=%d",
     //     pwr_manager::rfid_is_on(),
     //     rfid_continuous,
+    //     rfid_trigger,
     //     g_rfid_requested,
     //     g_rfid_waiting_boot,
     //     should_poll);
