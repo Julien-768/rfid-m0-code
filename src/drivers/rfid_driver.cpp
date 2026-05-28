@@ -435,6 +435,7 @@ void rfid_driver::poll_now(rfid_driver_t* drv) {
     if (!cmd) return;
 
     drv->port->print(cmd);
+    drv->last_poll = millis();
 
     LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
 }
