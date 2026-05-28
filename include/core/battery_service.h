@@ -18,7 +18,7 @@
  *
  * ## Unit convention
  * All voltages handled by this module are expressed in **millivolts (mV)**:
- * - readings returned by @ref battery_service_read_vbat_mv()
+ * - readings returned by @ref battery_service_read_vbat_filtered_mv()
  * - thresholds exposed by @ref battery_thresholds_t
  *
  * @note The service stores a board-level measurement configuration and converts it
@@ -72,10 +72,13 @@ struct battery_filter_state_t {
     int32_t raw_samples[3] = {0, 0, 0};  ///< Last 3 raw plausible samples (mV).
     int32_t median_mv      = 0;          ///< Last median output (mV).
     int32_t ema_mv         = 0;          ///< Current EMA filtered value (mV).
-    int32_t published_mv   = 0;      ///< Last value considered "significant" (deadband applied).
-    bool initialized       = false;  ///< Initialization flag (first sample handling).
+    int32_t published_mv   = 0;          ///< Last significant value after deadband.
+    bool initialized       = false;      ///< Initialization flag for first sample handling.
 };
 
+/**
+ * @brief Battery service plausibility policy.
+ */
 struct battery_policy_config_t {
     uint16_t plausible_min_mv = 0;  ///< 0 = disable lower bound.
     uint16_t plausible_max_mv = 0;  ///< 0 = disable upper bound.
@@ -96,6 +99,13 @@ struct battery_service_config_t {
 };
 
 /**
+ * @brief Global battery service configuration instance.
+ *
+ * Defined in @c battery_service.cpp.
+ */
+extern battery_service_config_t batt_serv_cfg;
+
+/**
  * @brief Initialize the battery service with board-level measurement parameters.
  *
  * Call once at boot after HAL/hardware is known.
@@ -105,7 +115,7 @@ struct battery_service_config_t {
  * @ingroup BatteryService
  * @see battery_service_config_t
  * @see battery_service_apply_type_string()
- * @see battery_service_read_vbat_mv()
+ * @see battery_service_read_vbat_filtered_mv()
  */
 bool battery_service_init(const battery_service_config_t& cfg);
 
@@ -126,18 +136,15 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
 /**
  * @brief Read filtered VBAT and detect significant change.
  *
- * Same processing as @ref battery_service_read_vbat_mv(), but also reports
- * whether the filtered value changed beyond the configured deadband.
+ * Reports whether the filtered value changed beyond the configured deadband.
  *
- * @param[out] vbat_mv Filtered battery voltage (mV)
- * @param[out] changed True if value changed significantly since last update
+ * @param[out] vbat_mv Filtered battery voltage (mV).
+ * @param[out] changed True if value changed significantly since last update.
  *
- * @return true if measurement is valid
- *         false if error occurred (vbat_mv contains error code)
- *
- * Error codes:
- *   -1 = ADC/config error
- *   -2 = plausibility error
+ * @return true if measurement is valid.
+ * @return false if error occurred. In this case @p vbat_mv contains an error code:
+ *         - -1 = ADC/config error
+ *         - -2 = plausibility error
  */
 bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed);
 
@@ -149,13 +156,23 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed);
  * @param vbat_mv Latest battery voltage (mV). May be negative if invalid.
  * @param counter Reference to a persistent counter maintained by the caller.
  * @param period Number of calls between two evaluations (must be > 0).
- * @return `true` if acceptable (or invalid/ignored),
- *         `false` if critical condition detected.
+ * @return true if acceptable, invalid, or ignored.
+ * @return false if critical condition detected.
  *
  * @ingroup BatteryService
  */
 bool battery_service_periodic_check(int32_t vbat_mv, uint8_t& counter, uint8_t period);
 
+/**
+ * @brief Convert a battery classification into service behavior.
+ *
+ * Logs the battery state and returns whether the system may continue.
+ *
+ * @param context Short context string used in logs.
+ * @param vbat_mv Battery voltage in millivolts.
+ * @return true if acceptable, invalid, or ignored.
+ * @return false if critical condition detected.
+ */
 bool battery_service_decision(const char* context, int32_t vbat_mv);
 
 /** @} */  // end of BatteryService group
