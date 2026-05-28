@@ -115,7 +115,8 @@ constexpr uint32_t RFID_CONTINUOUS_WINDOW_MS = 10;
 constexpr uint32_t RFID_DEBOUNCE_MS          = 1000;
 constexpr uint32_t RFID_MIN_ACTIVE_MS        = 2000;
 constexpr uint32_t RFID_MAX_ACTIVE_MS        = 5000;
-constexpr uint32_t RFID_BOOT_DELAY_MS        = 300;
+// TODO RFID_BOOT_DELAY_MS
+constexpr uint32_t RFID_BOOT_DELAY_MS = 0;
 
 // Track whether external sensor wakeups are currently enabled.
 static bool g_sensor_wakeups_enabled = false;
@@ -519,12 +520,18 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     // Switch on RFID if needed.
     // Use g_rfid_requested as a software latch so repeated IR events cannot
     // restart the RFID reader while it is still booting.
-    if (rfid_trigger && !g_rfid_requested && !pwr_manager::rfid_is_on()) {
+    if (rfid_trigger && !g_rfid_requested) {
         LOG_DEBUG("RFID trigger from IR event: power ON");
         g_rfid_requested    = true;
         g_rfid_waiting_boot = true;
 
-        pwr_manager::rfid_pwr_on(g_rfid_mode);
+        if (!pwr_manager::rfid_is_on()) {
+            LOG_DEBUG("RFID power ON");
+            pwr_manager::rfid_pwr_on(g_rfid_mode);
+        } else {
+            LOG_DEBUG("RFID already powered ON");
+        }
+
         rfid_start_time     = millis();
         g_rfid_tag_detected = false;
 
@@ -619,7 +626,21 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     // ===== RFID acquisition =====
 
-    if (pwr_manager::rfid_is_on()) {
+    // Logical polling state.
+    // Hardware power state alone must not control polling,
+    // otherwise polling can continue forever if power-off is skipped.
+    const bool should_poll =
+        pwr_manager::rfid_is_on() && (rfid_continuous || g_rfid_requested || g_rfid_waiting_boot);
+    // LOG_DEBUG(
+    //     "RFID polling check: is_on=%d, continuous=%d, requested=%d, waiting_boot=%d, "
+    //     "should_poll=%d",
+    //     pwr_manager::rfid_is_on(),
+    //     rfid_continuous,
+    //     g_rfid_requested,
+    //     g_rfid_waiting_boot,
+    //     should_poll);
+
+    if (should_poll) {
         // Do not poll during the reader boot window. Otherwise the boot banner
         // can be parsed as an invalid tag, and repeated IR events may look like
         // power cycling.
@@ -639,18 +660,22 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
         }
 
         tag_info_t tag;
+
         // Process all available tags in the FIFO.
         while (rfid_driver::get_tag(&rfid_driver, &tag)) {
             LOG_DEBUG("Received RFID tag: %s (time since poll: %d ms)",
                       tag.tag,
                       millis() - tag.time_ms);
+
             bool should_log =
                 !g_has_last_rfid_tag ||
                 rfid_driver::should_record_tag(&g_last_rfid_tag, &tag, RFID_DEBOUNCE_MS);
 
             if (should_log) {
                 LOG_INFO("RFID tag detected: %s", tag.tag);
+
                 DateTime tag_now = rtc().now();
+
                 if (!logMeasurement(tag_now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer)) {
                     LOG_ERROR("RFID tag logging failed");
                 }
@@ -665,8 +690,10 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
             now_ms                        = millis();
             elapsed                       = now_ms - rfid_start_time;
             const bool min_active_reached = elapsed >= RFID_MIN_ACTIVE_MS;
-            // const bool should_power_off =
-            //     (g_rfid_tag_detected && min_active_reached) || now_ms >= g_rfid_deadline_ms;
+
+            const bool should_power_off = (g_rfid_tag_detected && min_active_reached) ||
+                                          ((int32_t)(now_ms - g_rfid_deadline_ms) >= 0);
+
             const int32_t deadline_left_ms = (int32_t)(g_rfid_deadline_ms - now_ms);
 
             LOG_DEBUG("RFID active for %lu ms, tag detected: %d, deadline in %ld ms",
@@ -674,20 +701,18 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
                       g_rfid_tag_detected,
                       deadline_left_ms);
 
-            // In ON_IR_EVENT mode, keep RFID powered while the schedule window is active.
-            // Power is cut only by deploy_leave_active_window(), i.e. outside active_window.
-            if (!in_awake_window) {
-                pwr_manager::rfid_pwr_off(g_rfid_mode);
+            if (should_power_off) {
+                // Optional physical power OFF.
+                // pwr_manager::rfid_pwr_off(g_rfid_mode);
 
+                // Stop logical polling immediately.
                 g_rfid_requested    = false;
                 g_rfid_waiting_boot = false;
                 g_rfid_tag_detected = false;
                 g_rfid_triggered_ms = 0;
                 g_rfid_deadline_ms  = 0;
-            } else if (g_rfid_tag_detected && min_active_reached) {
-                // Preserve the previous minimum active time before declaring the event handled,
-                // but do not power-cycle the RFID reader between IR events.
-                g_rfid_tag_detected = false;
+
+                LOG_DEBUG("RFID polling stopped");
             }
         }
     }
