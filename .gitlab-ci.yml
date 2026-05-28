@@ -93,7 +93,12 @@ clang-tidy:
   allow_failure: true
 
 pio-build:
+  extends: .platformio-build-template
   needs:
     - job: generate_fw_version
       artifacts: true
       optional: true
+  rules:
+    - exists:
+        - platformio.ini
+    - when: never
