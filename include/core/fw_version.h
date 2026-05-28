@@ -11,5 +11,13 @@
 #pragma once
 
 #ifndef FW_VERSION_STRING
-#define FW_VERSION_STRING "0.1.0-dev"
+#define FW_VERSION_STRING "0.0.0-dev"
+#endif
+
+#ifndef FW_GIT_HASH
+#define FW_GIT_HASH "dev"
+#endif
+
+#ifndef FW_BUILD_DATE
+#define FW_BUILD_DATE __DATE__ " " __TIME__
 #endif
