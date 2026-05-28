@@ -67,6 +67,9 @@ enum rfid_runtime_mode : uint8_t {
     RFID_RT_ON_IR_EVENT,
 };
 
+static uint32_t g_rfid_led_last_ms    = 0;
+constexpr uint32_t RFID_LED_PERIOD_MS = 3000;
+
 static bool ir_enabled = true;
 
 static bool in_awake_window = false;
@@ -103,6 +106,11 @@ static bool g_rfid_tag_detected     = false;
 static uint32_t g_rfid_triggered_ms = 0;
 static uint32_t g_rfid_deadline_ms  = 0;
 
+// RFID power sequencing state.
+// This prevents repeated power ON/OFF cycles while the reader is still booting.
+static bool g_rfid_requested    = false;
+static bool g_rfid_waiting_boot = false;
+
 static rfid_runtime_mode g_rfid_mode = RFID_RT_DISABLED;
 
 // RFID timing
@@ -110,6 +118,8 @@ constexpr uint32_t RFID_CONTINUOUS_WINDOW_MS = 10;
 constexpr uint32_t RFID_DEBOUNCE_MS          = 1000;
 constexpr uint32_t RFID_MIN_ACTIVE_MS        = 2000;
 constexpr uint32_t RFID_MAX_ACTIVE_MS        = 5000;
+// TODO RFID_BOOT_DELAY_MS
+constexpr uint32_t RFID_BOOT_DELAY_MS = 0;
 
 // Track whether external sensor wakeups are currently enabled.
 static bool g_sensor_wakeups_enabled = false;
@@ -119,9 +129,26 @@ static void log_user_battery_check() {
     bool changed    = false;
 
     LOG_INFO("Short power-button press: battery check requested");
-    if (config.enable_vbat && battery_is_available() &&
-        battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-        logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer);
+
+    if (!config.enable_vbat) {
+        LOG_WARN("VBAT user check skipped: VBAT disabled in config");
+        return;
+    }
+
+    if (!battery_is_available()) {
+        LOG_WARN("VBAT user check skipped: battery service unavailable");
+        return;
+    }
+
+    if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+        LOG_ERROR("VBAT user check failed: read error code=%ld", vbat_mv);
+        return;
+    }
+
+    LOG_INFO("VBAT user check: %ld mV%s", vbat_mv, changed ? " changed" : " unchanged");
+
+    if (!logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer)) {
+        LOG_ERROR("VBAT user check CSV logging failed");
     }
 }
 
@@ -136,7 +163,9 @@ static void deploy_handle_power_button(SystemState& state) {
 
     if (button_event.type == pwr_manager::POWER_BUTTON_LONG_PRESS) {
         LOG_WARN("Long power-button press: user shutdown requested");
-        logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer);
+        if (!logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer)) {
+            LOG_ERROR("Shutdown logging failed");
+        }
         log_flush();
         state = STATE_ENDOFLIFE;
         pwr_manager::reset_power_button_tracking();
@@ -156,18 +185,24 @@ static ScheduleManager g_schedule({
     18,
     30  // end 18:30
 });
+
+static volatile uint8_t g_ir1_state = LOW;
+static volatile uint8_t g_ir2_state = LOW;
+
 // ===== Interrupt Service Routines =====
 
 static void callback_rtc() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
 }
+
 static void callback_ir1(uint8_t /*unused_state*/) {
-    const uint32_t now      = millis();
-    const uint8_t ir1_state = digitalRead(PIN_PR_1);
+    const uint32_t now = millis();
 
     if ((now - g_ir1_last_ts) < IR_DEBOUNCE_MS) {
         return;
     }
+
+    g_ir1_state = digitalRead(PIN_PR_1);
 
     g_ir1_last_ts = now;
     g_ir1_count++;
@@ -175,12 +210,13 @@ static void callback_ir1(uint8_t /*unused_state*/) {
 }
 
 static void callback_ir2(uint8_t /*unused_state*/) {
-    const uint32_t now      = millis();
-    const uint8_t ir2_state = digitalRead(PIN_PR_2);
+    const uint32_t now = millis();
 
     if ((now - g_ir2_last_ts) < IR_DEBOUNCE_MS) {
         return;
     }
+
+    g_ir2_state = digitalRead(PIN_PR_2);
 
     g_ir2_last_ts = now;
     g_ir2_count++;
@@ -221,6 +257,10 @@ static void set_next_deploy_alarm(const DateTime& now, bool active_window) {
     rtc_set_alarm_at(next);
 }
 
+static uint32_t rfid_start_time = 0;
+static uint32_t now_ms          = 0;
+static uint32_t elapsed         = 0;
+
 /**
  * @brief Apply power and wakeup policy according to the schedule window.
  *
@@ -240,8 +280,24 @@ static void deploy_enter_active_window(ir_pwm& ir_driver, rfid_runtime_mode rfid
         }
     }
 
+    LOG_DEBUG("ENTER ACTIVE: mode=%u, is_on_before=%d",
+              (uint8_t)rfid_rt_mode,
+              pwr_manager::rfid_is_on());
+
     if (rfid_rt_mode == RFID_RT_CONTINUOUS) {
+        LOG_DEBUG("RFID continuous: power ON and arm polling");
+
         pwr_manager::rfid_pwr_on(rfid_rt_mode);
+
+        g_rfid_requested    = true;
+        g_rfid_waiting_boot = true;
+        g_rfid_tag_detected = false;
+        rfid_start_time     = millis();
+        LOG_DEBUG("RFID continuous armed: is_on_after=%d, requested=%d, waiting_boot=%d, start=%lu",
+                  pwr_manager::rfid_is_on(),
+                  g_rfid_requested,
+                  g_rfid_waiting_boot,
+                  rfid_start_time);
     }
 }
 
@@ -255,6 +311,8 @@ static void deploy_enter_active_window(ir_pwm& ir_driver, rfid_runtime_mode rfid
  */
 static void deploy_leave_active_window(ir_pwm& ir_driver) {
     pwr_manager::rfid_pwr_off(RFID_RT_DISABLED);  // Ensure RFID is off regardless of mode.
+    g_rfid_requested    = false;
+    g_rfid_waiting_boot = false;
 
     if (ir_enabled) {
 
@@ -300,6 +358,8 @@ void deploy_enter(ir_pwm& ir_driver) {
     g_rfid_tag_detected      = false;
     g_rfid_triggered_ms      = 0;
     g_rfid_deadline_ms       = 0;
+    g_rfid_requested         = false;
+    g_rfid_waiting_boot      = false;
     g_sensor_wakeups_enabled = false;
     log_flush();
 
@@ -380,6 +440,8 @@ void deploy_exit(ir_pwm& ir_driver) {
     g_rfid_tag_detected      = false;
     g_rfid_triggered_ms      = 0;
     g_rfid_deadline_ms       = 0;
+    g_rfid_requested         = false;
+    g_rfid_waiting_boot      = false;
     in_awake_window          = false;
     g_sensor_wakeups_enabled = false;
     g_rfid_mode              = RFID_RT_DISABLED;
@@ -387,10 +449,7 @@ void deploy_exit(ir_pwm& ir_driver) {
     LOG_DEBUG("Exiting DEPLOY mode: callbacks cleared and state reset");
 }
 
-int count_4_dot          = 0;
-uint32_t rfid_start_time = 0;
-uint32_t now_ms          = 0;
-uint32_t elapsed         = 0;
+int count_4_dot = 0;
 
 /**
  * @brief Main DEPLOY state handler.
@@ -404,6 +463,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     DateTime now;
 
     bool rfid_trigger = false;
+
+    uint8_t ir1_state = LOW;
+    uint8_t ir2_state = LOW;
 
     // Evaluate policy before sleeping.
     // now = rtc().now();
@@ -421,10 +483,10 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
         // LowPower.sleep();
 
         LowPower.idle();
-        for (int i = 0; i < 20; i++) {
-            // signal_engine_update();
-            delay(10);
-        }
+        // for (int i = 0; i < 20; i++) {
+        //     // signal_engine_update();
+        //     delay(10);
+        // }
 
         // LOG_DEBUG("After wake: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
         //           digitalRead(10), g_deploy_events);
@@ -447,11 +509,14 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     ir2_count   = g_ir2_count;
     g_ir2_count = 0;
 
+    ir1_state = g_ir1_state;
+    ir2_state = g_ir2_state;
+
     interrupts();
 
     // Outside active window, ignore non-RTC events defensively.
     now = rtc().now();
-    // apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
+    apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
 
     // If we woke up outside the active window due to a non-RTC event, ignore it and go back to sleep.
     if (!in_awake_window) {
@@ -468,27 +533,62 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
         // temp
 
         // /end temp
-        if (count_4_dot < 4) {
-#if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
-            Serial1.print(".");
-#endif
-#if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-            SerialAlt.print(".");
-#endif
-            count_4_dot++;
-        }
-        if (count_4_dot >= 4) {
-#if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
-            Serial1.println(".");
-#endif
-#if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
-            SerialAlt.println(".");
-#endif
-            count_4_dot = 0;
-        }
+        //         if (count_4_dot < 4) {
+        // #if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
+        //             Serial1.print(".");
+        // #endif
+        // #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+        //             SerialAlt.print(".");
+        // #endif
+        //             count_4_dot++;
+        //         }
+        //         if (count_4_dot >= 4) {
+        // #if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
+        //             Serial1.println(".");
+        // #endif
+        // #if (LOG_SERIAL_OUTPUT == LOG_ALT_SERIAL)
+        //             SerialAlt.println(".");
+        // #endif
+        //             count_4_dot = 0;
+        //         }
     }
 
-    // Common post-wake handling
+    // ===== RFID trigger handling =====
+
+    const bool rfid_continuous  = (g_rfid_mode == RFID_RT_CONTINUOUS);
+    const bool rfid_on_ir_event = (g_rfid_mode == RFID_RT_ON_IR_EVENT);
+    const bool ir_event = (events & DEPLOY_EVT_SENSOR_IR1) || (events & DEPLOY_EVT_SENSOR_IR2);
+
+    rfid_trigger = rfid_on_ir_event && ir_event;
+
+    // Switch on RFID if needed.
+    // Use g_rfid_requested as a software latch so repeated IR events cannot
+    // restart the RFID reader while it is still booting.
+    if (rfid_trigger && !g_rfid_requested) {
+        LOG_DEBUG("RFID trigger from IR event: power ON");
+        g_rfid_requested    = true;
+        g_rfid_waiting_boot = true;
+
+        if (!pwr_manager::rfid_is_on()) {
+            LOG_DEBUG("RFID power ON");
+            pwr_manager::rfid_pwr_on(g_rfid_mode);
+        } else {
+            LOG_DEBUG("RFID already powered ON");
+        }
+
+        rfid_start_time     = millis();
+        g_rfid_tag_detected = false;
+
+        // Drop any bytes already present before the reader boot sequence.
+        rfid_driver::flush_rx(&rfid_driver);
+    }
+    // prolong RFID active time if already on and another IR event occurs.
+    if (rfid_trigger) {
+        g_rfid_triggered_ms = millis();
+        g_rfid_deadline_ms  = g_rfid_triggered_ms + RFID_MAX_ACTIVE_MS;
+    }
+
+    // ===== Common post-wake handling =====
     if ((events != DEPLOY_EVT_NONE) || (g_rfid_mode == RFID_RT_CONTINUOUS)) {
         if (!check_and_create_new_daily_file(now)) {
             // handle shutdown in STATE_ENDOFLIFE
@@ -523,7 +623,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                     return;
                 } else if (changed) {
                     LOG_INFO("VBAT changed: %d mV", vbat_mv);
-                    logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer);
+                    if (!logMeasurement(now, "VBAT", (float)vbat_mv, "mV", config.use_buffer)) {
+                        LOG_ERROR("VBAT measurement logging failed");
+                    }
                 }
 
                 if (!battery_service_decision("Deployment", vbat_mv)) {
@@ -547,63 +649,98 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
         // Reserved for future use.
     }
 
-    if (events & DEPLOY_EVT_SENSOR_IR1) {
-        LOG_INFO("IR1 event detected (count: %d)", ir1_count);
-        logMeasurement(now, "IR1_EVENT", (float)ir1_count, "count", config.use_buffer);
-    }
-
-    if (events & DEPLOY_EVT_SENSOR_IR2) {
-        LOG_INFO("IR2 event detected (count: %d)", ir2_count);
-        logMeasurement(now, "IR2_EVENT", (float)ir2_count, "count", config.use_buffer);
-    }
-
     if (events & (DEPLOY_EVT_BUTTON_PRESS | DEPLOY_EVT_BUTTON_RELEASE)) {
         LOG_INFO("Button event detected");
         deploy_handle_power_button(state);
     }
 
-    // ===== RFID trigger handling =====
+    if (events & DEPLOY_EVT_SENSOR_IR1) {
+        const char* ir1_label = ir1_state ? "IR1_ON" : "IR1_OFF";
 
-    const bool rfid_continuous  = (g_rfid_mode == RFID_RT_CONTINUOUS);
-    const bool rfid_on_ir_event = (g_rfid_mode == RFID_RT_ON_IR_EVENT);
-    const bool ir_event = (events & DEPLOY_EVT_SENSOR_IR1) || (events & DEPLOY_EVT_SENSOR_IR2);
+        LOG_INFO("%s event detected (count: %d)", ir1_label, ir1_count);
 
-    rfid_trigger = rfid_continuous || (rfid_on_ir_event && ir_event);
-
-    // Switch on RFID if needed.
-    if (rfid_trigger && !pwr_manager::rfid_is_on()) {
-        LOG_DEBUG("RFID trigger from IR event: power ON");
-        pwr_manager::rfid_pwr_on(g_rfid_mode);
-        rfid_start_time     = millis();
-        g_rfid_tag_detected = false;
-        delay(1000);
-        rfid_driver::flush_rx(&rfid_drv);
-        rfid_driver::poll_now(&rfid_drv);
-    }
-    // prolong RFID active time if already on and another IR event occurs.
-    if (rfid_trigger) {
-        g_rfid_triggered_ms = millis();
-        g_rfid_deadline_ms  = g_rfid_triggered_ms + RFID_MAX_ACTIVE_MS;
+        if (!logMeasurement(now, ir1_label, (float)ir1_count, "count", config.use_buffer)) {
+            LOG_ERROR("%s event logging failed", ir1_label);
+        }
     }
 
-    if (pwr_manager::rfid_is_on()) {
-        // Poll RFID driver and process and queue tags.
-        rfid_driver::tick(&rfid_drv);
+    if (events & DEPLOY_EVT_SENSOR_IR2) {
+        const char* ir2_label = ir2_state ? "IR2_ON" : "IR2_OFF";
+
+        LOG_INFO("%s event detected (count: %d)", ir2_label, ir2_count);
+
+        if (!logMeasurement(now, ir2_label, (float)ir2_count, "count", config.use_buffer)) {
+            LOG_ERROR("%s event logging failed", ir2_label);
+        }
+    }
+
+    // ===== RFID acquisition =====
+
+    // Logical polling state.
+    // Hardware power state alone must not control polling,
+    // otherwise polling can continue forever if power-off is skipped.
+    const bool should_poll =
+        pwr_manager::rfid_is_on() && (rfid_continuous || g_rfid_requested || g_rfid_waiting_boot);
+    // LOG_DEBUG(
+    //     "RFID POLL CHECK: is_on=%d, continuous=%d, trigger=%d, requested=%d, waiting_boot=%d, "
+    //     "should_poll=%d",
+    //     pwr_manager::rfid_is_on(),
+    //     rfid_continuous,
+    //     rfid_trigger,
+    //     g_rfid_requested,
+    //     g_rfid_waiting_boot,
+    //     should_poll);
+
+    if (should_poll) {
+        // Do not poll during the reader boot window. Otherwise the boot banner
+        // can be parsed as an invalid tag, and repeated IR events may look like
+        // power cycling.
+        if (g_rfid_requested && g_rfid_waiting_boot) {
+            if ((uint32_t)(millis() - rfid_start_time) >= RFID_BOOT_DELAY_MS) {
+                g_rfid_waiting_boot = false;
+
+                // Remove boot banner / garbage, then let tick() send the first
+                // command using the normal polling timer.
+                LOG_INFO("RFID first poll after boot delay: %lu ms", millis() - rfid_start_time);
+                rfid_driver::flush_rx(&rfid_driver);
+                rfid_driver::poll_now(&rfid_driver);
+            }
+        } else {
+            // Poll RFID driver and process and queue tags.
+            const uint32_t led_now = millis();
+
+            if ((uint32_t)(led_now - g_rfid_led_last_ms) >= RFID_LED_PERIOD_MS) {
+                digitalWrite(PIN_BUZZER_LED, HIGH);
+                g_rfid_led_last_ms = led_now;
+            }
+
+            rfid_driver::tick(&rfid_driver);
+
+            if ((uint32_t)(millis() - g_rfid_led_last_ms) >= 20) {
+                digitalWrite(PIN_BUZZER_LED, LOW);
+            }
+        }
 
         tag_info_t tag;
+
         // Process all available tags in the FIFO.
         while (rfid_driver::get_tag(&rfid_drv, &tag)) {
             LOG_DEBUG("Received RFID tag: %s (time since poll: %d ms)",
                       tag.tag,
                       millis() - tag.time_ms);
+
             bool should_log =
                 !g_has_last_rfid_tag ||
                 rfid_driver::should_record_tag(&g_last_rfid_tag, &tag, RFID_DEBOUNCE_MS);
 
             if (should_log) {
                 LOG_INFO("RFID tag detected: %s", tag.tag);
+
                 DateTime tag_now = rtc().now();
-                logMeasurement(tag_now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer);
+
+                if (!logMeasurement(tag_now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer)) {
+                    LOG_ERROR("RFID tag logging failed");
+                }
 
                 g_last_rfid_tag     = tag;
                 g_has_last_rfid_tag = true;
@@ -612,9 +749,13 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
         }
 
         if (!rfid_continuous) {
-            now_ms                         = millis();
-            elapsed                        = now_ms - rfid_start_time;
-            const bool should_power_off    = g_rfid_tag_detected || now_ms >= g_rfid_deadline_ms;
+            now_ms                        = millis();
+            elapsed                       = now_ms - rfid_start_time;
+            const bool min_active_reached = elapsed >= RFID_MIN_ACTIVE_MS;
+
+            const bool should_power_off = (g_rfid_tag_detected && min_active_reached) ||
+                                          ((int32_t)(now_ms - g_rfid_deadline_ms) >= 0);
+
             const int32_t deadline_left_ms = (int32_t)(g_rfid_deadline_ms - now_ms);
 
             LOG_DEBUG("RFID active for %lu ms, tag detected: %d, deadline in %ld ms",
@@ -623,11 +764,17 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                       deadline_left_ms);
 
             if (should_power_off) {
-                pwr_manager::rfid_pwr_off(g_rfid_mode);
+                // Optional physical power OFF.
+                // pwr_manager::rfid_pwr_off(g_rfid_mode);
 
+                // Stop logical polling immediately.
+                g_rfid_requested    = false;
+                g_rfid_waiting_boot = false;
                 g_rfid_tag_detected = false;
                 g_rfid_triggered_ms = 0;
                 g_rfid_deadline_ms  = 0;
+
+                LOG_DEBUG("RFID polling stopped");
             }
         }
     }
