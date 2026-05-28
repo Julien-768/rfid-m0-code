@@ -368,7 +368,7 @@ void rfid_driver::start(rfid_driver_t* drv,
 
     init(drv, serial, type, poll_interval_ms);
 
-    LOG_INFO("RFID driver started on hardware serial port");
+    LOG_DEBUG("RFID driver started on hardware serial port");
 }
 
 /**
