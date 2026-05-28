@@ -9,7 +9,6 @@
  *   { "command": "GET_INFO"   }
  *   { "command": "GET_ID"     }
  *   { "command": "GET_VBAT"   }
- *   { "command": "SET_TIME"   }
  *   { "command": "GET_TIME"   }
  *   { "command": "GET_CONFIG" }
  *   @endcode
@@ -30,6 +29,17 @@
  *         "schedule_start_minute": 0,
  *         "schedule_end_hour": 18,
  *         "schedule_end_minute": 30
+ *       }
+ *     }
+ *   }
+ *   @endcode
+ *
+ * - Time synchronization command (SET_TIME):
+ *   @code
+ *   {
+ *     "command": {
+ *       "time": {
+ *         "date_current": "2026-05-27T15:23:41"
  *       }
  *     }
  *   }
@@ -440,6 +450,43 @@ const char* JsonProtocol::buildTimeJSON(const DateTime& dt) {
              dt.second());
 
     doc["time"] = current;
+
+    serializeJson(doc, buffer);
+
+    return buffer;
+}
+
+/**
+ * @brief Build a SET_TIME ACK JSON response.
+ *
+ * Example:
+ * @code
+ * {"time":"ACK","applied":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime read back after update.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* JsonProtocol::buildTimeAckJSON(const DateTime& dt) {
+    static char buffer[128];
+
+    StaticJsonDocument<128> doc;
+
+    char applied[32];
+
+    snprintf(applied,
+             sizeof(applied),
+             "%04d-%02d-%02dT%02d:%02d:%02d",
+             dt.year(),
+             dt.month(),
+             dt.day(),
+             dt.hour(),
+             dt.minute(),
+             dt.second());
+
+    doc["time"]    = "ACK";
+    doc["applied"] = applied;
 
     serializeJson(doc, buffer);
 

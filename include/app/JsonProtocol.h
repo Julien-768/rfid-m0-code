@@ -172,10 +172,34 @@ const char* buildVbatJSON(unsigned int voltage_mV);
 const char* buildConfigJSON(const ConfigResponsePayload& payload);
 
 /**
- * @brief Build JSON with the current RTC datetime.
+ * @brief Build a SET_TIME ACK JSON response.
+ *
+ * Serializes the RTC datetime read back after applying a SET_TIME command.
+ *
+ * Example:
+ * @code
+ * {"time":"ACK","applied":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime read back after update.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* buildTimeAckJSON(const DateTime& dt);
+
+/**
+ * @brief Build a GET_TIME JSON response.
+ *
+ * Serializes the current RTC datetime in ISO-8601 format.
+ *
+ * Example:
+ * @code
+ * {"time":"2026-05-27T15:30:11"}
+ * @endcode
  *
  * @param dt RTC datetime to serialize.
- * @return Pointer to a static internal buffer (overwritten at each call).
+ *
+ * @return Pointer to a static JSON buffer.
  */
 const char* buildTimeJSON(const DateTime& dt);
 
