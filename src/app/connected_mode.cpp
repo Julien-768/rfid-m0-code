@@ -27,7 +27,7 @@
  *   - Returns current configuration snapshot.
  * - SET_CONFIG
  *   - Applies RTC time (from GUI), updates runtime configuration,
- *     schedules next wake-up, initializes sensors, and transitions to DEPLOY.
+ *     and transitions to INIT before deployment.
  * - SET_IDENTITY (factory)
  *   - Programs the factory identity into SAMD21 internal flash
  *     via @ref device_id_program.
@@ -46,6 +46,7 @@
 
 #include "connected_mode.h"
 #include "JsonProtocol.h"
+#include "SerialJsonFramer.h"
 #include "system_state.h"
 #include "config.h"
 #include "log.h"
@@ -137,6 +138,10 @@ void runConnectedMode(SystemState& state) {
     }
 
     if (!GUI_SERIAL.available()) {
+        if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
+            LOG_INFO("CONNECTED timeout -> INIT");
+            state = STATE_INIT;
+        }
         return;
     }
 
@@ -144,7 +149,7 @@ void runConnectedMode(SystemState& state) {
     // Read a full JSON line from the GUI / external tool.
     String incoming = GUI_SERIAL.readStringUntil('\n');
 
-    if (!JsonProtocol::sanitizeJsonLine(incoming)) {
+    if (!SerialJsonFramer::sanitizeJsonLine(incoming)) {
         return;
     }
 
@@ -161,6 +166,7 @@ void runConnectedMode(SystemState& state) {
     switch (parsed.type) {
         case CommandType::GET_INFO: {
             const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
+            GUI_SERIAL.println(json);
             break;
         }
 
