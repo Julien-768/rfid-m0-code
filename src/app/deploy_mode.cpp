@@ -126,15 +126,26 @@ static void log_user_battery_check() {
     bool changed    = false;
 
     LOG_INFO("Short power-button press: battery check requested");
-    if (config.enable_vbat && battery_is_available() &&
-        battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-        if (!logMeasurement(rtc().now(),
-                            "VBAT_USER_CHECK",
-                            (float)vbat_mv,
-                            "mV",
-                            config.use_buffer)) {
-            LOG_ERROR("User battery check logging failed");
-        }
+
+    if (!config.enable_vbat) {
+        LOG_WARN("VBAT user check skipped: VBAT disabled in config");
+        return;
+    }
+
+    if (!battery_is_available()) {
+        LOG_WARN("VBAT user check skipped: battery service unavailable");
+        return;
+    }
+
+    if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
+        LOG_ERROR("VBAT user check failed: read error code=%ld", vbat_mv);
+        return;
+    }
+
+    LOG_INFO("VBAT user check: %ld mV%s", vbat_mv, changed ? " changed" : " unchanged");
+
+    if (!logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer)) {
+        LOG_ERROR("VBAT user check CSV logging failed");
     }
 }
 
