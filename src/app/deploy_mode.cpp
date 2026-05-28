@@ -580,7 +580,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
         g_rfid_tag_detected = false;
 
         // Drop any bytes already present before the reader boot sequence.
-        rfid_driver::flush_rx(&rfid_driver);
+        rfid_driver::flush_rx(&rfid_drv);
     }
     // prolong RFID active time if already on and another IR event occurs.
     if (rfid_trigger) {
@@ -702,8 +702,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                 // Remove boot banner / garbage, then let tick() send the first
                 // command using the normal polling timer.
                 LOG_INFO("RFID first poll after boot delay: %lu ms", millis() - rfid_start_time);
-                rfid_driver::flush_rx(&rfid_driver);
-                rfid_driver::poll_now(&rfid_driver);
+                rfid_driver::flush_rx(&rfid_drv);
+                rfid_driver::poll_now(&rfid_drv);
             }
         } else {
             // Poll RFID driver and process and queue tags.
@@ -714,7 +714,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                 g_rfid_led_last_ms = led_now;
             }
 
-            rfid_driver::tick(&rfid_driver);
+            rfid_driver::tick(&rfid_drv);
 
             if ((uint32_t)(millis() - g_rfid_led_last_ms) >= 20) {
                 digitalWrite(PIN_BUZZER_LED, LOW);
