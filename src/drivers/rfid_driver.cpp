@@ -372,28 +372,26 @@ void rfid_driver::start(rfid_driver_t* drv,
 }
 
 /**
- * @brief Stop the RFID driver and release its serial port.
+ * @brief Stop the RFID driver processing state.
  *
- * Flushes any pending TX data, stops the UART peripheral, and detaches the
- * serial stream from the driver instance.
+ * Detaches the stream from the driver instance and resets the internal line
+ * reader and tag FIFO state.
  *
- * This allows the UART to be safely reused by another runtime mode, such as
- * the GUI communication layer during CONNECTED mode.
- *
- * This function does not disable RFID reader power. Power management remains
- * the responsibility of the deployment state machine.
+ * This function does not stop the underlying UART peripheral and does not
+ * disable RFID reader power. UART ownership must be released explicitly with
+ * @ref rfid_driver::release_serial(), and power management remains the
+ * responsibility of the deployment state machine.
  *
  * @param drv Driver instance.
  */
 void rfid_driver::stop(rfid_driver_t* drv) {
-    if (!drv || !drv->port) return;
-
-    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
-
-    serial->flush();
-    serial->end();
+    if (!drv) return;
 
     drv->port = nullptr;
+    line_reader_init(&drv->lr);
+    drv->head  = 0;
+    drv->tail  = 0;
+    drv->count = 0;
 }
 
 /**
@@ -564,4 +562,28 @@ bool rfid_driver::should_record_tag(const tag_info_t* previous,
         return dt >= delay_ms;
     }
     return true;
+}
+
+/**
+ * @brief Release the RFID UART serial interface.
+ *
+ * Stops the underlying hardware serial port and clears the driver
+ * port reference so the UART can safely be reused by another module
+ * (e.g. GUI connected mode).
+ *
+ * @param drv Pointer to RFID driver instance.
+ */
+void rfid_driver::release_serial(rfid_driver_t* drv) {
+    if (!drv || !drv->port) {
+        return;
+    }
+
+    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+
+    serial->flush();
+    serial->end();
+
+    drv->port = nullptr;
+
+    LOG_DEBUG("RFID serial released");
 }

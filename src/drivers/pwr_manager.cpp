@@ -331,8 +331,6 @@ void rfid_pwr_off(uint8_t rfid_mode) {
         return;
     }
 
-    rfid_driver::stop(&g_rfid_driver);
-
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     g_rfid_on = false;
 
