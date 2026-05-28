@@ -297,15 +297,18 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     StaticJsonDocument<192> doc;
 
     char dateCompil[24];
-    convertDateToDisplayString(dateCompil, sizeof(dateCompil));
+    convertDateToISO8601(dateCompil, sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
     obj["firmware_name"]    = "rfid_m0";
     obj["firmware_version"] = version ? version : "UNKNOWN";
     obj["compilation_date"] = dateCompil;
     obj["board"]            = __PIO_BOARD_NAME__;
+
     serializeJson(doc, buffer);
+
     LOG_INFO("%s", buffer);
+
     return buffer;
 }
 

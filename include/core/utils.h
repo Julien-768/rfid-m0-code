@@ -33,7 +33,7 @@ bool scanI2CBus();
 //TODO
 
 /**
- * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}{sep}"
+ * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}"
  *
  * Generates a timestamp string with optional milliseconds.
  *
@@ -111,16 +111,3 @@ void convertDateToISO8601(char* out, size_t len);
  * @return true if parsing succeeded, false otherwise.
  */
 bool convertISO8601ToDateTime(const char* iso8601, DateTime* out);
-
-/**
- * @brief Convert build date/time macros to GUI display format.
- *
- * Output format:
- * @code
- * YYYY/MM/DD HH:MM
- * @endcode
- *
- * @param[out] out      Destination buffer.
- * @param[in]  out_size Size of destination buffer.
- */
-void convertDateToDisplayString(char* out, size_t out_size);
