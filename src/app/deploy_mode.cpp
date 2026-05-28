@@ -67,6 +67,9 @@ enum rfid_runtime_mode : uint8_t {
     RFID_RT_ON_IR_EVENT,
 };
 
+static uint32_t g_rfid_led_last_ms    = 0;
+constexpr uint32_t RFID_LED_PERIOD_MS = 3000;
+
 static bool ir_enabled = true;
 
 static bool in_awake_window = false;
@@ -704,7 +707,18 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
             }
         } else {
             // Poll RFID driver and process and queue tags.
+            const uint32_t led_now = millis();
+
+            if ((uint32_t)(led_now - g_rfid_led_last_ms) >= RFID_LED_PERIOD_MS) {
+                digitalWrite(PIN_BUZZER_LED, HIGH);
+                g_rfid_led_last_ms = led_now;
+            }
+
             rfid_driver::tick(&rfid_driver);
+
+            if ((uint32_t)(millis() - g_rfid_led_last_ms) >= 20) {
+                digitalWrite(PIN_BUZZER_LED, LOW);
+            }
         }
 
         tag_info_t tag;
