@@ -58,7 +58,6 @@
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery_service.h"
-#include "hardware.h"
 #include "fw_version.h"
 
 #ifndef GUI_SERIAL
