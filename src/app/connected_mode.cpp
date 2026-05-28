@@ -60,6 +60,10 @@
 #include "hardware.h"
 #include "fw_version.h"
 
+#ifndef GUI_SERIAL
+#error "GUI_SERIAL must be defined in build flags"
+#endif
+
 /**
  * @brief Send the CONNECTED ready notification once.
  *
