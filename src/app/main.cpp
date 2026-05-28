@@ -284,11 +284,8 @@ static SystemState runBootSequence() {
     LOG_INFO(string_widget.c_str());
     if (config.enable_rfid) {
         Serial1.begin(9600);
-        delay(100);
-
-        LOG_INFO("RFID Serial1 started");
-
-        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
+        Serial1.setTimeout(20);
+        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_EM4102, 100);
         LOG_INFO("RFID driver initialized with EM4102 tag type");
     } else {
         LOG_INFO("RFID driver disabled by configuration");
