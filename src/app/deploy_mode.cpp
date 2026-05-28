@@ -171,18 +171,24 @@ static ScheduleManager g_schedule({
     18,
     30  // end 18:30
 });
+
+static volatile uint8_t g_ir1_state = LOW;
+static volatile uint8_t g_ir2_state = LOW;
+
 // ===== Interrupt Service Routines =====
 
 static void callback_rtc() {
     g_deploy_events |= DEPLOY_EVT_RTC_WAKE;
 }
+
 static void callback_ir1(uint8_t /*unused_state*/) {
-    const uint32_t now      = millis();
-    const uint8_t ir1_state = digitalRead(PIN_PR_1);
+    const uint32_t now = millis();
 
     if ((now - g_ir1_last_ts) < IR_DEBOUNCE_MS) {
         return;
     }
+
+    g_ir1_state = digitalRead(PIN_PR_1);
 
     g_ir1_last_ts = now;
     g_ir1_count++;
@@ -190,12 +196,13 @@ static void callback_ir1(uint8_t /*unused_state*/) {
 }
 
 static void callback_ir2(uint8_t /*unused_state*/) {
-    const uint32_t now      = millis();
-    const uint8_t ir2_state = digitalRead(PIN_PR_2);
+    const uint32_t now = millis();
 
     if ((now - g_ir2_last_ts) < IR_DEBOUNCE_MS) {
         return;
     }
+
+    g_ir2_state = digitalRead(PIN_PR_2);
 
     g_ir2_last_ts = now;
     g_ir2_count++;
@@ -443,6 +450,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     bool rfid_trigger = false;
 
+    uint8_t ir1_state = LOW;
+    uint8_t ir2_state = LOW;
+
     // Evaluate policy before sleeping.
     // now = rtc().now();
     // apply_awake_window(ir_driver, now, in_awake_window);
@@ -484,6 +494,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
 
     ir2_count   = g_ir2_count;
     g_ir2_count = 0;
+
+    ir1_state = g_ir1_state;
+    ir2_state = g_ir2_state;
 
     interrupts();
 
@@ -628,16 +641,22 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_driver, ir_pwm& ir
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR1) {
-        LOG_INFO("IR1 event detected (count: %d)", ir1_count);
-        if (!logMeasurement(now, "IR1_EVENT", (float)ir1_count, "count", config.use_buffer)) {
-            LOG_ERROR("IR1 event logging failed");
+        const char* ir1_label = ir1_state ? "IR1_ON" : "IR1_OFF";
+
+        LOG_INFO("%s event detected (count: %d)", ir1_label, ir1_count);
+
+        if (!logMeasurement(now, ir1_label, (float)ir1_count, "count", config.use_buffer)) {
+            LOG_ERROR("%s event logging failed", ir1_label);
         }
     }
 
     if (events & DEPLOY_EVT_SENSOR_IR2) {
-        LOG_INFO("IR2 event detected (count: %d)", ir2_count);
-        if (!logMeasurement(now, "IR2_EVENT", (float)ir2_count, "count", config.use_buffer)) {
-            LOG_ERROR("IR2 event logging failed");
+        const char* ir2_label = ir2_state ? "IR2_ON" : "IR2_OFF";
+
+        LOG_INFO("%s event detected (count: %d)", ir2_label, ir2_count);
+
+        if (!logMeasurement(now, ir2_label, (float)ir2_count, "count", config.use_buffer)) {
+            LOG_ERROR("%s event logging failed", ir2_label);
         }
     }
 
