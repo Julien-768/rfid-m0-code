@@ -410,14 +410,18 @@ void rfid_driver::stop(rfid_driver_t* drv) {
  * This function does not modify the decoded tag FIFO, line reader state, or
  * polling timers.
  *
+ * Uses @ref HardwareSerialControl::flushRx to centralize UART RX flushing.
+ *
  * @param drv Driver instance.
  */
 void rfid_driver::flush_rx(rfid_driver_t* drv) {
-    if (!drv || !drv->port) return;
-
-    while (drv->port->available()) {
-        drv->port->read();
+    if (!drv || !drv->port) {
+        return;
     }
+
+    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+
+    HardwareSerialControl::flushRx(serial);
 }
 
 /**
