@@ -333,11 +333,10 @@ void rfid_driver::init(rfid_driver_t* drv,
  * has released Serial1 ownership.
  *
  * Startup sequence:
- *  - Stop the UART to reset any previous runtime state.
- *  - Restart the UART at the RFID reader baudrate.
- *  - Wait for the RFID reader UART interface to stabilize.
- *  - Flush any stale or incomplete bytes from the RX buffer.
+ *  - Restart the UART using HardwareSerialControl::restart().
  *  - Initialize the RFID driver instance.
+ *  - Flush any stale or incomplete bytes from the RX buffer using
+ *    HardwareSerialControl::flushRx().
  *
  * The RX flush step is important because the RFID reader may emit startup
  * bytes, partial frames, or line noise immediately after power-up or UART
@@ -357,16 +356,13 @@ void rfid_driver::start(rfid_driver_t* drv,
                         uint32_t poll_interval_ms) {
     if (!drv || !serial) return;
 
-    serial->end();
-    delay(20);
-
-    serial->begin(9600);
-    delay(100);
+    HardwareSerialControl::restart(serial, 9600, 100);
 
     drv->port = serial;
-    flush_rx(drv);
 
     init(drv, serial, type, poll_interval_ms);
+
+    HardwareSerialControl::flushRx(serial);
 
     LOG_DEBUG("RFID driver started on hardware serial port");
 }
