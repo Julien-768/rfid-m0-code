@@ -54,26 +54,3 @@ void gui_serial_set_enabled(HardwareSerial* serial, bool enabled) {
         LOG_DEBUG("GUI UART stopped");
     }
 }
-
-/**
- * @brief Start GUI communication on a hardware serial port.
- *
- * Initializes the UART for GUI communication during CONNECTED mode.
- *
- * @param serial Hardware serial port used by the GUI.
- */
-void gui_serial_start(HardwareSerial* serial) {
-    gui_serial_set_enabled(serial, true);
-}
-
-/**
- * @brief Stop GUI communication and release the UART.
- *
- * Stops the UART so it can safely be reassigned to another runtime mode,
- * such as RFID communication during DEPLOY mode.
- *
- * @param serial Hardware serial port used by the GUI.
- */
-void gui_serial_stop(HardwareSerial* serial) {
-    gui_serial_set_enabled(serial, false);
-}

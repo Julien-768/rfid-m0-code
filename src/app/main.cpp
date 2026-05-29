@@ -378,7 +378,7 @@ void loop() {
             LOG_DEBUG("Initializing DEPLOY mode");
 
             // GUI no longer owns GUI_SERIAL from this point.
-            gui_serial_stop(&GUI_SERIAL);
+            gui_serial_set_enabled(&GUI_SERIAL, false);
             // Serial1 is now acquired by the RFID driver for DEPLOY mode.
             if (config.enable_rfid) {
                 rfid_driver::start(&g_rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
@@ -400,7 +400,7 @@ void loop() {
                 rfid_driver::release_serial(&g_rfid_driver);
                 rfid_driver::stop(&g_rfid_driver);
 
-                gui_serial_start(&GUI_SERIAL);
+                gui_serial_set_enabled(&GUI_SERIAL, true);
                 gui_serial_started = true;
             }
 
