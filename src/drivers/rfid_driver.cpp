@@ -31,7 +31,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "log.h"
-
+#include "hardware_serial_control.h"
 #include "utils_rfid.h"  // provides: rfid_tag_hex_to_nic(...), RFID_FDX_HEX_LEN, etc.
 
 /* ------------------------ Small safe string helpers ------------------------ */
@@ -568,8 +568,9 @@ bool rfid_driver::should_record_tag(const tag_info_t* previous,
 /**
  * @brief Release the RFID UART serial interface.
  *
- * Stops the underlying hardware serial port and clears the driver
- * port reference so the UART can safely be reused by another module
+ * Stops the underlying hardware serial port using
+ * HardwareSerialControl::stop() and clears the driver port reference
+ * so the UART can safely be reused by another module
  * (e.g. GUI connected mode).
  *
  * @param drv Pointer to RFID driver instance.
@@ -581,8 +582,7 @@ void rfid_driver::release_serial(rfid_driver_t* drv) {
 
     HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
 
-    serial->flush();
-    serial->end();
+    HardwareSerialControl::stop(serial);
 
     drv->port = nullptr;
 
