@@ -34,7 +34,7 @@
  *   @endcode
  *
  * @note The GUI exposes a single @c enable_ir field. Internally this value is
- * mapped to both IR channels: @c enable_light1 and @c enable_light2.
+ * mapped to both IR channels: @c enable_ir1 and @c enable_ir2.
  *
  * - Factory identity command (SET_IDENTITY, factory tool only):
  *   @code
@@ -100,7 +100,7 @@ bool JsonProtocol::parseCommand(const char* json_string,
         return false;
     }
 
-    StaticJsonDocument<384> doc;
+    StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, json_string);
     if (error) {
         writeErrorJson(errorBuf, errorBufLen, "Invalid JSON");
@@ -124,7 +124,9 @@ bool JsonProtocol::parseCommand(const char* json_string,
             out.type = CommandType::GET_VBAT;
         else if (strcmp(cmd, "GET_CONFIG") == 0)
             out.type = CommandType::GET_CONFIG;
-        else {
+        else if (strcmp(cmd, "SET_RUN_START") == 0) {
+            out.type = CommandType::SET_RUN_START;
+        } else {
             writeErrorJson(errorBuf, errorBufLen, "Unknown command");
             return false;
         }
@@ -163,16 +165,18 @@ bool JsonProtocol::parseCommand(const char* json_string,
                     ? jsonConfig["acquisition_interval_s"].as<uint16_t>()
                     : 120;
 
-            const bool enable_ir = jsonConfig["enable_ir"].as<bool>();
+            const bool enable_ir =
+                jsonConfig.containsKey("enable_ir") ? jsonConfig["enable_ir"].as<bool>() : true;
 
-            out.cfg.enable_light1 = enable_ir;
-            out.cfg.enable_light2 = enable_ir;
+            out.cfg.enable_ir1 = enable_ir;
+            out.cfg.enable_ir2 = enable_ir;
 
             out.cfg.enable_rfid =
                 jsonConfig.containsKey("enable_rfid") ? jsonConfig["enable_rfid"].as<bool>() : true;
 
-            out.cfg.rfid_mode =
-                jsonConfig.containsKey("rfid_mode") ? jsonConfig["rfid_mode"].as<uint8_t>() : 2;
+            out.cfg.rfid_mode = jsonConfig.containsKey("rfid_mode")
+                                    ? jsonConfig["rfid_mode"].as<uint8_t>()
+                                    : (out.cfg.enable_rfid ? 1 : 0);
 
             out.cfg.enable_vbat =
                 jsonConfig.containsKey("enable_vbat") ? jsonConfig["enable_vbat"].as<bool>() : true;
@@ -300,7 +304,7 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
  *
  * The two internal IR channels are exported as a single @c enable_ir field:
  * @code
- * enable_ir = enable_light1 || enable_light2
+ * enable_ir = enable_ir1 || enable_ir2
  * @endcode
  *
  * The JSON includes the current logger time, acquisition settings, enabled
@@ -317,7 +321,7 @@ const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) 
     obj["date_current"]           = payload.dateCurrentIso;
     obj["use_buffer"]             = payload.use_buffer;
     obj["acquisition_interval_s"] = payload.acquisition_interval_s;
-    obj["enable_ir"]              = payload.enable_light1 || payload.enable_light2;
+    obj["enable_ir"]              = payload.enable_ir1 || payload.enable_ir2;
     obj["enable_rfid"]            = payload.enable_rfid;
     obj["rfid_mode"]              = payload.rfid_mode;
     obj["enable_vbat"]            = payload.enable_vbat;

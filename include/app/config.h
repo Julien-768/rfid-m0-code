@@ -41,8 +41,8 @@ constexpr uint8_t DEFAULT_SCHEDULE_END_MINUTE   = 30;
  */
 struct Config {
     bool use_buffer                 = false;
-    bool enable_light1              = false;
-    bool enable_light2              = false;
+    bool enable_ir1                 = false;
+    bool enable_ir2                 = false;
     bool enable_rfid                = true;
     RfidMode rfid_mode              = DEFAULT_RFID_MODE;
     bool enable_vbat                = true;

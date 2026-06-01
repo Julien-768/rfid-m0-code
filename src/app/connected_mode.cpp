@@ -26,8 +26,10 @@
  * - GET_CONFIG
  *   - Returns current configuration snapshot.
  * - SET_CONFIG
- *   - Applies RTC time (from GUI), updates runtime configuration,
- *     and transitions to INIT before deployment.
+ *   - Applies RTC time from GUI, updates runtime configuration,
+ *     and returns the applied configuration without starting deployment.
+ * - SET_RUN_START
+ *   - Transitions to INIT to start deployment.
  * - SET_IDENTITY (factory)
  *   - Programs the factory identity into SAMD21 internal flash
  *     via @ref device_id_program.
@@ -110,14 +112,12 @@ static void sendConnectedReadyOnce(bool& ready_sent, uint32_t& ready_time_ms) {
  *
  * State transitions
  * - On CONNECTED timeout: @ref STATE_CONNECTED -> @ref STATE_INIT.
- * - On SET_CONFIG
- *   - Applies RTC time (from GUI), updates runtime configuration,
- *     and transitions to INIT before deployment.
- * - On SET_RUN_START: @ref STATE_CONNECTED -> @ref STATE_INIT.
+ * - On SET_CONFIG: remains in CONNECTED mode.
+ * - On SET_RUN_START: STATE_CONNECTED -> STATE_INIT.
  *
  * @param[in,out] state Current system state reference. May be updated to
- *                      @ref STATE_INIT when the timeout expires or when a
- *                      start/config command is accepted.
+ * @ref STATE_INIT when the timeout expires or when a
+ * start command is accepted.
  *
  * @see JsonProtocol
  * @see rtc_apply_external_time
@@ -219,8 +219,8 @@ void runConnectedMode(SystemState& state) {
                      now.second());
             payload.use_buffer             = config.use_buffer;
             payload.acquisition_interval_s = config.acquisition_interval_s;
-            payload.enable_light1          = config.enable_light1;
-            payload.enable_light2          = config.enable_light2;
+            payload.enable_ir1             = config.enable_ir1;
+            payload.enable_ir2             = config.enable_ir2;
             payload.enable_rfid            = config.enable_rfid;
             payload.rfid_mode              = rfidModeToUint(config.rfid_mode);
             payload.enable_vbat            = config.enable_vbat;
@@ -247,8 +247,8 @@ void runConnectedMode(SystemState& state) {
 
             config.use_buffer             = parsed.cfg.use_buffer;
             config.acquisition_interval_s = parsed.cfg.acquisition_interval_s;
-            config.enable_light1          = parsed.cfg.enable_light1;
-            config.enable_light2          = parsed.cfg.enable_light2;
+            config.enable_ir1             = parsed.cfg.enable_ir1;
+            config.enable_ir2             = parsed.cfg.enable_ir2;
             config.enable_rfid            = parsed.cfg.enable_rfid;
             config.rfid_mode              = rfidModeFromUint(parsed.cfg.rfid_mode);
             config.enable_vbat            = parsed.cfg.enable_vbat;
@@ -264,25 +264,56 @@ void runConnectedMode(SystemState& state) {
                 LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
             }
 
-            if (strlen(get_data_filename()) == 0) {
-                check_and_create_new_daily_file(rtc().now());
-                LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
-            }
+            ConfigResponsePayload payload{};
 
+            snprintf(payload.dateCurrentIso,
+                     sizeof(payload.dateCurrentIso),
+                     "%04d-%02d-%02dT%02d:%02d:%02d",
+                     dt.year(),
+                     dt.month(),
+                     dt.day(),
+                     dt.hour(),
+                     dt.minute(),
+                     dt.second());
+
+            payload.use_buffer             = config.use_buffer;
+            payload.acquisition_interval_s = config.acquisition_interval_s;
+            payload.enable_ir1             = config.enable_ir1;
+            payload.enable_ir2             = config.enable_ir2;
+            payload.enable_rfid            = config.enable_rfid;
+            payload.rfid_mode              = rfidModeToUint(config.rfid_mode);
+            payload.enable_vbat            = config.enable_vbat;
+            payload.schedule_start_hour    = config.schedule_start_hour;
+            payload.schedule_start_minute  = config.schedule_start_minute;
+            payload.schedule_end_hour      = config.schedule_end_hour;
+            payload.schedule_end_minute    = config.schedule_end_minute;
+
+            GUI_SERIAL.println(JsonProtocol::buildConfigJSON(payload));
             GUI_SERIAL.println("{\"config\":\"ACK\"}");
 
-            LOG_INFO("Deploy mode started from GUI");
-            state = STATE_INIT;
+            LOG_INFO("Configuration applied from GUI");
             break;
         }
 
         case CommandType::SET_RUN_START: {
-            GUI_SERIAL.println("{\"config\":\"ACK\"}");
+            if (strlen(get_data_filename()) == 0) {
+                if (!check_and_create_new_daily_file(rtc().now())) {
+                    LOG_ERROR("Failed to create daily file before deployment");
+                    GUI_SERIAL.println(
+                        "{\"run\":\"ERROR\",\"reason\":\"daily_file_create_failed\"}");
+                    break;
+                }
+
+                LOG_INFO("Daily file created before deployment");
+            }
+
+            GUI_SERIAL.println("{\"run\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
             state = STATE_INIT;
             break;
         }
+
         case CommandType::SET_IDENTITY: {
             LOG_INFO("Factory SET_IDENTITY command received");
 

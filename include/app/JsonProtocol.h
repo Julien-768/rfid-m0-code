@@ -35,8 +35,8 @@ struct SetConfigPayload {
     char dateCurrentIso[32];
     bool use_buffer;
     uint16_t acquisition_interval_s;
-    bool enable_light1;
-    bool enable_light2;
+    bool enable_ir1;
+    bool enable_ir2;
     bool enable_rfid;
     uint8_t rfid_mode;
     bool enable_vbat;
@@ -54,8 +54,8 @@ struct ConfigResponsePayload {
     char dateCurrentIso[32];
     bool use_buffer;
     uint16_t acquisition_interval_s;
-    bool enable_light1;
-    bool enable_light2;
+    bool enable_ir1;
+    bool enable_ir2;
     bool enable_rfid;
     uint8_t rfid_mode;
     bool enable_vbat;
