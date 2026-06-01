@@ -176,8 +176,10 @@ static SystemState runBootSequence() {
         }
         // Boot-time sanity check
         rtc_boot_recover();
-        // // dev fix: should not be needed here as rtc_boot_recover() already sets a valid time if the RTC was lost, but just in case, ensure that the RTC is set to a valid time before proceeding with file creation and timestamping
-        rtc_apply_external_time(DateTime(__DATE__, __TIME__));
+        // rtc_boot_recover() handles RTC recovery if needed.
+        // Do not force DateTime(__DATE__, __TIME__) here, otherwise the RTC would be reset
+        // to the firmware compilation time at each boot/recovery path.
+        //rtc_apply_external_time(DateTime(__DATE__, __TIME__));
         rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");

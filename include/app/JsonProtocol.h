@@ -12,6 +12,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <RTClib.h>
 
 /**
  * @brief Supported communication commands for the JSON protocol.
@@ -21,6 +22,8 @@ enum class CommandType : uint8_t {
     GET_INFO,
     GET_ID,
     GET_VBAT,
+    SET_TIME,
+    GET_TIME,
     GET_CONFIG,
     SET_CONFIG,
     SET_RUN_START,
@@ -138,5 +141,37 @@ const char* buildVbatJSON(unsigned int voltage_mV);
  * @return Pointer to a static JSON buffer.
  */
 const char* buildConfigJSON(const ConfigResponsePayload& payload);
+
+/**
+ * @brief Build a SET_TIME ACK JSON response.
+ *
+ * Serializes the RTC datetime read back after applying a SET_TIME command.
+ *
+ * Example:
+ * @code
+ * {"time":"ACK","applied":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime read back after update.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* buildTimeAckJSON(const DateTime& dt);
+
+/**
+ * @brief Build a GET_TIME JSON response.
+ *
+ * Serializes the current RTC datetime in ISO-8601 format.
+ *
+ * Example:
+ * @code
+ * {"time":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime to serialize.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* buildTimeJSON(const DateTime& dt);
 
 }  // namespace JsonProtocol

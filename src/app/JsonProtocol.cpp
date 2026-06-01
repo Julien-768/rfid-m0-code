@@ -9,6 +9,7 @@
  *   { "command": "GET_INFO"   }
  *   { "command": "GET_ID"     }
  *   { "command": "GET_VBAT"   }
+ *   { "command": "GET_TIME"   }
  *   { "command": "GET_CONFIG" }
  *   @endcode
  *
@@ -28,6 +29,17 @@
  *         "schedule_start_minute": 0,
  *         "schedule_end_hour": 18,
  *         "schedule_end_minute": 30
+ *       }
+ *     }
+ *   }
+ *   @endcode
+ *
+ * - Time synchronization command (SET_TIME):
+ *   @code
+ *   {
+ *     "command": {
+ *       "time": {
+ *         "date_current": "2026-05-27T15:23:41"
  *       }
  *     }
  *   }
@@ -122,6 +134,10 @@ bool JsonProtocol::parseCommand(const char* json_string,
             out.type = CommandType::GET_ID;
         else if (strcmp(cmd, "GET_VBAT") == 0)
             out.type = CommandType::GET_VBAT;
+        else if (strcmp(cmd, "SET_TIME") == 0)
+            out.type = CommandType::SET_TIME;
+        else if (strcmp(cmd, "GET_TIME") == 0)
+            out.type = CommandType::GET_TIME;
         else if (strcmp(cmd, "GET_CONFIG") == 0)
             out.type = CommandType::GET_CONFIG;
         else if (strcmp(cmd, "SET_RUN_START") == 0) {
@@ -137,6 +153,25 @@ bool JsonProtocol::parseCommand(const char* json_string,
 
     if (command.is<JsonObject>()) {
         JsonObject cmdObj = command.as<JsonObject>();
+
+        if (cmdObj.containsKey("time")) {
+            JsonObject jsonTime = cmdObj["time"];
+
+            const char* date_current = jsonTime["date_current"];
+            if (!date_current) {
+                writeErrorJson(errorBuf, errorBufLen, "Missing 'date_current'");
+                return false;
+            }
+
+            memset(&out.cfg, 0, sizeof(out.cfg));
+            strncpy(out.cfg.dateCurrentIso, date_current, sizeof(out.cfg.dateCurrentIso) - 1);
+            out.cfg.dateCurrentIso[sizeof(out.cfg.dateCurrentIso) - 1] = '\0';
+
+            out.type = CommandType::SET_TIME;
+
+            if (errorBuf && errorBufLen) errorBuf[0] = '\0';
+            return true;
+        }
 
         if (cmdObj.containsKey("config")) {
             JsonObject jsonConfig = cmdObj["config"];
@@ -331,5 +366,78 @@ const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) 
     obj["schedule_end_minute"]    = payload.schedule_end_minute;
 
     serializeJson(doc, buffer);
+    return buffer;
+}
+
+/**
+ * @brief Build a GET_TIME JSON response.
+ *
+ * Serializes a RTC datetime using ISO-8601 format:
+ * @code
+ * {"time":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime to serialize.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* JsonProtocol::buildTimeJSON(const DateTime& dt) {
+    static char buffer[96];
+
+    StaticJsonDocument<96> doc;
+
+    char current[32];
+
+    snprintf(current,
+             sizeof(current),
+             "%04d-%02d-%02dT%02d:%02d:%02d",
+             dt.year(),
+             dt.month(),
+             dt.day(),
+             dt.hour(),
+             dt.minute(),
+             dt.second());
+
+    doc["time"] = current;
+
+    serializeJson(doc, buffer);
+
+    return buffer;
+}
+
+/**
+ * @brief Build a SET_TIME ACK JSON response.
+ *
+ * Example:
+ * @code
+ * {"time":"ACK","applied":"2026-05-27T15:30:11"}
+ * @endcode
+ *
+ * @param dt RTC datetime read back after update.
+ *
+ * @return Pointer to a static JSON buffer.
+ */
+const char* JsonProtocol::buildTimeAckJSON(const DateTime& dt) {
+    static char buffer[128];
+
+    StaticJsonDocument<128> doc;
+
+    char applied[32];
+
+    snprintf(applied,
+             sizeof(applied),
+             "%04d-%02d-%02dT%02d:%02d:%02d",
+             dt.year(),
+             dt.month(),
+             dt.day(),
+             dt.hour(),
+             dt.minute(),
+             dt.second());
+
+    doc["time"]    = "ACK";
+    doc["applied"] = applied;
+
+    serializeJson(doc, buffer);
+
     return buffer;
 }

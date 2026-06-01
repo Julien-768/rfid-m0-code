@@ -11,7 +11,7 @@
  * Responsibilities
  * - Read incoming JSON commands terminated by '\\n'
  * - Parse commands into high-level structures via @ref JsonProtocol
- * - Execute requested actions (info, id, config, identity)
+ * - Execute requested actions (info, id, time, config, identity)
  * - Send JSON responses/ACK/errors back on @c GUI_SERIAL
  *
  * Supported commands
@@ -23,6 +23,23 @@
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
  * - GET_VBAT
  *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
+ * - GET_TIME
+ *   - Returns the current RTC datetime in ISO-8601 format.
+ *   @code
+ *   { "cmd":"GET_TIME" }
+ *   @endcode
+ *
+ * - SET_TIME
+ *   - Updates the RTC time from the GUI and returns the applied datetime.
+ *   @code
+ *   {
+ *     "command": {
+ *       "time": {
+ *         "date_current": "2026-05-27T15:30:11"
+ *       }
+ *     }
+ *   }
+ *   @endcode
  * - GET_CONFIG
  *   - Returns current configuration snapshot.
  * - SET_CONFIG
@@ -232,6 +249,34 @@ void runConnectedMode(SystemState& state) {
             const char* json = JsonProtocol::buildConfigJSON(payload);
 
             GUI_SERIAL.println(json);
+            break;
+        }
+
+        case CommandType::SET_TIME: {
+            DateTime dt;
+
+            if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
+                GUI_SERIAL.println("{\"time\":\"ERROR\",\"reason\":\"invalid_date_current\"}");
+                break;
+            }
+
+            if (hw_assembly.rtc_type == "ds3231") {
+
+                rtc_apply_external_time(dt);
+
+                GUI_SERIAL.println(JsonProtocol::buildTimeAckJSON(rtc().now()));
+
+            } else {
+
+                GUI_SERIAL.println("{\"time\":\"ERROR\",\"reason\":\"unsupported_rtc\"}");
+            }
+
+            break;
+        }
+
+        case CommandType::GET_TIME: {
+            GUI_SERIAL.println(JsonProtocol::buildTimeJSON(rtc().now()));
+
             break;
         }
 
