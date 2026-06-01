@@ -15,8 +15,8 @@
  * @section example_usage Example
  * @code
  *   static SensorSpec sensors[] = {
- *       { "AS7341",  &config.enable_light1, initAS7341,  readAS7341IntoContext },
- *       { "TSL2591", &config.enable_light2, initTSL2591, readTSL2591IntoContext },
+ *       { "AS7341",  &config.enable_ir1, initAS7341,  readAS7341IntoContext },
+ *       { "TSL2591", &config.enable_ir2, initTSL2591, readTSL2591IntoContext },
  *       { "VBAT",    &config.enable_vbat,   initVBAT,    readVBATIntoContext   }
  *   };
  *

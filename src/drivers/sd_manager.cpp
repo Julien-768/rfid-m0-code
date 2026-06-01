@@ -5,88 +5,132 @@
  * @brief SD card management and buffered data logging for the Logger.
  *
  * The **SD Manager** module handles initialization, daily file management, and
- * buffered writing for the Logger. It ensures
- * reliable, power-efficient logging even under intermittent storage access
- * or during long deployments.
+ * buffered writing for the Logger. It ensures reliable, power-efficient logging
+ * even under intermittent storage access or during long deployments.
  *
  * ## Responsibilities
  * - Initialize and verify SD card communication.
- * - Manage a circular buffer for batched SD writes (reduces power usage).
- * - Create and maintain daily log files with unique filenames.
- * - Write measurement data from sensors and system telemetry.
+ * - Manage a circular buffer for batched measurement writes.
+ * - Create and maintain daily measurement and system log files.
+ * - Write measurement data from sensors to a CSV file.
+ * - Write system logs to a separate LOG file.
  * - Handle SD write failures and transition to safe shutdown (END-OF-LIFE).
  *
- * ## Error Handling
- * - On initialization failure → @ref ERR_SD_NOT_FOUND, enters `STATE_ENDOFLIFE`.
- * - On write or flush error → @ref ERR_SD_WRITE_FAIL, enters `STATE_ENDOFLIFE`.
+ * ## Daily files
+ * - Measurements: YYYYMMDD.CSV
+ * - System logs:  YYYYMMDD.LOG
  *
- * @endcode
+ * ## Error Handling
+ * - On initialization failure -> @ref ERR_SD_NOT_FOUND, enters `STATE_ENDOFLIFE`.
+ * - On write or flush error -> @ref ERR_SD_WRITE_FAIL, enters `STATE_ENDOFLIFE`.
+ *
  * @{
  */
 
 #include <Arduino.h>
 #include <SPI.h>
 #include <SD.h>
+#include <string.h>
+
 #include "sd_manager.h"
 #include "log.h"
 #include "error_handler.h"
 #include "hardware.h"
 #include "utils.h"
 
-// Define the global filename buffer for daily log file
-char filename_data[16] = {0};  // e.g., "20251124.TXT"
+// ---------------------------------------------------------------------------
+// Global filenames
+// 8.3 FAT-compatible names: YYYYMMDD.CSV / YYYYMMDD.LOG
+// ---------------------------------------------------------------------------
+char filename_data[16] = {0};
+char filename_log[16]  = {0};
 
-// Implement the getter function
-const char* get_filename() {
+const char* get_data_filename() {
     return filename_data;
 }
 
-// Define the global CircularBuffer object
-CircularBuffer sdBuffer_instance;  // Default constructor
+const char* get_log_filename() {
+    return filename_log;
+}
 
-// Implement the getter function
+// Define the global CircularBuffer object.
+CircularBuffer sdBuffer_instance;
+
 CircularBuffer& get_sdBuffer() {
     return sdBuffer_instance;
 }
 
-/**
- * @brief Initialize the SD card interface.
- *
- * Uses the chip select pin (@ref PIN_SD_CS) to mount the SD card via SPI.
- * On success, logs an info message. On failure, signals an LED error pattern
- * and requests transition to @ref STATE_ENDOFLIFE.
- *
- * @return `true` if SD initialized successfully, `false` if not detected.
- *
- * @note This function must be called once during @ref STATE_BOOT.
- * @see error_signal(), log_event(), ERR_SD_NOT_FOUND
- */
-bool sd_initialization(uint8_t pin_cs) {
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+static void make_daily_filename(char* out, size_t size, const DateTime& now, const char* ext) {
+    if (!out || size == 0) return;
+    if (!ext) ext = "TXT";
 
-    if (!SD.begin(pin_cs)) {
-        // 🔴 Blink code 2× — non-blocking
-        error_signal(ERR_SD_NOT_FOUND);
-
-        return false;  // ❌ Initialization failed
-    }
-    LOG_INFO("SD card initialized successfully");
-    return true;  // ✅ OK
+    snprintf(out, size, "%04d%02d%02d.%s", now.year(), now.month(), now.day(), ext);
 }
 
-/**
- * @brief Add a string line to the circular RAM buffer for delayed SD write.
- *
- * This function appends a null-terminated string to a circular buffer in RAM.
- * If the buffer becomes full, the oldest data is overwritten (tail advanced).
- *
- * @param cb   Pointer to a @ref CircularBuffer instance.
- * @param line Null-terminated C-string to store (no newline added automatically).
- *
- * @note A warning is logged on first overflow to avoid log spamming.
- */
-void addToCircularBuffer(CircularBuffer* cb, const char* line) {
+static bool write_line_to_file(const char* filename, const char* line) {
+    if (!filename || filename[0] == '\0' || !line) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    File file = SD.open(filename, FILE_WRITE);
+    if (!file) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    size_t written = file.println(line);
+    file.close();
+
+    if (written == 0) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    return true;
+}
+
+static bool create_empty_file(const char* filename) {
+    if (!filename || filename[0] == '\0') {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    File file = SD.open(filename, FILE_WRITE);
+    if (!file) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    file.close();
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// SD initialization
+// ---------------------------------------------------------------------------
+bool sd_initialization(uint8_t pin_cs) {
+    if (!SD.begin(pin_cs)) {
+        error_signal(ERR_SD_NOT_FOUND);
+        return false;
+    }
+
+    LOG_INFO("SD card initialized successfully");
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Circular buffer
+// ---------------------------------------------------------------------------
+bool addToCircularBuffer(CircularBuffer* cb, const char* line) {
     static bool overflowWarned = false;
-    size_t len                 = strlen(line);
+
+    if (!cb || !line) return false;
+
+    size_t len = strlen(line);
 
     for (size_t i = 0; i < len; i++) {
         cb->buffer[cb->head] = line[i];
@@ -100,96 +144,126 @@ void addToCircularBuffer(CircularBuffer* cb, const char* line) {
             cb->tail = (cb->tail + 1) % BUFFER_SIZE;
         }
     }
+
+    return true;
+}
+
+static bool addLineToCircularBuffer(CircularBuffer* cb, const char* line) {
+    if (!addToCircularBuffer(cb, line)) return false;
+    return addToCircularBuffer(cb, "\n");
 }
 
 /**
- * @brief Flush buffered data to the SD card when ≥512 bytes are available.
+ * @brief Flush buffered measurement data to the daily CSV file.
  *
- * Writes data from the circular buffer to the SD card in 512-byte blocks
- * (aligned with SD sector size). If a write or open operation fails,
- * the system logs the error, signals the appropriate error code,
- * and transitions to @ref STATE_ENDOFLIFE.
+ * Writes data from the circular buffer to the SD card when at least one
+ * complete SD sector worth of data is available. The buffer contains CSV
+ * measurement lines only, not system logs.
  *
- * @param cb Pointer to the @ref CircularBuffer to flush.
- *
- * @see error_signal(), log_event(), daily_data_file()
+ * @return 0 on success/no-op, 1 on failure.
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb) {
+    if (!cb) return 1;
+
     size_t buffered =
         (cb->head >= cb->tail) ? (cb->head - cb->tail) : (BUFFER_SIZE - cb->tail + cb->head);
 
-    if (buffered < 512) return 0;  // Nothing to flush yet
+    if (buffered < 512) return 0;
 
-    File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log) {
+    File file = SD.open(get_data_filename(), FILE_WRITE);
+    if (!file) {
         error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
+        return 1;
     }
 
     bool writeSuccess = true;
 
     if (cb->head > cb->tail) {
-        size_t bytesWritten = log.write((uint8_t*)&cb->buffer[cb->tail], cb->head - cb->tail);
-        if (bytesWritten != (cb->head - cb->tail)) writeSuccess = false;
+        size_t count        = cb->head - cb->tail;
+        size_t bytesWritten = file.write((uint8_t*)&cb->buffer[cb->tail], count);
+        if (bytesWritten != count) writeSuccess = false;
     } else {
         size_t part1         = BUFFER_SIZE - cb->tail;
-        size_t bytesWritten1 = log.write((uint8_t*)&cb->buffer[cb->tail], part1);
-        size_t bytesWritten2 = log.write((uint8_t*)&cb->buffer[0], cb->head);
+        size_t bytesWritten1 = file.write((uint8_t*)&cb->buffer[cb->tail], part1);
+        size_t bytesWritten2 = file.write((uint8_t*)&cb->buffer[0], cb->head);
         if (bytesWritten1 != part1 || bytesWritten2 != cb->head) writeSuccess = false;
     }
 
-    log.close();
+    file.close();
 
     if (!writeSuccess) {
         error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
-    } else {
-        cb->tail = cb->head;  // Reset buffer after successful flush
-        LOG_INFO("Circular buffer flushed to SD successfully");
+        return 1;
     }
+
+    cb->tail = cb->head;
+    LOG_INFO("Circular measurement buffer flushed to SD successfully");
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Daily file management
+// ---------------------------------------------------------------------------
 /**
- * @brief Create or open the daily data file for logging.
+ * @brief Create or select the daily measurement CSV file.
  *
- * Generates a filename using the pattern `YYYYMMDD.TXT`.
- * If the file cannot be created or opened, signals @ref ERR_SD_WRITE_FAIL
- * and transitions to @ref STATE_ENDOFLIFE.
- *
-
- * @param now      Current date/time used for naming.
- *
- * @see rtc().now(), error()
+ * Filename format: YYYYMMDD.CSV
+ * CSV format: timestamp;sensor;value;unit
  */
 bool daily_data_file(const DateTime& now) {
-    snprintf(filename_data,
-             sizeof(filename_data),
-             "%04d%02d%02d.TXT",
-             now.year(),
-             now.month(),
-             now.day());
+    make_daily_filename(filename_data, sizeof(filename_data), now, "CSV");
 
     if (SD.exists(filename_data)) {
-        LOG_INFO("Daily file already exists: %s", filename_data);
-        return true;  // Pas besoin de le recréer
+        LOG_INFO("Daily data file already exists: %s", filename_data);
+        return true;
     }
 
-    File logfile = SD.open(filename_data, FILE_WRITE);
-    if (!logfile) {
+    File file = SD.open(filename_data, FILE_WRITE);
+    if (!file) {
         error_signal(ERR_SD_WRITE_FAIL);
         return false;
     }
 
-    logfile.close();
+    size_t written = file.println("timestamp;sensor;value;unit");
+    file.close();
 
-    LOG_INFO("Daily log file created: %s", filename_data);
+    if (written == 0) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    LOG_INFO("Daily data file created: %s", filename_data);
+    return true;
+}
+
+/**
+ * @brief Create or select the daily system log file.
+ *
+ * Filename format: YYYYMMDD.LOG
+ */
+bool daily_log_file(const DateTime& now) {
+    make_daily_filename(filename_log, sizeof(filename_log), now, "LOG");
+
+    if (SD.exists(filename_log)) {
+        return true;
+    }
+
+    if (!create_empty_file(filename_log)) {
+        return false;
+    }
+
+    LOG_INFO("Daily system log file created: %s", filename_log);
     return true;
 }
 
 bool check_and_create_new_daily_file(const DateTime& now) {
-    if (now.day() == rtc_state().last_log_day) {
+    if (now.day() == rtc_state().last_log_day && filename_data[0] != '\0' &&
+        filename_log[0] != '\0') {
         return true;
+    }
+
+    if (!daily_log_file(now)) {
+        return false;
     }
 
     if (!daily_data_file(now)) {
@@ -197,100 +271,100 @@ bool check_and_create_new_daily_file(const DateTime& now) {
     }
 
     rtc_state().last_log_day = now.day();
-    LOG_DEBUG("Initialization or day change detected. New daily file: %s", get_filename());
+    LOG_DEBUG("Initialization or day change detected. New daily files: %s / %s",
+              get_data_filename(),
+              get_log_filename());
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// Measurement logging
+// ---------------------------------------------------------------------------
 /**
- * @brief Log a single timestamped measurement to SD or buffer.
+ * @brief Log a single timestamped measurement to CSV file or buffer.
  *
  * Output format:
  * @code
- * YYYY-MM-DD HH:MM:SS;sensor_name;value;unit;
+ * YYYY-MM-DD HH:MM:SS.mmm;sensor_name;value;unit;
  * @endcode
  *
- * Writing mode depends on @ref config.use_buffer:
- * - If `true` → line is appended to the circular buffer.
- * - If `false` → line is written directly to the current daily file.
- *
- * On any write failure, the function logs the error and transitions
- * the system to @ref STATE_ENDOFLIFE.
- *
- * @param now    Current timestamp (RTC).
- * @param sensor Sensor identifier string.
- * @param value  Measured value.
- * @param unit   Measurement unit (e.g. `"lux"`, `"count"`, `"V"`).
+ * @return true on success, false on write/format error.
  */
-u_int8_t logMeasurement(
+bool logMeasurement(
     const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
-    IsoFormatOptions opts;
-    opts.separator    = " ";
-    String now_string = isoformat(now, {opts});
-    String line       = now_string + ";" + sensor + ";" + String(value, 3) + ";" + unit + ";";
+    if (!sensor) sensor = "";
+    if (!unit) unit = "";
+
+    uint16_t ms = millis() % 1000;
+    char line[128];
+
+    int n = snprintf(line,
+                     sizeof(line),
+                     "%04d-%02d-%02d %02d:%02d:%02d.%03u;%s;%.3f;%s;",
+                     now.year(),
+                     now.month(),
+                     now.day(),
+                     now.hour(),
+                     now.minute(),
+                     now.second(),
+                     ms,
+                     sensor,
+                     value,
+                     unit);
+
+    if (n < 0 || n >= (int)sizeof(line)) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
 
     if (use_buffer) {
-        addToCircularBuffer(&sdBuffer, line.c_str());
-        return 0;
+        return addLineToCircularBuffer(&sdBuffer, line);
     }
 
-    // LOG_DEBUG("logging on %s", get_filename());  // Ensure filename is up-to-date
-    File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log) {
-        error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
-    }
-
-    size_t written = log.println(line);
-    log.close();
-
-    if (written == 0) {
-        error_signal(ERR_SD_WRITE_FAIL);
-        return -1;
-    }
-    return 0;
+    return write_line_to_file(get_data_filename(), line);
 }
 
+// ---------------------------------------------------------------------------
+// System log event writing
+// ---------------------------------------------------------------------------
 /**
- * @brief Writes a fully formatted log message to the SD card.
+ * @brief Append a fully formatted system log line to the daily LOG file.
  *
- * This is the final stage of the logging pipeline. It prepends a timestamp
- * from the RTC and writes the line to the current daily log file.
- *
- * The final on-disk format is:
- * @code
- * YYYY-MM-DD HH:MM:SS;SYSTEM;<message>
- * @endcode
- *
- * If the daily file name is not yet available (very early at boot), the last
- * message is buffered in RAM and written once the filename is assigned.
- *
- * @param message User-formatted log payload (without timestamp).
+ * The timestamp and level are already formatted by log.cpp. This function only
+ * selects the system log file and appends the received line.
  */
 void log_event(const char* message) {
     static char pending[256] = {0};
     static bool hasPending   = false;
 
-    if (get_filename()[0] == '\0') {
+    if (!message) return;
+
+    if (get_log_filename()[0] == '\0') {
         snprintf(pending, sizeof(pending), "%s", message);
         hasPending = true;
         return;
     }
 
-    File log = SD.open(get_filename(), FILE_WRITE);
-    if (!log) {
+    File file = SD.open(get_log_filename(), FILE_WRITE);
+    if (!file) {
         snprintf(pending, sizeof(pending), "%s", message);
         hasPending = true;
+        error_signal(ERR_SD_WRITE_FAIL);
         return;
     }
 
     if (hasPending) {
-        log.println(pending);
+        file.println(pending);
         hasPending = false;
         pending[0] = '\0';
     }
 
-    log.println(message);
-    log.close();
+    size_t written = file.println(message);
+    file.close();
+
+    if (written == 0) {
+        error_signal(ERR_SD_WRITE_FAIL);
+    }
 }
 
 /** @} */  // end of SD_Manager group

@@ -31,7 +31,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "log.h"
-
+#include "hardware_serial_control.h"
 #include "utils_rfid.h"  // provides: rfid_tag_hex_to_nic(...), RFID_FDX_HEX_LEN, etc.
 
 /* ------------------------ Small safe string helpers ------------------------ */
@@ -333,11 +333,10 @@ void rfid_driver::init(rfid_driver_t* drv,
  * has released Serial1 ownership.
  *
  * Startup sequence:
- *  - Stop the UART to reset any previous runtime state.
- *  - Restart the UART at the RFID reader baudrate.
- *  - Wait for the RFID reader UART interface to stabilize.
- *  - Flush any stale or incomplete bytes from the RX buffer.
+ *  - Restart the UART using HardwareSerialControl::restart().
  *  - Initialize the RFID driver instance.
+ *  - Flush any stale or incomplete bytes from the RX buffer using
+ *    HardwareSerialControl::flushRx().
  *
  * The RX flush step is important because the RFID reader may emit startup
  * bytes, partial frames, or line noise immediately after power-up or UART
@@ -357,43 +356,38 @@ void rfid_driver::start(rfid_driver_t* drv,
                         uint32_t poll_interval_ms) {
     if (!drv || !serial) return;
 
-    serial->end();
-    delay(20);
-
-    serial->begin(9600);
-    delay(100);
+    HardwareSerialControl::restart(serial, 9600, 100);
 
     drv->port = serial;
-    flush_rx(drv);
 
     init(drv, serial, type, poll_interval_ms);
 
-    LOG_INFO("RFID driver started on hardware serial port");
+    HardwareSerialControl::flushRx(serial);
+
+    LOG_DEBUG("RFID driver started on hardware serial port");
 }
 
 /**
- * @brief Stop the RFID driver and release its serial port.
+ * @brief Stop the RFID driver processing state.
  *
- * Flushes any pending TX data, stops the UART peripheral, and detaches the
- * serial stream from the driver instance.
+ * Detaches the stream from the driver instance and resets the internal line
+ * reader and tag FIFO state.
  *
- * This allows the UART to be safely reused by another runtime mode, such as
- * the GUI communication layer during CONNECTED mode.
- *
- * This function does not disable RFID reader power. Power management remains
- * the responsibility of the deployment state machine.
+ * This function does not stop the underlying UART peripheral and does not
+ * disable RFID reader power. UART ownership must be released explicitly with
+ * @ref rfid_driver::release_serial(), and power management remains the
+ * responsibility of the deployment state machine.
  *
  * @param drv Driver instance.
  */
 void rfid_driver::stop(rfid_driver_t* drv) {
-    if (!drv || !drv->port) return;
-
-    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
-
-    serial->flush();
-    serial->end();
+    if (!drv) return;
 
     drv->port = nullptr;
+    line_reader_init(&drv->lr);
+    drv->head  = 0;
+    drv->tail  = 0;
+    drv->count = 0;
 }
 
 /**
@@ -412,14 +406,18 @@ void rfid_driver::stop(rfid_driver_t* drv) {
  * This function does not modify the decoded tag FIFO, line reader state, or
  * polling timers.
  *
+ * Uses @ref HardwareSerialControl::flushRx to centralize UART RX flushing.
+ *
  * @param drv Driver instance.
  */
 void rfid_driver::flush_rx(rfid_driver_t* drv) {
-    if (!drv || !drv->port) return;
-
-    while (drv->port->available()) {
-        drv->port->read();
+    if (!drv || !drv->port) {
+        return;
     }
+
+    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+
+    HardwareSerialControl::flushRx(serial);
 }
 
 /**
@@ -437,6 +435,7 @@ void rfid_driver::poll_now(rfid_driver_t* drv) {
     if (!cmd) return;
 
     drv->port->print(cmd);
+    drv->last_poll = millis();
 
     LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
 }
@@ -564,4 +563,28 @@ bool rfid_driver::should_record_tag(const tag_info_t* previous,
         return dt >= delay_ms;
     }
     return true;
+}
+
+/**
+ * @brief Release the RFID UART serial interface.
+ *
+ * Stops the underlying hardware serial port using
+ * HardwareSerialControl::stop() and clears the driver port reference
+ * so the UART can safely be reused by another module
+ * (e.g. GUI connected mode).
+ *
+ * @param drv Pointer to RFID driver instance.
+ */
+void rfid_driver::release_serial(rfid_driver_t* drv) {
+    if (!drv || !drv->port) {
+        return;
+    }
+
+    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+
+    HardwareSerialControl::stop(serial);
+
+    drv->port = nullptr;
+
+    LOG_DEBUG("RFID serial released");
 }

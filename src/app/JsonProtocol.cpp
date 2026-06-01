@@ -46,7 +46,7 @@
  *   @endcode
  *
  * @note The GUI exposes a single @c enable_ir field. Internally this value is
- * mapped to both IR channels: @c enable_light1 and @c enable_light2.
+ * mapped to both IR channels: @c enable_ir1 and @c enable_ir2.
  *
  * - Factory identity command (SET_IDENTITY, factory tool only):
  *   @code
@@ -91,62 +91,6 @@ void writeErrorJson(char* buf, size_t len, const char* msg) {
 }  // namespace
 
 /**
- * @brief Check whether a UART line looks like a JSON object.
- *
- * Used before parsing to ignore empty lines, startup noise, partial messages,
- * or non-JSON log lines received on the shared serial link.
- *
- * @param line Trimmed UART line to validate.
- *
- * @retval true  Line starts with @c { and ends with @c }.
- * @retval false Line should be ignored.
- */
-bool JsonProtocol::isJsonObjectLine(const String& line) {
-    return line.length() > 0 && line.startsWith("{") && line.endsWith("}");
-}
-
-/**
- * @brief Clean and extract a JSON object line from UART input.
- *
- * Removes non-printable characters and extracts the substring delimited
- * by the first @c { and the last @c } characters.
- *
- * This is used to tolerate UART startup noise and artifacts from the shared
- * serial link.
- *
- * @param[in,out] line Raw UART line to sanitize.
- *
- * @retval true  A valid JSON object candidate was extracted.
- * @retval false No valid JSON object found.
- */
-bool JsonProtocol::sanitizeJsonLine(String& line) {
-    line.trim();
-
-    String cleaned;
-
-    for (size_t i = 0; i < line.length(); i++) {
-        const char c = line[i];
-
-        if (c >= 32 && c <= 126) {
-            cleaned += c;
-        }
-    }
-
-    line = cleaned;
-
-    const int json_start = line.indexOf('{');
-    const int json_end   = line.lastIndexOf('}');
-
-    if (json_start < 0 || json_end < json_start) {
-        return false;
-    }
-
-    line = line.substring(json_start, json_end + 1);
-
-    return isJsonObjectLine(line);
-}
-
-/**
  * @brief Parse an incoming JSON command into a ParsedCommand structure.
  *
  * @param json_string Null-terminated JSON input string.
@@ -168,7 +112,7 @@ bool JsonProtocol::parseCommand(const char* json_string,
         return false;
     }
 
-    StaticJsonDocument<384> doc;
+    StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, json_string);
     if (error) {
         writeErrorJson(errorBuf, errorBufLen, "Invalid JSON");
@@ -196,7 +140,9 @@ bool JsonProtocol::parseCommand(const char* json_string,
             out.type = CommandType::GET_TIME;
         else if (strcmp(cmd, "GET_CONFIG") == 0)
             out.type = CommandType::GET_CONFIG;
-        else {
+        else if (strcmp(cmd, "SET_RUN_START") == 0) {
+            out.type = CommandType::SET_RUN_START;
+        } else {
             writeErrorJson(errorBuf, errorBufLen, "Unknown command");
             return false;
         }
@@ -254,16 +200,18 @@ bool JsonProtocol::parseCommand(const char* json_string,
                     ? jsonConfig["acquisition_interval_s"].as<uint16_t>()
                     : 120;
 
-            const bool enable_ir = jsonConfig["enable_ir"].as<bool>();
+            const bool enable_ir =
+                jsonConfig.containsKey("enable_ir") ? jsonConfig["enable_ir"].as<bool>() : true;
 
-            out.cfg.enable_light1 = enable_ir;
-            out.cfg.enable_light2 = enable_ir;
+            out.cfg.enable_ir1 = enable_ir;
+            out.cfg.enable_ir2 = enable_ir;
 
             out.cfg.enable_rfid =
                 jsonConfig.containsKey("enable_rfid") ? jsonConfig["enable_rfid"].as<bool>() : true;
 
-            out.cfg.rfid_mode =
-                jsonConfig.containsKey("rfid_mode") ? jsonConfig["rfid_mode"].as<uint8_t>() : 2;
+            out.cfg.rfid_mode = jsonConfig.containsKey("rfid_mode")
+                                    ? jsonConfig["rfid_mode"].as<uint8_t>()
+                                    : (out.cfg.enable_rfid ? 1 : 0);
 
             out.cfg.enable_vbat =
                 jsonConfig.containsKey("enable_vbat") ? jsonConfig["enable_vbat"].as<bool>() : true;
@@ -332,15 +280,16 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     StaticJsonDocument<192> doc;
 
     char dateCompil[24];
-    convertDateToDisplayString(dateCompil, sizeof(dateCompil));
+    convertDateToISO8601(dateCompil, sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
     obj["firmware_name"]    = "rfid_m0";
     obj["firmware_version"] = version ? version : "UNKNOWN";
     obj["compilation_date"] = dateCompil;
     obj["board"]            = __PIO_BOARD_NAME__;
+
     serializeJson(doc, buffer);
-    //LOG_INFO("%s", buffer);
+
     return buffer;
 }
 
@@ -390,7 +339,7 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
  *
  * The two internal IR channels are exported as a single @c enable_ir field:
  * @code
- * enable_ir = enable_light1 || enable_light2
+ * enable_ir = enable_ir1 || enable_ir2
  * @endcode
  *
  * The JSON includes the current logger time, acquisition settings, enabled
@@ -407,7 +356,7 @@ const char* JsonProtocol::buildConfigJSON(const ConfigResponsePayload& payload) 
     obj["date_current"]           = payload.dateCurrentIso;
     obj["use_buffer"]             = payload.use_buffer;
     obj["acquisition_interval_s"] = payload.acquisition_interval_s;
-    obj["enable_ir"]              = payload.enable_light1 || payload.enable_light2;
+    obj["enable_ir"]              = payload.enable_ir1 || payload.enable_ir2;
     obj["enable_rfid"]            = payload.enable_rfid;
     obj["rfid_mode"]              = payload.rfid_mode;
     obj["enable_vbat"]            = payload.enable_vbat;

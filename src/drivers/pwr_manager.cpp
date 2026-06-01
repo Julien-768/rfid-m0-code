@@ -6,9 +6,6 @@
 #include "hardware.h"
 #include "wiring_private.h"
 #include "irq_helper.h"
-#include "rfid_driver.h"
-
-extern rfid_driver_t g_rfid_driver;
 
 // -----------------------------------------------------------------------------
 // Configuration hardware
@@ -299,26 +296,18 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     }
 
     write_power_pin(PIN_PWR_5V, true, PWR_5V_ACTIVE_HIGH);
-
-    LOG_DEBUG("RFID 5V enabled, waiting reader startup");
-    delay(500);
+    // delay(100);
 
     g_rfid_on = true;
 
-    LOG_DEBUG("RFID power ON");
+    LOG_INFO("RFID power ON");
     return true;
 }
 
 /**
- * @brief Disable RFID power and release the RFID UART ownership.
+ * @brief Disable RFID power.
  *
  * This function turns off the 5V rail used by the RFID reader.
- *
- * Before cutting power, it stops the RFID driver so the hardware UART is
- * flushed, closed, and detached from the RFID driver instance. This keeps the
- * Serial1 ownership model consistent: once the RFID reader is powered off, the
- * RFID driver no longer owns the UART and another runtime mode may safely reuse
- * it.
  *
  * If the RFID rail is already off, the function returns immediately.
  *
@@ -331,12 +320,10 @@ void rfid_pwr_off(uint8_t rfid_mode) {
         return;
     }
 
-    rfid_driver::stop(&g_rfid_driver);
-
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     g_rfid_on = false;
 
-    LOG_DEBUG("RFID power OFF");
+    LOG_INFO("RFID power OFF");
 }
 
 bool rfid_is_on() {

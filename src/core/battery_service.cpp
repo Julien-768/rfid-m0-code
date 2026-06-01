@@ -20,11 +20,9 @@
  * ## Unit convention
  * All voltages are expressed in **millivolts (mV)**.
  *
- *
  * @note The filtering stage is optional but recommended for noisy ADC environments.
- *
- * It significantly improves measurement stability and prevents false
- * battery warnings due to transient spikes.
+ *       It improves measurement stability and prevents false battery warnings
+ *       due to transient spikes.
  *
  * @see core/battery_service.h
  * @see drivers/battery.h
@@ -36,7 +34,10 @@
 #include "battery_service.h"
 #include "log.h"
 
-extern battery_service_config_t batt_serv_cfg{};
+/**
+ * @brief Global battery service configuration instance.
+ */
+battery_service_config_t batt_serv_cfg{};
 
 static battery_hw_config_t batt_hw_cfg{};
 static battery_policy_config_t batt_policy_cfg{};
@@ -58,12 +59,13 @@ void battery_set_available(bool available) {
 // -----------------------------------------------------------------------------
 
 /**
- * @brief Active driver thresholds (technology model).
+ * @brief Active driver thresholds for the selected battery technology.
  *
- * Populated by @ref battery_service_apply_type_string() and may be overridden by
+ * Populated by @ref battery_service_apply_type_string().
  */
 static battery_thresholds_t batt_thresholds_active =
     battery_thresholds_default(battery_type_t::battery_lipo_1s);
+
 // -----------------------------------------------------------------------------
 // Internal helpers
 // -----------------------------------------------------------------------------
@@ -74,10 +76,10 @@ static battery_thresholds_t batt_thresholds_active =
  * This function is used as a lightweight and robust spike filter.
  * It rejects single-sample outliers (e.g. ADC glitches).
  *
- * @param a First sample (mV)
- * @param b Second sample (mV)
- * @param c Third sample (mV)
- * @return Median value (mV)
+ * @param a First sample (mV).
+ * @param b Second sample (mV).
+ * @param c Third sample (mV).
+ * @return Median value (mV).
  */
 static int32_t median3(int32_t a, int32_t b, int32_t c) {
     if (a > b) {
@@ -103,8 +105,8 @@ static int32_t median3(int32_t a, int32_t b, int32_t c) {
  *
  * Used to ensure EMA alpha remains in a valid range.
  *
- * @param x Input value
- * @return Clamped value in [0,1]
+ * @param x Input value.
+ * @return Clamped value in [0,1].
  */
 static float clamp01(float x) {
     if (x < 0.0f) return 0.0f;
@@ -127,10 +129,11 @@ static float clamp01(float x) {
  * - EMA smooths gradual variations.
  * - Deadband avoids reporting insignificant changes.
  *
- * @param s Filter state (persistent)
- * @param new_sample_mv New validated sample (mV)
- * @param cfg Filter configuration
- * @return true if filtered value changed significantly, false otherwise
+ * @param s Filter state (persistent).
+ * @param new_sample_mv New validated sample (mV).
+ * @param cfg Filter configuration.
+ * @return true if filtered value changed significantly.
+ * @return false otherwise.
  */
 static bool battery_filter_update(battery_filter_state_t& s,
                                   int32_t new_sample_mv,
@@ -173,18 +176,19 @@ static bool battery_filter_update(battery_filter_state_t& s,
 }
 
 /**
- * @brief Convert a driver classification into service behavior (log + action).
+ * @brief Convert a driver classification into service behavior.
  *
  * The driver does not execute consequences. This function does:
  * - logs (debug/warn/error)
- * - triggers error handling on critical condition
+ * - reports critical conditions to the caller
  *
  * Policy rule:
  * - INVALID readings are ignored (return true) to avoid false critical events.
  *
  * @param context Short string used in log messages ("Boot", "Runtime", ...).
  * @param vbat_mv Battery voltage (mV). May be negative if invalid.
- * @return `true` if acceptable (or invalid/ignored), `false` if critical condition detected.
+ * @return true if acceptable, invalid, or ignored.
+ * @return false if critical condition detected.
  *
  * @see battery_classify_mv()
  */
@@ -229,10 +233,11 @@ bool battery_service_decision(const char* context, int32_t vbat_mv) {
  *
  * @param cfg Measurement configuration (pin/ratio/ADC ref/resolution/plausibility).
  * @see battery_service_apply_type_string()
- * @see battery_service_read_vbat_mv()
+ * @see battery_service_read_vbat_filtered_mv()
  */
 bool battery_service_init(const battery_service_config_t& cfg) {
 
+    batt_serv_cfg   = cfg;
     batt_hw_cfg     = cfg.hw;      // copy for service-level storage (e.g. for periodic checks)
     batt_policy_cfg = cfg.policy;  // copy for service-level storage (e.g. for periodic checks)
     batt_filter_cfg =
@@ -295,9 +300,13 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
  *  2. Plausibility check (service policy)
  *  3. Median + EMA filtering (service)
  *
- * @return Filtered battery voltage in mV
- *         -1 = ADC/config error
- *         -2 = plausibility error
+ * @param[out] vbat_mv Filtered battery voltage in mV.
+ * @param[out] changed True if the filtered value changed significantly.
+ *
+ * @return true if measurement is valid.
+ * @return false if an error occurred:
+ *         - vbat_mv = -1: ADC/config error
+ *         - vbat_mv = -2: plausibility error
  */
 bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
     int32_t v = read_battery_voltage(batt_hw_cfg.pin, batt_hw_cfg.adc_cfg);
@@ -337,9 +346,8 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
  * @param vbat_mv Latest VBAT reading (mV). May be negative if invalid.
  * @param counter Persistent counter maintained by the caller.
  * @param period Number of calls between two evaluations (must be > 0).
- * @return `true` if acceptable (or invalid/ignored), `false` if critical condition detected.
- *
- * @see  evaluate_and_act()
+ * @return true if acceptable, invalid, or ignored.
+ * @return false if critical condition detected.
  */
 bool battery_service_periodic_check(int32_t vbat_mv, uint8_t& counter, uint8_t period) {
     if (period == 0u) period = 1u;

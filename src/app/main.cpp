@@ -36,7 +36,8 @@
  * - RFID reader communication during @ref STATE_DEPLOY
  *
  * The RFID driver explicitly acquires and releases Serial1 ownership using
- * @ref rfid_driver::start() and @ref rfid_driver::stop().
+ * @ref rfid_driver::start(), @ref rfid_driver::release_serial(),
+ * and @ref rfid_driver::stop().
  *
  * RFID communication is only enabled during active RFID usage windows after
  * IR-triggered wake events.
@@ -379,7 +380,7 @@ void loop() {
             LOG_DEBUG("Initializing DEPLOY mode");
 
             // GUI no longer owns GUI_SERIAL from this point.
-            gui_serial_stop(&GUI_SERIAL);
+            gui_serial_set_enabled(&GUI_SERIAL, false);
             // Serial1 is now acquired by the RFID driver for DEPLOY mode.
             if (config.enable_rfid) {
                 rfid_driver::start(&g_rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
@@ -397,11 +398,11 @@ void loop() {
             static bool gui_serial_started = false;
 
             if (!gui_serial_started) {
-                if (config.enable_rfid) {
-                    rfid_driver::stop(&g_rfid_driver);
-                }
 
-                gui_serial_start(&GUI_SERIAL);
+                rfid_driver::release_serial(&g_rfid_driver);
+                rfid_driver::stop(&g_rfid_driver);
+
+                gui_serial_set_enabled(&GUI_SERIAL, true);
                 gui_serial_started = true;
             }
 

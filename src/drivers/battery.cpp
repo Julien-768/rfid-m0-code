@@ -26,7 +26,7 @@
  */
 
 #include "battery.h"
-#include "Arduino.h"
+#include <Arduino.h>
 
 namespace {
 uint8_t adc_resolution_bits_from_max(uint16_t adc_max) {
