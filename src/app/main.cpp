@@ -1,12 +1,13 @@
 /**
  * @file main.cpp
- * @defgroup MainApplication  Great titCore Application
+ * @defgroup MainApplication GreatTitCore Application
  * @ingroup SystemModules
- * @brief Main control logic and global state machine of the Great tit Logger.
+ * @brief Main control logic and global runtime state machine of the Great Tit Logger.
  *
- * The **Main Application** coordinates all core modules of the  Great tit
- * autonomous data logger. It implements the global system state machine and
- * ensures safe operation under low-power constraints.
+ * The **Main Application** coordinates all core modules of the autonomous
+ * logger platform. It implements the global system state machine, manages
+ * low-power transitions, and controls shared hardware resources depending on
+ * the active runtime mode.
  *
  * ## Responsibilities
  * - Initialize and coordinate hardware subsystems:
@@ -15,28 +16,56 @@
  *   - Configuration and assembly metadata
  *   - Battery monitor
  *   - Sensors
- * - Execute boot-time diagnostics and handle hardware failures.
+ *   - RFID reader
+ *
+ * - Execute boot-time diagnostics and detect hardware failures.
+ *
  * - Manage operational modes via a global state machine:
- *   - **INIT** → Decide between CONNECTED or DEPLOY after boot sequence.
- *   - **CONNECTED** → User interaction via serial link and GUI.
- *   - **DEPLOY** → Periodic low-power data logging.
+ *   - **CONNECTED** → Temporary UART/GUI configuration window after boot.
+ *   - **INIT** → Runtime hardware initialization before deployment.
+ *   - **DEPLOY** → Periodic low-power autonomous acquisition mode.
  *   - **STOCK** → Storage/idle state before deployment.
  *   - **END-OF-LIFE** → Safe shutdown on critical error or low battery.
  *
+ * - Dynamically assign shared hardware interfaces depending on runtime mode.
+ *
+ * ## UART ownership model
+ * The hardware UART @c Serial1 is dynamically shared between:
+ *
+ * - GUI communication during @ref STATE_CONNECTED
+ * - RFID reader communication during @ref STATE_DEPLOY
+ *
+ * The RFID driver explicitly acquires and releases Serial1 ownership using
+ * @ref rfid_driver::start(), @ref rfid_driver::release_serial(),
+ * and @ref rfid_driver::stop().
+ *
+ * RFID communication is only enabled during active RFID usage windows after
+ * IR-triggered wake events.
+ *
  * ## Boot model
- * The boot sequence is executed **once in `setup()`** via @ref runBootSequence().
- * It performs all critical checks and sets the initial runtime state.
+ * The boot sequence is executed once in @c setup() via
+ * @ref runBootSequence().
+ *
+ * After boot:
+ * - The logger first enters @ref STATE_CONNECTED for a temporary GUI/UART
+ *   configuration window.
+ * - If no GUI activity is detected before timeout expiration, the system
+ *   automatically transitions to @ref STATE_INIT.
+ * - @ref STATE_INIT initializes deployment runtime services and enters
+ *   @ref STATE_DEPLOY.
  *
  * ## Power management
- * - Uses the `ArduinoLowPower` library for SAMD21 sleep/deep sleep.
+ * - Uses the ArduinoLowPower library for SAMD21 standby management.
  * - Wakes up periodically via DS3231 alarm interrupts.
- * - Minimizes SD writes using buffered logging (when enabled).
+ * - Minimizes SD writes using buffered logging when enabled.
+ * - Powers the RFID reader only during active acquisition windows.
  *
  * @see sd_manager.h
  * @see rtc.h
  * @see battery.h
  * @see system_state.h
  * @see log.h
+ * @see rfid_driver.h
  *
  * @{
  */
@@ -55,7 +84,6 @@
 #include "log.h"
 #include "error_handler.h"
 #include "connected_mode.h"
-#include "det_ext.h"
 #include "deploy_mode.h"
 #include "sensors.h"
 #include "sensors_internal.h"
@@ -68,6 +96,7 @@
 #include "signal.h"
 #include "rfid_driver.h"
 #include "pwr_manager.h"
+#include "gui_serial.h"
 
 SystemState currentState = STATE_INIT;
 static bool i2c_ok       = false;
@@ -87,7 +116,7 @@ ir_pwm ir_driver(PIN_PWM_IR, PIN_PR_1, PIN_PR_2);
 /**
  * @brief RFID driver instance
  */
-rfid_driver_t rfid_driver;
+rfid_driver_t g_rfid_driver;
 
 /**
  * @brief Execute the full hardware initialization sequence at startup.
@@ -280,31 +309,14 @@ static SystemState runBootSequence() {
         LOG_INFO("IR PWM driver disabled by configuration");
     }
 
-    // --- Initialize RFID driver ---
-    LOG_INFO(string_widget.c_str());
-    if (config.enable_rfid) {
-        Serial1.begin(9600);
-        Serial1.setTimeout(20);
-        rfid_driver::init(&rfid_driver, &Serial1, TAG_TYPE_EM4102, 100);
-        LOG_INFO("RFID driver initialized with EM4102 tag type");
-    } else {
-        LOG_INFO("RFID driver disabled by configuration");
-    }
-
     LOG_INFO(string_widget.c_str());
     // led_start_blink_isr(3, blink_mode::fast);
     LOG_INFO("Boot sequence completed");
 
-    DET_EXT_Init();
-    if (DET_EXT_Connected()) {
-        LOG_INFO("Entering CONNECTED mode");
-        logWidgetTwice();
-        return STATE_CONNECTED;
-    }
+    //LOG_INFO("Entering INIT mode");
+    LOG_INFO("Entering CONNECTED mode");
 
-    LOG_INFO("Entering INIT mode");
-
-    return STATE_INIT;
+    return STATE_CONNECTED;
 }
 
 /**
@@ -337,12 +349,12 @@ void setup() {
  * ## State Overview
  * | State               | Description |
  * |:--------------------|:------------|
- * | **STATE_INIT**      | Decide between CONNECTED (GUI) or DEPLOY (autonomous logging). |
- * | **STATE_CONNECTED** | Serial/GUI interactive configuration mode (@ref runConnectedMode). |
+ * | **STATE_CONNECTED** | Temporary GUI/UART configuration window after boot.
+ * | **STATE_INIT**      | Runtime hardware initialization before deployment.
  * | **STATE_DEPLOY**    | Periodic low-power data logging of sensors and battery. |
  * | **STATE_STOCK**     | Storage/idle state for pre-deployment conservation. |
  * | **STATE_ENDOFLIFE** | Safe shutdown when a critical error or low battery occurs. |
- * | **STATE_ERROR**      | Default fallback / placeholder state. |
+ * | **STATE_ERROR**     | Default fallback / placeholder state. |
  *
  * ## Power Management
  * Uses `ArduinoLowPower` to minimize energy usage between acquisitions.
@@ -354,6 +366,7 @@ void loop() {
     switch (currentState) {
         case STATE_INIT:
             LOG_DEBUG("INIT mode active");
+
             if (load_configuration(config)) {
                 LOG_INFO("Configuration re-loaded from SD");
             } else {
@@ -363,21 +376,45 @@ void loop() {
             Sensors_InitForDeploy(g_sensors, G_SENSOR_COUNT);
 
             LOG_DEBUG("Initializing DEPLOY mode");
+
+            // GUI no longer owns GUI_SERIAL from this point.
+            gui_serial_set_enabled(&GUI_SERIAL, false);
+            // Serial1 is now acquired by the RFID driver for DEPLOY mode.
+            if (config.enable_rfid) {
+                rfid_driver::start(&g_rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
+            }
+
             deploy_enter(ir_driver);
 
             LOG_INFO("Entering DEPLOY mode");
             currentState = STATE_DEPLOY;
             LOG_INFO(string_widget.c_str());
             LOG_INFO(string_widget.c_str());
-            //blink_blocking_safe(PIN_BUZZER_LED, 200, 200, 5);
             break;
 
-        case STATE_CONNECTED:
+        case STATE_CONNECTED: {
+            static bool gui_serial_started = false;
+
+            if (!gui_serial_started) {
+
+                rfid_driver::release_serial(&g_rfid_driver);
+                rfid_driver::stop(&g_rfid_driver);
+
+                gui_serial_set_enabled(&GUI_SERIAL, true);
+                gui_serial_started = true;
+            }
+
             runConnectedMode(currentState);
+
+            if (currentState != STATE_CONNECTED) {
+                gui_serial_started = false;
+            }
+
             break;
+        }
 
         case STATE_DEPLOY:
-            run_deploy_state(currentState, rfid_driver, ir_driver);
+            run_deploy_state(currentState, g_rfid_driver, ir_driver);
             break;
 
         case STATE_STOCK:

@@ -33,7 +33,7 @@ bool scanI2CBus();
 //TODO
 
 /**
- * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}{sep}"
+ * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}"
  *
  * Generates a timestamp string with optional milliseconds.
  *

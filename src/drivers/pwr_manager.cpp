@@ -304,6 +304,15 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     return true;
 }
 
+/**
+ * @brief Disable RFID power.
+ *
+ * This function turns off the 5V rail used by the RFID reader.
+ *
+ * If the RFID rail is already off, the function returns immediately.
+ *
+ * @param rfid_mode RFID mode identifier. Currently unused.
+ */
 void rfid_pwr_off(uint8_t rfid_mode) {
     (void)rfid_mode;
 

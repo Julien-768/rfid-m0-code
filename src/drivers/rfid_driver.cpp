@@ -31,7 +31,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "log.h"
-
+#include "hardware_serial_control.h"
 #include "utils_rfid.h"  // provides: rfid_tag_hex_to_nic(...), RFID_FDX_HEX_LEN, etc.
 
 /* ------------------------ Small safe string helpers ------------------------ */
@@ -326,6 +326,101 @@ void rfid_driver::init(rfid_driver_t* drv,
 }
 
 /**
+ * @brief Start the RFID driver on a hardware serial port.
+ *
+ * This function takes ownership of the provided UART for RFID communication.
+ * It is intended to be called when entering DEPLOY mode, after the GUI layer
+ * has released Serial1 ownership.
+ *
+ * Startup sequence:
+ *  - Restart the UART using HardwareSerialControl::restart().
+ *  - Initialize the RFID driver instance.
+ *  - Flush any stale or incomplete bytes from the RX buffer using
+ *    HardwareSerialControl::flushRx().
+ *
+ * The RX flush step is important because the RFID reader may emit startup
+ * bytes, partial frames, or line noise immediately after power-up or UART
+ * reassignment.
+ *
+ * This function does not power the RFID reader itself. Power management must
+ * be handled externally by the deployment state machine.
+ *
+ * @param drv               Driver instance storage.
+ * @param serial            Hardware serial port connected to the RFID reader.
+ * @param type              RFID tag type.
+ * @param poll_interval_ms  Poll interval in milliseconds.
+ */
+void rfid_driver::start(rfid_driver_t* drv,
+                        HardwareSerial* serial,
+                        tag_type_t type,
+                        uint32_t poll_interval_ms) {
+    if (!drv || !serial) return;
+
+    HardwareSerialControl::restart(serial, 9600, 100);
+
+    drv->port = serial;
+
+    init(drv, serial, type, poll_interval_ms);
+
+    HardwareSerialControl::flushRx(serial);
+
+    LOG_DEBUG("RFID driver started on hardware serial port");
+}
+
+/**
+ * @brief Stop the RFID driver processing state.
+ *
+ * Detaches the stream from the driver instance and resets the internal line
+ * reader and tag FIFO state.
+ *
+ * This function does not stop the underlying UART peripheral and does not
+ * disable RFID reader power. UART ownership must be released explicitly with
+ * @ref rfid_driver::release_serial(), and power management remains the
+ * responsibility of the deployment state machine.
+ *
+ * @param drv Driver instance.
+ */
+void rfid_driver::stop(rfid_driver_t* drv) {
+    if (!drv) return;
+
+    drv->port = nullptr;
+    line_reader_init(&drv->lr);
+    drv->head  = 0;
+    drv->tail  = 0;
+    drv->count = 0;
+}
+
+/**
+ * @brief Clear all pending bytes from the RFID receive stream.
+ *
+ * Removes all currently available bytes from the UART RX buffer.
+ *
+ * This is primarily used:
+ *  - After RFID reader startup.
+ *  - After UART ownership reassignment.
+ *  - Before beginning a new RFID polling session.
+ *
+ * The goal is to discard stale, partial, or noisy data that could otherwise
+ * corrupt line parsing or RFID frame decoding.
+ *
+ * This function does not modify the decoded tag FIFO, line reader state, or
+ * polling timers.
+ *
+ * Uses @ref HardwareSerialControl::flushRx to centralize UART RX flushing.
+ *
+ * @param drv Driver instance.
+ */
+void rfid_driver::flush_rx(rfid_driver_t* drv) {
+    if (!drv || !drv->port) {
+        return;
+    }
+
+    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+
+    HardwareSerialControl::flushRx(serial);
+}
+
+/**
  * @brief Send a poll command immediately.
  *
  * This function writes directly to the configured serial stream and does not
@@ -470,9 +565,26 @@ bool rfid_driver::should_record_tag(const tag_info_t* previous,
     return true;
 }
 
-void rfid_driver::flush_rx(rfid_driver_t* drv) {
-    if (!drv || !drv->port) return;
-    while (drv->port->available()) {
-        drv->port->read();
+/**
+ * @brief Release the RFID UART serial interface.
+ *
+ * Stops the underlying hardware serial port using
+ * HardwareSerialControl::stop() and clears the driver port reference
+ * so the UART can safely be reused by another module
+ * (e.g. GUI connected mode).
+ *
+ * @param drv Pointer to RFID driver instance.
+ */
+void rfid_driver::release_serial(rfid_driver_t* drv) {
+    if (!drv || !drv->port) {
+        return;
     }
+
+    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+
+    HardwareSerialControl::stop(serial);
+
+    drv->port = nullptr;
+
+    LOG_DEBUG("RFID serial released");
 }

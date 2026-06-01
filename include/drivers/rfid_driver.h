@@ -130,7 +130,37 @@ class rfid_driver {
      */
     static void poll_now(rfid_driver_t* drv);
 
+    /**
+     * @brief Clear all pending bytes from the RFID receive stream.
+     *
+     * @param drv Driver instance.
+     */
     static void flush_rx(rfid_driver_t* drv);
+
+    /**
+     * @brief Start the RFID driver on a hardware serial port.
+     *
+     * @param drv               Driver instance storage.
+     * @param serial            Hardware serial port connected to the RFID reader.
+     * @param type              RFID tag type.
+     * @param poll_interval_ms  Poll interval in milliseconds.
+     */
+    static void start(rfid_driver_t* drv,
+                      HardwareSerial* serial,
+                      tag_type_t type,
+                      uint32_t poll_interval_ms);
+
+    /**
+    * @brief Stop the RFID driver processing state.
+    *
+    * Detaches the stream from the driver instance and resets internal parser/FIFO
+    * state. This does not stop the underlying UART peripheral.
+    *
+    * Use @ref release_serial() when UART ownership must be released.
+    *
+    * @param drv Driver instance.
+    */
+    static void stop(rfid_driver_t* drv);
 
     /**
      * @brief Pop one ready tag from the FIFO.
@@ -156,6 +186,15 @@ class rfid_driver {
     static bool should_record_tag(const tag_info_t* previous,
                                   const tag_info_t* current,
                                   uint32_t delay_ms);
+
+    /**
+    * @brief Release the RFID UART serial interface.
+    *
+    * Stops the UART and detaches the serial port from the RFID driver.
+    *
+    * @param drv Pointer to RFID driver instance.
+    */
+    static void release_serial(rfid_driver_t* drv);
 };
 
 #endif  // RFID_DRIVER_H

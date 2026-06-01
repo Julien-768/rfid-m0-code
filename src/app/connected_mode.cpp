@@ -2,39 +2,41 @@
  * @file connected_mode.cpp
  * @defgroup Connected_Mode Connected Mode
  * @ingroup SystemModules
- * @brief UART JSON command handling for (CONNECTED mode).
+ * @brief UART JSON command handling for CONNECTED mode.
  *
  * This module implements the **CONNECTED** state logic of the logger.
  * In this mode, the device communicates with an external GUI/tool over UART
- * (`Serial1`) using a line-based JSON protocol.
+ * @c GUI_SERIAL using a line-based JSON protocol.
  *
- * ## Responsibilities
+ * Responsibilities
  * - Read incoming JSON commands terminated by '\\n'
  * - Parse commands into high-level structures via @ref JsonProtocol
  * - Execute requested actions (info, id, config, identity)
- * - Send JSON responses/ACK/errors back on `Serial1`
+ * - Send JSON responses/ACK/errors back on @c GUI_SERIAL
  *
- * ## Supported commands
- * - **GET_INFO**
+ * Supported commands
+ * - GET_INFO
  *   - Returns firmware version and build metadata.
- * - **GET_ID**
+ * - GET_ID
  *   - Returns logger identification data:
  *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
- * - **GET_VBAT**
+ * - GET_VBAT
  *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
- * - **GET_CONFIG**
+ * - GET_CONFIG
  *   - Returns current configuration snapshot.
- * - **SET_CONFIG**
- *   - Applies RTC time (from GUI), updates runtime configuration,
- *     schedules next wake-up, initializes sensors, and transitions to DEPLOY.
- * - **SET_IDENTITY** (factory)
- *   - Programs the factory identity into **SAMD21 internal flash**
+ * - SET_CONFIG
+ *   - Applies RTC time from GUI, updates runtime configuration,
+ *     and returns the applied configuration without starting deployment.
+ * - SET_RUN_START
+ *   - Transitions to INIT to start deployment.
+ * - SET_IDENTITY (factory)
+ *   - Programs the factory identity into SAMD21 internal flash
  *     via @ref device_id_program.
  *
- * ## Factory identity storage
+ * Factory identity storage
  * Factory identity (manufacturer / logger type / fabrication date / serial number)
- * is stored in **SAMD21 internal non-volatile memory (Flash)**.
+ * is stored in SAMD21 internal non-volatile memory (Flash).
  * This module does not access any EEPROM.
  *
  * @see JsonProtocol
@@ -46,6 +48,7 @@
 
 #include "connected_mode.h"
 #include "JsonProtocol.h"
+#include "SerialJsonFramer.h"
 #include "system_state.h"
 #include "config.h"
 #include "log.h"
@@ -57,60 +60,112 @@
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery_service.h"
+#include "fw_version.h"
+
+#ifndef GUI_SERIAL
+#error "GUI_SERIAL must be defined in build flags"
+#endif
+
+/**
+ * @brief Send the CONNECTED ready notification once.
+ *
+ * Clears pending UART bytes before sending the ready message in order
+ * to avoid parsing startup noise as GUI commands.
+ *
+ * @param ready_sent Ready flag updated after transmission.
+ * @param ready_time_ms Timestamp recorded when READY is sent.
+ */
+static void sendConnectedReadyOnce(bool& ready_sent, uint32_t& ready_time_ms) {
+
+    if (ready_sent) {
+        return;
+    }
+
+    while (GUI_SERIAL.available()) {
+        GUI_SERIAL.read();
+    }
+
+    GUI_SERIAL.println("{\"status\":\"CONNECTED_READY\"}");
+
+    ready_time_ms = millis();
+
+    ready_sent = true;
+}
 
 /**
  * @brief Execute CONNECTED mode command processing (UART JSON).
  *
  * This function must be called repeatedly while the system is in
- * @ref STATE_CONNECTED. It performs a single iteration of the command loop:
+ * @ref STATE_CONNECTED. It provides a short GUI configuration window before
+ * normal deployment startup.
  *
- * 1. If no UART data is available, returns immediately.
- * 2. Reads one JSON message line (terminated by '\\n').
- * 3. Parses it into a @ref ParsedCommand using @ref JsonProtocol::parseCommand.
- * 4. Dispatches the command and writes the corresponding JSON response.
+ * If no UART activity is detected on @c GUI_SERIAL for a fixed timeout, the
+ * function transitions to @ref STATE_INIT so the logger can continue its normal
+ * boot sequence and enter DEPLOY mode.
  *
- * ### State transitions
- * - On **SET_CONFIG** success, this function sets @p state to @ref STATE_DEPLOY.
+ * Processing steps:
+ * 1. If no UART data is available, check the CONNECTED timeout and return.
+ * 2. On UART activity, refresh the activity timestamp.
+ * 3. Read one JSON message line terminated by '\\n'.
+ * 4. Parse it into a @ref ParsedCommand using @ref JsonProtocol::parseCommand.
+ * 5. Dispatch the command and write the corresponding JSON response.
  *
- * ### Factory identity programming
- * - On **SET_IDENTITY**, the function builds a @ref LoggerIdentityFlash record
- *   from the received JSON payload and calls @ref device_id_program.
- * - On failure, a JSON error is returned.
+ * State transitions
+ * - On CONNECTED timeout: @ref STATE_CONNECTED -> @ref STATE_INIT.
+ * - On SET_CONFIG: remains in CONNECTED mode.
+ * - On SET_RUN_START: STATE_CONNECTED -> STATE_INIT.
  *
  * @param[in,out] state Current system state reference. May be updated to
- *                      @ref STATE_DEPLOY when SET_CONFIG is accepted.
+ * @ref STATE_INIT when the timeout expires or when a
+ * start command is accepted.
  *
- * @see device_id_get
- * @see device_id_program
- * @see rtc_applyExternalTime
- * @see rtc_scheduleNextWake
+ * @see JsonProtocol
+ * @see rtc_apply_external_time
  */
 
 void runConnectedMode(SystemState& state) {
-    if (!Serial1.available()) return;
+    static constexpr uint32_t CONNECTED_TIMEOUT_MS = 30000;
+    static uint32_t last_activity_ms               = millis();
 
-    // Read a full JSON line from the GUI / external tool
-    String incoming = Serial1.readStringUntil('\n');
+    static bool ready_sent        = false;
+    static uint32_t ready_time_ms = 0;
+
+    sendConnectedReadyOnce(ready_sent, ready_time_ms);
+
+    if ((millis() - ready_time_ms) < 300) {
+        return;
+    }
+
+    if (!GUI_SERIAL.available()) {
+        if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
+            LOG_INFO("CONNECTED timeout -> INIT");
+            state = STATE_INIT;
+        }
+        return;
+    }
+
+    last_activity_ms = millis();
+    // Read a full JSON line from the GUI / external tool.
+    String incoming = GUI_SERIAL.readStringUntil('\n');
+
+    if (!SerialJsonFramer::sanitizeJsonLine(incoming)) {
+        return;
+    }
 
     ParsedCommand parsed{};
     char errorJson[96] = {0};
 
-    // Parse JSON into a high-level command structure
     if (!JsonProtocol::parseCommand(incoming.c_str(), parsed, errorJson, sizeof(errorJson))) {
-        if (errorJson[0] != '\0') {
-            // Return a small JSON error message to the GUI
-            Serial1.println(errorJson);
-        }
+
+        GUI_SERIAL.println(errorJson);
         return;
     }
 
     // Dispatch command
     switch (parsed.type) {
         case CommandType::GET_INFO: {
-            // Firmware version / compile date
-            // TODO
-            const char* json = JsonProtocol::buildInfoJSON("Moonraker v1.0");
-            Serial1.println(json);
+            const char* json = JsonProtocol::buildInfoJSON(FW_VERSION_STRING);
+            GUI_SERIAL.println(json);
             break;
         }
 
@@ -127,23 +182,23 @@ void runConnectedMode(SystemState& state) {
 
             const char* json = JsonProtocol::buildIdJSON(payload);
 
-            Serial1.println(json);
+            GUI_SERIAL.println(json);
             break;
         }
 
         case CommandType::GET_VBAT: {
             if (!battery_is_available()) {
-                Serial1.println("{\"error\":\"Battery measurement not available\"}");
+                GUI_SERIAL.println("{\"error\":\"Battery measurement not available\"}");
                 break;
             } else {
                 int32_t vbat_mv;
                 bool changed;
                 if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                    Serial1.println("{\"error\":\"Failed to read battery voltage\"}");
+                    GUI_SERIAL.println("{\"error\":\"Failed to read battery voltage\"}");
                     break;
                 }
                 const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                Serial1.println(json);
+                GUI_SERIAL.println(json);
             }
             break;
         }
@@ -164,8 +219,8 @@ void runConnectedMode(SystemState& state) {
                      now.second());
             payload.use_buffer             = config.use_buffer;
             payload.acquisition_interval_s = config.acquisition_interval_s;
-            payload.enable_light1          = config.enable_light1;
-            payload.enable_light2          = config.enable_light2;
+            payload.enable_ir1             = config.enable_ir1;
+            payload.enable_ir2             = config.enable_ir2;
             payload.enable_rfid            = config.enable_rfid;
             payload.rfid_mode              = rfidModeToUint(config.rfid_mode);
             payload.enable_vbat            = config.enable_vbat;
@@ -176,7 +231,7 @@ void runConnectedMode(SystemState& state) {
 
             const char* json = JsonProtocol::buildConfigJSON(payload);
 
-            Serial1.println(json);
+            GUI_SERIAL.println(json);
             break;
         }
 
@@ -186,14 +241,14 @@ void runConnectedMode(SystemState& state) {
             DateTime dt;
             if (!convertISO8601ToDateTime(parsed.cfg.dateCurrentIso, &dt)) {
                 LOG_ERROR("Invalid date received from GUI");
-                Serial1.println("{\"error\":\"Invalid date_current\"}");
+                GUI_SERIAL.println("{\"error\":\"Invalid date_current\"}");
                 break;
             }
 
             config.use_buffer             = parsed.cfg.use_buffer;
             config.acquisition_interval_s = parsed.cfg.acquisition_interval_s;
-            config.enable_light1          = parsed.cfg.enable_light1;
-            config.enable_light2          = parsed.cfg.enable_light2;
+            config.enable_ir1             = parsed.cfg.enable_ir1;
+            config.enable_ir2             = parsed.cfg.enable_ir2;
             config.enable_rfid            = parsed.cfg.enable_rfid;
             config.rfid_mode              = rfidModeFromUint(parsed.cfg.rfid_mode);
             config.enable_vbat            = parsed.cfg.enable_vbat;
@@ -209,25 +264,56 @@ void runConnectedMode(SystemState& state) {
                 LOG_INFO("RTC adjusted successfully from GUI (SET_CONFIG)");
             }
 
-            if (strlen(get_data_filename()) == 0) {
-                check_and_create_new_daily_file(rtc().now());
-                LOG_INFO("Daily file created after GUI time; buffered logs will be flushed");
-            }
+            ConfigResponsePayload payload{};
 
-            Serial1.println("{\"config\":\"ACK\"}");
+            snprintf(payload.dateCurrentIso,
+                     sizeof(payload.dateCurrentIso),
+                     "%04d-%02d-%02dT%02d:%02d:%02d",
+                     dt.year(),
+                     dt.month(),
+                     dt.day(),
+                     dt.hour(),
+                     dt.minute(),
+                     dt.second());
 
-            LOG_INFO("Deploy mode started from GUI");
-            state = STATE_INIT;
+            payload.use_buffer             = config.use_buffer;
+            payload.acquisition_interval_s = config.acquisition_interval_s;
+            payload.enable_ir1             = config.enable_ir1;
+            payload.enable_ir2             = config.enable_ir2;
+            payload.enable_rfid            = config.enable_rfid;
+            payload.rfid_mode              = rfidModeToUint(config.rfid_mode);
+            payload.enable_vbat            = config.enable_vbat;
+            payload.schedule_start_hour    = config.schedule_start_hour;
+            payload.schedule_start_minute  = config.schedule_start_minute;
+            payload.schedule_end_hour      = config.schedule_end_hour;
+            payload.schedule_end_minute    = config.schedule_end_minute;
+
+            GUI_SERIAL.println(JsonProtocol::buildConfigJSON(payload));
+            GUI_SERIAL.println("{\"config\":\"ACK\"}");
+
+            LOG_INFO("Configuration applied from GUI");
             break;
         }
 
         case CommandType::SET_RUN_START: {
-            Serial1.println("{\"config\":\"ACK\"}");
+            if (strlen(get_data_filename()) == 0) {
+                if (!check_and_create_new_daily_file(rtc().now())) {
+                    LOG_ERROR("Failed to create daily file before deployment");
+                    GUI_SERIAL.println(
+                        "{\"run\":\"ERROR\",\"reason\":\"daily_file_create_failed\"}");
+                    break;
+                }
+
+                LOG_INFO("Daily file created before deployment");
+            }
+
+            GUI_SERIAL.println("{\"run\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
             state = STATE_INIT;
             break;
         }
+
         case CommandType::SET_IDENTITY: {
             LOG_INFO("Factory SET_IDENTITY command received");
 
@@ -236,12 +322,12 @@ void runConnectedMode(SystemState& state) {
                                       parsed.identity.date_fab,
                                       parsed.identity.logger_sn);
 
-            Serial1.println("{\"identity\":\"ACK\"}");
+            GUI_SERIAL.println("{\"identity\":\"ACK\"}");
             break;
         }
 
         case CommandType::SET_STORAGE: {
-            Serial1.println("{\"storage\":\"ACK\"}");
+            GUI_SERIAL.println("{\"storage\":\"ACK\"}");
             break;
         }
 

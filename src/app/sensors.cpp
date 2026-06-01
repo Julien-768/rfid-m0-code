@@ -92,12 +92,12 @@
  * - a read callback used by the generic HAL dispatch.
  *
  * @note The actual enable/disable behavior is controlled by the pointed boolean
- *       flags (e.g., `config.enable_light1`).
+ *       flags (e.g., `config.enable_ir1`).
  */
 SensorSpec g_sensors[] = {
     // name      enabled-flag             initFn       readFn
-    // {"AS7341", &config.enable_light1, initAS7341, readAS7341IntoContext},
-    // {"TSL2591", &config.enable_light2, initTSL2591, readTSL2591IntoContext},
+    // {"AS7341", &config.enable_ir1, initAS7341, readAS7341IntoContext},
+    // {"TSL2591", &config.enable_ir2, initTSL2591, readTSL2591IntoContext},
     // TODO battery
     {"VBAT", &config.enable_vbat, nullptr, nullptr},
 };
