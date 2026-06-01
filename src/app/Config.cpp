@@ -31,8 +31,8 @@ static bool isScheduleValid(const Config& config_var) {
 static void logConfiguration(const Config& config_var, const char* title) {
     LOG_INFO("%s", title);
     LOG_INFO("\tuse_buffer: %s", boolStr(config_var.use_buffer));
-    LOG_INFO("\tlight1: %s", boolStr(config_var.enable_ir1));
-    LOG_INFO("\tlight2: %s", boolStr(config_var.enable_ir2));
+    LOG_INFO("\tir1: %s", boolStr(config_var.enable_ir1));
+    LOG_INFO("\tir2: %s", boolStr(config_var.enable_ir2));
     LOG_INFO("\trfid: %s", boolStr(config_var.enable_rfid));
     LOG_INFO("\trfid_mode: %u", rfidModeToUint(config_var.rfid_mode));
     LOG_INFO("\tvbat: %s", boolStr(config_var.enable_vbat));
