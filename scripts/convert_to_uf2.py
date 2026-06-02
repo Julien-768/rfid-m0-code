@@ -1,7 +1,16 @@
+"""
+PlatformIO post-build script.
+
+Converts the generated firmware.bin image into a UF2 image compatible
+with the Adafruit Feather M0 bootloader and stores it in the firmware/
+directory at the project root.
+"""
+
 from pathlib import Path
 
 Import("env")
 
+# Application start address after the UF2 bootloader on SAMD21.
 APP_START_ADDRESS = 0x00002000
 
 UF2_MAGIC_START0 = 0x0A324655
@@ -17,6 +26,13 @@ def write_u32_le(block, offset, value):
 
 
 def convert_bin_to_uf2(bin_path, uf2_path):
+    """
+    Convert a raw firmware binary into a UF2 image.
+
+    Args:
+        bin_path: Input firmware.bin file.
+        uf2_path: Output UF2 file.
+    """
     data = bin_path.read_bytes()
 
     if not data:
@@ -48,9 +64,19 @@ def convert_bin_to_uf2(bin_path, uf2_path):
 
 
 def bin_to_uf2(source, target, env):
+    """
+    PlatformIO post-build callback.
+
+    Generates firmware/rfid_door.uf2 from the compiled firmware.bin.
+    """
+    project_dir = Path(env.subst("$PROJECT_DIR"))
+
+    firmware_dir = project_dir / "firmware"
+    firmware_dir.mkdir(parents=True, exist_ok=True)
+
     build_dir = Path(env.subst("$BUILD_DIR"))
     bin_path = build_dir / "firmware.bin"
-    uf2_path = build_dir / "rfid_door.uf2"
+    uf2_path = firmware_dir / "rfid_door.uf2"
 
     print(f"Converting to UF2: {bin_path} -> {uf2_path}")
     convert_bin_to_uf2(bin_path, uf2_path)
