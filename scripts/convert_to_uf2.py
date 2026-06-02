@@ -67,7 +67,7 @@ def bin_to_uf2(source, target, env):
     """
     PlatformIO post-build callback.
 
-    Generates firmware/rfid_door.uf2 from the compiled firmware.bin.
+    Generates firmware/<PROJECT_DIR_NAME>.uf2 from the compiled firmware.bin.
     """
     project_dir = Path(env.subst("$PROJECT_DIR"))
 
@@ -76,7 +76,8 @@ def bin_to_uf2(source, target, env):
 
     build_dir = Path(env.subst("$BUILD_DIR"))
     bin_path = build_dir / "firmware.bin"
-    uf2_path = firmware_dir / "rfid_door.uf2"
+    project_name = project_dir.name.replace(".", "_")
+    uf2_path = firmware_dir / f"{project_name}.uf2"
 
     print(f"Converting to UF2: {bin_path} -> {uf2_path}")
     convert_bin_to_uf2(bin_path, uf2_path)
