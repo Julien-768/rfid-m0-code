@@ -124,6 +124,27 @@ constexpr uint32_t RFID_BOOT_DELAY_MS = 0;
 // Track whether external sensor wakeups are currently enabled.
 static bool g_sensor_wakeups_enabled = false;
 
+static uint32_t g_current_file_date = 0;
+
+static uint32_t date_key(const DateTime& dt) {
+    return ((uint32_t)dt.year() * 10000UL) + ((uint32_t)dt.month() * 100UL) + (uint32_t)dt.day();
+}
+
+static bool ensure_daily_file_once_per_day(const DateTime& now) {
+    const uint32_t today = date_key(now);
+
+    if (g_current_file_date == today) {
+        return true;
+    }
+
+    if (!check_and_create_new_daily_file(now)) {
+        return false;
+    }
+
+    g_current_file_date = today;
+    return true;
+}
+
 static void log_user_battery_check() {
     int32_t vbat_mv = 0;
     bool changed    = false;
@@ -178,13 +199,24 @@ static void deploy_handle_power_button(SystemState& state) {
     }
 }
 
-// Example schedule: active from 08:00 to 18:30 daily.
-static ScheduleManager g_schedule({
-    8,
-    0,  // start 08:00
-    18,
-    30  // end 18:30
-});
+// Schedule manager for the active window, initialized with default values but updated at runtime from config.
+static ScheduleManager g_schedule({DEFAULT_SCHEDULE_START_HOUR,
+                                   DEFAULT_SCHEDULE_START_MINUTE,
+                                   DEFAULT_SCHEDULE_END_HOUR,
+                                   DEFAULT_SCHEDULE_END_MINUTE});
+
+static void configure_active_window_from_config() {
+    g_schedule.setWindow({config.schedule_start_hour,
+                          config.schedule_start_minute,
+                          config.schedule_end_hour,
+                          config.schedule_end_minute});
+
+    LOG_INFO("Schedule active window: %02u:%02u -> %02u:%02u",
+             config.schedule_start_hour,
+             config.schedule_start_minute,
+             config.schedule_end_hour,
+             config.schedule_end_minute);
+}
 
 static volatile uint8_t g_ir1_state = LOW;
 static volatile uint8_t g_ir2_state = LOW;
@@ -346,7 +378,7 @@ static void apply_awake_window(ir_pwm& ir_driver,
 void deploy_enter(ir_pwm& ir_driver) {
     LOG_DEBUG("Initializing DEPLOY mode: setting up callbacks and initial state");
 
-    g_schedule.setWindow({8, 0, 18, 0});
+    configure_active_window_from_config();
     rtc_period   = config.acquisition_interval_s;
     vbat_counter = 0;
 
@@ -368,6 +400,9 @@ void deploy_enter(ir_pwm& ir_driver) {
     delay(100);
 
     DateTime now = rtc().now();
+    if (!ensure_daily_file_once_per_day(now)) {
+        return;
+    }
     apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
 
     noInterrupts();
@@ -443,6 +478,7 @@ void deploy_exit(ir_pwm& ir_driver) {
     g_rfid_requested         = false;
     g_rfid_waiting_boot      = false;
     in_awake_window          = false;
+    g_current_file_date      = 0;
     g_sensor_wakeups_enabled = false;
     g_rfid_mode              = RFID_RT_DISABLED;
 
@@ -530,9 +566,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     // If no event occurred and RFID is not continuous, exit early.
     if (events == DEPLOY_EVT_NONE && pwr_manager::rfid_is_on() == false) {
         // LOG_DEBUG("Woke up from idle. No events to process.");
-        // temp
+        return;
 
-        // /end temp
         //         if (count_4_dot < 4) {
         // #if (LOG_SERIAL_OUTPUT == LOG_SERIAL1)
         //             Serial1.print(".");
@@ -589,9 +624,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     }
 
     // ===== Common post-wake handling =====
-    if ((events != DEPLOY_EVT_NONE) || (g_rfid_mode == RFID_RT_CONTINUOUS)) {
-        if (!check_and_create_new_daily_file(now)) {
-            // handle shutdown in STATE_ENDOFLIFE
+    if (events != DEPLOY_EVT_NONE) {
+        if (!ensure_daily_file_once_per_day(now)) {
             state = STATE_ENDOFLIFE;
             return;
         }
@@ -737,6 +771,11 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                 LOG_INFO("RFID tag detected: %s", tag.tag);
 
                 DateTime tag_now = rtc().now();
+
+                if (!ensure_daily_file_once_per_day(tag_now)) {
+                    state = STATE_ENDOFLIFE;
+                    return;
+                }
 
                 if (!logMeasurement(tag_now, "RFID_TAG", 1.0f, tag.tag, config.use_buffer)) {
                     LOG_ERROR("RFID tag logging failed");
