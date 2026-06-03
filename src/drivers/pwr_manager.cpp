@@ -81,6 +81,9 @@ inline bool read_active_pin(uint8_t pin, bool active_high) {
 
 namespace pwr_manager {
 
+/**
+ * @brief Reset internal power button tracking state.
+ */
 void reset_power_button_tracking() {
     // noInterrupts();
     // g_button_irq_is_pressed = false;
@@ -98,13 +101,19 @@ void reset_power_button_tracking() {
     g_button_duration_pending = false;
 }
 
+/**
+ * @brief Initialize the power manager.
+ *
+ * Configures all power control GPIOs, enables the main power hold signal,
+ * disables controlled power rails, and resets internal state.
+ */
 void begin() {
     pinMode(PIN_PWR_3V, OUTPUT);
     pinMode(PIN_PWR_5V, OUTPUT);
     pinMode(PIN_PW_SW, INPUT);
     pinMode(PIN_PW_EN, OUTPUT);
 
-    // Fail-safe au boot : sous-modules OFF, maintien d'alimentation ON.
+    // Boot fail-safe: submodules OFF, main power hold ON.
     write_power_pin(PIN_PWR_3V, false, PWR_3V_ACTIVE_HIGH);
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     write_power_pin(PIN_PW_EN, true, PWR_EN_ACTIVE_HIGH);
@@ -118,6 +127,13 @@ void begin() {
     LOG_INFO("Power manager initialized");
 }
 
+/**
+ * @brief Attach power button wakeup handling.
+ *
+ * Currently unused. The power button is handled by polling.
+ *
+ * @param callback Wakeup callback.
+ */
 void button_interrupt_attach(void (*callback)()) {
     // LowPower.attachInterruptWakeup(PIN_PW_SW, callback, CHANGE);
     // LOG_DEBUG("Button interrupt pin=%d digitalPinToInterrupt=%d extint=%d",
@@ -128,14 +144,29 @@ void button_interrupt_attach(void (*callback)()) {
     LOG_DEBUG("Power button uses polling, interrupt not attached");
 }
 
+/**
+ * @brief Detach power button wakeup handling.
+ *
+ * Currently unused. The power button is handled by polling.
+ */
 void button_interrupt_detach() {
     // low_power_detach_interrupt(PIN_PW_SW);
 }
 
+/**
+ * @brief Read the current power button state.
+ *
+ * @return true if the button is currently pressed.
+ */
 bool power_button_read_state() {
     return read_active_pin(PIN_PW_SW, PW_SW_ACTIVE_HIGH);
 }
 
+/**
+ * @brief Power button interrupt handler.
+ *
+ * Currently forwards processing to the polling implementation.
+ */
 void power_button_irq_handler() {
     // const uint32_t now    = millis();
     // const bool is_pressed = power_button_read_state();
@@ -156,6 +187,15 @@ void power_button_irq_handler() {
     power_button_poll();
 }
 
+/**
+ * @brief Retrieve and consume the next power button event.
+ *
+ * Detects short and long button presses and returns the corresponding
+ * event information.
+ *
+ * @param event Output event structure.
+ * @return true if an event was available.
+ */
 bool consume_power_button_event(power_button_event_t& event) {
     power_button_poll();
 
@@ -197,6 +237,11 @@ bool consume_power_button_event(power_button_event_t& event) {
     return false;
 }
 
+/**
+ * @brief Request immediate system shutdown.
+ *
+ * Disables the power hold signal and blocks indefinitely until power is lost.
+ */
 void request_shutdown() {
     if (g_shutdown_requested) {
         return;
@@ -212,6 +257,11 @@ void request_shutdown() {
     }
 }
 
+/**
+ * @brief Periodic power manager update.
+ *
+ * Monitors the power button and triggers shutdown on long press.
+ */
 void update() {
     if (g_shutdown_requested) {
         return;
@@ -223,6 +273,12 @@ void update() {
     }
 }
 
+/**
+ * @brief Poll and debounce the power button state.
+ *
+ * Updates the internal button state machine and generates pending
+ * press duration events.
+ */
 void power_button_poll() {
     const uint32_t now = millis();
     const bool raw     = power_button_read_state();
@@ -256,11 +312,19 @@ void power_button_poll() {
         }
 }
 
+/**
+ * @brief Check whether a power button event is pending.
+ *
+ * @return true if an event is available.
+ */
 bool power_button_event_pending() {
     power_button_poll();
     return g_button_duration_pending;
 }
 
+/**
+ * @brief Enable IR sensor power rail.
+ */
 void ir_power_on() {
     if (g_ir_on) {
         return;
@@ -273,6 +337,9 @@ void ir_power_on() {
     LOG_DEBUG("IR power ON");
 }
 
+/**
+ * @brief Disable IR sensor power rail.
+ */
 void ir_power_off() {
     if (!g_ir_on) {
         return;
@@ -284,10 +351,30 @@ void ir_power_off() {
     LOG_DEBUG("IR power OFF");
 }
 
+/**
+ * @brief Get IR power state.
+ *
+ * @return true if IR power rail is enabled.
+ */
 bool ir_is_on() {
     return g_ir_on;
 }
 
+/**
+ * @brief Enable RFID power rail.
+ *
+ * This function turns on the 5V rail used by the RFID reader and marks the
+ * rail as enabled.
+ *
+ * It does not wait for the RFID reader startup sequence and does not consume
+ * the reader boot banner. The UART must be prepared before this call, and
+ * waiting for the "BTboot" marker must be handled by the RFID driver.
+ *
+ * If the RFID rail is already enabled, the function returns immediately.
+ *
+ * @param rfid_mode RFID mode identifier. Currently unused.
+ * @return true when the RFID power rail is enabled.
+ */
 bool rfid_pwr_on(uint8_t rfid_mode) {
     (void)rfid_mode;
 
@@ -296,16 +383,15 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     }
 
     write_power_pin(PIN_PWR_5V, true, PWR_5V_ACTIVE_HIGH);
-    // delay(100);
 
     g_rfid_on = true;
 
-    LOG_INFO("RFID power ON");
+    LOG_INFO("RFID power rail enabled");
     return true;
 }
 
 /**
- * @brief Disable RFID power.
+ * @brief Disable RFID power rail.
  *
  * This function turns off the 5V rail used by the RFID reader.
  *
@@ -323,9 +409,14 @@ void rfid_pwr_off(uint8_t rfid_mode) {
     write_power_pin(PIN_PWR_5V, false, PWR_5V_ACTIVE_HIGH);
     g_rfid_on = false;
 
-    LOG_INFO("RFID power OFF");
+    LOG_INFO("RFID power rail disabled");
 }
 
+/**
+ * @brief Get RFID power state.
+ *
+ * @return true if RFID power rail is enabled.
+ */
 bool rfid_is_on() {
     return g_rfid_on;
 }

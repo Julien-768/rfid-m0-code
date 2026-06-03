@@ -89,7 +89,7 @@ typedef struct {
  *
  * @code
  * rfid_driver_t drv;
- * rfid_driver::init(&drv, &Serial1, TAG_TYPE_FDX, 200);
+ * rfid_driver::init(&drv, &RFID_SERIAL, TAG_TYPE_FDX, 200);
  * rfid_driver::poll_now(&drv);
  * rfid_driver::tick(&drv);
  * @endcode
@@ -105,6 +105,16 @@ class rfid_driver {
      * @param poll_interval_ms  Poll interval in milliseconds.
      */
     static void init(rfid_driver_t* drv, Stream* port, tag_type_t type, uint32_t poll_interval_ms);
+
+    /**
+     * @brief Prepare the RFID UART before powering the reader.
+     *
+     * Restarts the hardware serial port and flushes stale RX bytes so the
+     * reader boot banner can be captured immediately after power-up.
+     *
+     * @param serial Hardware serial port connected to the RFID reader.
+     */
+    static void prepare_serial(HardwareSerial* serial);
 
     /**
      * @brief Non-blocking driver tick. Call as often as possible from loop().
@@ -161,6 +171,18 @@ class rfid_driver {
     * @param drv Driver instance.
     */
     static void stop(rfid_driver_t* drv);
+
+    /**
+     * @brief Wait for the RFID reader boot marker.
+     *
+     * Waits for the TECTUS startup marker "BTboot" after reader power-up.
+     * If the firmware banner is received, it is logged for diagnostics.
+     *
+     * @param serial Serial stream connected to the RFID reader.
+     * @param timeout_ms Maximum time to wait for the boot marker, in milliseconds.
+     * @return true if the boot marker was received, false otherwise.
+     */
+    static bool wait_for_boot_message(Stream* serial, uint32_t timeout_ms);
 
     /**
      * @brief Pop one ready tag from the FIFO.

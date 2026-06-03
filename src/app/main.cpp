@@ -39,8 +39,9 @@
  * @ref rfid_driver::start(), @ref rfid_driver::release_serial(),
  * and @ref rfid_driver::stop().
  *
- * RFID communication is only enabled during active RFID usage windows after
- * IR-triggered wake events.
+ * RFID communication is initialized when entering @ref STATE_DEPLOY if RFID is
+ * enabled in the runtime configuration. The RFID driver then manages polling
+ * according to the active deployment logic and RFID mode.
  *
  * ## Boot model
  * The boot sequence is executed once in @c setup() via
@@ -58,7 +59,7 @@
  * - Uses the ArduinoLowPower library for SAMD21 standby management.
  * - Wakes up periodically via DS3231 alarm interrupts.
  * - Minimizes SD writes using buffered logging when enabled.
- * - Powers the RFID reader only during active acquisition windows.
+ * - Enables the RFID reader during deployment initialization when configured.
  *
  * @see sd_manager.h
  * @see rtc.h
@@ -380,13 +381,26 @@ void loop() {
             LOG_DEBUG("Initializing DEPLOY mode");
 
             // GUI no longer owns GUI_SERIAL from this point.
+            LOG_DEBUG("Disabling GUI serial");
             gui_serial_set_enabled(&GUI_SERIAL, false);
-            // Serial1 is now acquired by the RFID driver for DEPLOY mode.
+            LOG_DEBUG("GUI serial disabled");
+
+            // Prepare RFID UART and wait for the reader boot banner before DEPLOY mode.
             if (config.enable_rfid) {
-                rfid_driver::start(&g_rfid_driver, &Serial1, TAG_TYPE_EM4102, 1000);
+                rfid_driver::prepare_serial(&RFID_SERIAL);
+                delay(50);
+                pwr_manager::rfid_pwr_on(rfidModeToUint(config.rfid_mode));
+
+                if (!rfid_driver::wait_for_boot_message(&RFID_SERIAL, 3000)) {
+                    LOG_WARN("RFID startup continued without boot message");
+                }
+
+                rfid_driver::start(&g_rfid_driver, &RFID_SERIAL, TAG_TYPE_EM4102, 1000);
             }
 
+            LOG_DEBUG("Calling deploy_enter");
             deploy_enter(ir_driver);
+            LOG_DEBUG("deploy_enter done");
 
             LOG_INFO("Entering DEPLOY mode");
             currentState = STATE_DEPLOY;

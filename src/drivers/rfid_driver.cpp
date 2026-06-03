@@ -326,24 +326,42 @@ void rfid_driver::init(rfid_driver_t* drv,
 }
 
 /**
- * @brief Start the RFID driver on a hardware serial port.
+ * @brief Prepare the RFID UART before reader power-up.
  *
- * This function takes ownership of the provided UART for RFID communication.
- * It is intended to be called when entering DEPLOY mode, after the GUI layer
- * has released Serial1 ownership.
+ * Restarts the hardware serial port at the RFID reader baudrate and clears
+ * pending RX bytes before the RFID power rail is enabled.
  *
- * Startup sequence:
- *  - Restart the UART using HardwareSerialControl::restart().
- *  - Initialize the RFID driver instance.
- *  - Flush any stale or incomplete bytes from the RX buffer using
- *    HardwareSerialControl::flushRx().
+ * This must be called before powering the reader so the boot banner emitted
+ * immediately after power-up can be captured by
+ * @ref rfid_driver::wait_for_boot_message().
  *
- * The RX flush step is important because the RFID reader may emit startup
- * bytes, partial frames, or line noise immediately after power-up or UART
- * reassignment.
+ * @param serial Hardware serial port connected to the RFID reader.
+ */
+void rfid_driver::prepare_serial(HardwareSerial* serial) {
+    if (!serial) {
+        return;
+    }
+
+    HardwareSerialControl::restart(serial, 9600, 100);
+    HardwareSerialControl::flushRx(serial);
+
+    LOG_DEBUG("RFID serial prepared for reader startup");
+}
+
+/**
+ * @brief Start the RFID driver on a prepared hardware serial port.
  *
- * This function does not power the RFID reader itself. Power management must
- * be handled externally by the deployment state machine.
+ * This function attaches the RFID driver to an already prepared UART, clears
+ * any remaining startup bytes from the RX buffer, and initializes the driver
+ * state.
+ *
+ * The RFID startup sequence must be handled before this call:
+ * - prepare the UART with @ref rfid_driver::prepare_serial()
+ * - enable the RFID power rail
+ * - wait for the reader boot message with @ref rfid_driver::wait_for_boot_message()
+ *
+ * This function does not restart the UART, does not power the reader, and does
+ * not wait for the reader boot banner.
  *
  * @param drv               Driver instance storage.
  * @param serial            Hardware serial port connected to the RFID reader.
@@ -356,13 +374,9 @@ void rfid_driver::start(rfid_driver_t* drv,
                         uint32_t poll_interval_ms) {
     if (!drv || !serial) return;
 
-    HardwareSerialControl::restart(serial, 9600, 100);
-
-    drv->port = serial;
+    HardwareSerialControl::flushRx(serial);
 
     init(drv, serial, type, poll_interval_ms);
-
-    HardwareSerialControl::flushRx(serial);
 
     LOG_DEBUG("RFID driver started on hardware serial port");
 }
@@ -587,4 +601,83 @@ void rfid_driver::release_serial(rfid_driver_t* drv) {
     drv->port = nullptr;
 
     LOG_DEBUG("RFID serial released");
+}
+
+/**
+ * @brief Wait for the RFID reader boot message after power-up.
+ *
+ * The TECTUS reader emits a startup banner immediately after the RFID power
+ * rail is enabled. This function waits for the boot marker "BTboot" within
+ * the provided timeout. If the firmware banner is also received, for example
+ * "TECTUS-msc-al.[tectus].V1.73", it is logged for diagnostics.
+ *
+ * This function is blocking until the boot marker is received or the timeout
+ * expires. After a valid boot marker, it waits briefly for the optional
+ * firmware banner before returning.
+ *
+ * @param serial Serial stream connected to the RFID reader.
+ * @param timeout_ms Maximum time to wait for the boot marker, in milliseconds.
+ * @return true if the boot marker was received, false on timeout or invalid input.
+ */
+bool rfid_driver::wait_for_boot_message(Stream* serial, uint32_t timeout_ms) {
+    if (!serial) {
+        return false;
+    }
+
+    const uint32_t start_ms = millis();
+    uint32_t boot_ms        = 0;
+
+    String line;
+    bool boot_received     = false;
+    bool firmware_received = false;
+
+    LOG_DEBUG("Waiting for RFID boot message");
+
+    while ((uint32_t)(millis() - start_ms) < timeout_ms) {
+        while (serial->available()) {
+            const char c = static_cast<char>(serial->read());
+
+            if (c == '\n' || c == '\r' || c == '>') {
+                if (line.length() > 0) {
+                    if (!boot_received &&
+                        (line.indexOf("BTboot") >= 0 || line.indexOf("btboot") >= 0)) {
+                        boot_received = true;
+                        boot_ms       = millis();
+                        LOG_INFO("RFID boot message received");
+                    }
+
+                    if (!firmware_received && line.indexOf("TECTUS") >= 0) {
+                        firmware_received = true;
+                        LOG_INFO("RFID reader firmware: %s", line.c_str());
+                    }
+                }
+
+                line = "";
+            } else {
+                line += c;
+
+                if (line.length() > 128) {
+                    line.remove(0, line.length() - 64);
+                }
+            }
+        }
+
+        if (boot_received && firmware_received) {
+            while (serial->available()) {
+                serial->read();
+            }
+            return true;
+        }
+
+        if (boot_received && boot_ms != 0 && (uint32_t)(millis() - boot_ms) > 1000) {
+            LOG_DEBUG("RFID firmware banner not received after boot marker");
+            while (serial->available()) {
+                serial->read();
+            }
+            return true;
+        }
+    }
+
+    LOG_WARN("RFID boot message not received before timeout");
+    return false;
 }

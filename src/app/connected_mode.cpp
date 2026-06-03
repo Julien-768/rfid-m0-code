@@ -92,8 +92,9 @@
  * @param ready_sent Ready flag updated after transmission.
  * @param ready_time_ms Timestamp recorded when READY is sent.
  */
-static void sendConnectedReadyOnce(bool& ready_sent, uint32_t& ready_time_ms) {
-
+static void sendConnectedReadyOnce(bool& ready_sent,
+                                   uint32_t& ready_time_ms,
+                                   uint32_t& last_activity_ms) {
     if (ready_sent) {
         return;
     }
@@ -104,9 +105,9 @@ static void sendConnectedReadyOnce(bool& ready_sent, uint32_t& ready_time_ms) {
 
     GUI_SERIAL.println("{\"status\":\"CONNECTED_READY\"}");
 
-    ready_time_ms = millis();
-
-    ready_sent = true;
+    ready_time_ms    = millis();
+    last_activity_ms = ready_time_ms;
+    ready_sent       = true;
 }
 
 /**
@@ -147,7 +148,7 @@ void runConnectedMode(SystemState& state) {
     static bool ready_sent        = false;
     static uint32_t ready_time_ms = 0;
 
-    sendConnectedReadyOnce(ready_sent, ready_time_ms);
+    sendConnectedReadyOnce(ready_sent, ready_time_ms, last_activity_ms);
 
     if ((millis() - ready_time_ms) < 300) {
         return;
