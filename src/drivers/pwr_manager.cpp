@@ -47,6 +47,10 @@
 #define POWER_BUTTON_LONG_PRESS_MS 12000UL
 #endif
 
+#ifndef RFID_POWER_STARTUP_DELAY_MS
+#define RFID_POWER_STARTUP_DELAY_MS 1000UL
+#endif
+
 namespace {
 
 constexpr uint32_t POWER_BUTTON_DEBOUNCE_MS = 30;
@@ -296,11 +300,12 @@ bool rfid_pwr_on(uint8_t rfid_mode) {
     }
 
     write_power_pin(PIN_PWR_5V, true, PWR_5V_ACTIVE_HIGH);
-    // delay(100);
+    LOG_INFO("RFID power ON, waiting reader startup");
+    delay(RFID_POWER_STARTUP_DELAY_MS);
 
     g_rfid_on = true;
 
-    LOG_INFO("RFID power ON");
+    LOG_INFO("RFID reader startup delay elapsed");
     return true;
 }
 
