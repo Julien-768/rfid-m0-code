@@ -270,7 +270,7 @@ bool JsonProtocol::parseCommand(const char* json_string,
 /**
  * @brief Build JSON with firmware version and compilation date.
  *
- * Uses @ref convertDateToISO8601() to generate the compilation timestamp.
+ * Uses @ref isoformat() to generate the compilation timestamp.
  *
  * @param version Firmware version string.
  * @return Pointer to a static internal buffer (overwritten at each call).
@@ -279,8 +279,13 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
     static char buffer[192];
     StaticJsonDocument<192> doc;
 
+    const DateTime build_time(F(__DATE__), F(__TIME__));
+
+    IsoFormatOptions opts;
+    opts.separator = "T";
+
     char dateCompil[24];
-    convertDateToISO8601(dateCompil, sizeof(dateCompil));
+    strlcpy(dateCompil, isoformat(build_time, opts).c_str(), sizeof(dateCompil));
 
     JsonObject obj          = doc.createNestedObject("info");
     obj["firmware_name"]    = "rfid_m0";
