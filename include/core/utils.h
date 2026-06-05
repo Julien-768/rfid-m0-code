@@ -22,39 +22,13 @@ struct IsoFormatOptions {
 bool scanI2CBus();
 
 /**
- * @brief Formats a DateTime as a filename-friendly date string.
+ * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS[.mmm]".
  *
- * Produces a string in the format "YY_MM_DD", for example "24_06_30",
- * useful to generate unique daily filenames.
- *
- * @param t DateTime instance representing the current date.
- * @return String with the date formatted as "YY_MM_DD".
- */
-//TODO
-
-/**
- * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS{.ms}"
- *
- * Generates a timestamp string with optional milliseconds.
- *
- * @param t The DateTime object to format.
- * @param ms Milliseconds value to include if include_ms == true.
- * @param separator Separator string inserted between date and time, and at the end.
- * @param include_ms If true, includes milliseconds; if false, omits them.
+ * @param t DateTime object to format.
+ * @param opts Formatting options: separator and optional milliseconds.
  * @return Formatted timestamp string.
  */
 String isoformat(const DateTime& t, const IsoFormatOptions& opts);
-
-// /**
-//  * @brief Returns a millisecond counter synchronized with the RTC.
-//  *
-//  * Typically used to complement timestamps with a sub-second precision.
-//  * This is a placeholder returning millis() % 1000, but can be adapted
-//  * to compensate drift against the RTC.
-//  *
-//  * @return Milliseconds modulo 1000 as uint16_t.
-//  */
-// uint16_t millis_synchro(u_int16_t synchro_offset_ms, u_int16_t synchro_slope);
 
 /**
  * @brief Converts a BCD-encoded byte to its decimal value.
@@ -89,15 +63,6 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out);
 void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
 
 /**
- * @brief Writes the compile date and time in ISO8601 format to a buffer.
- * (e.g., `"2025-07-23T14:30:00"`).
- *
- * @param out Output buffer for the resulting string.
- * @param len Size of the output buffer in bytes.
- */
-void convertDateToISO8601(char* out, size_t len);
-
-/**
  * @brief Convert an ISO8601 datetime string to a DateTime object.
  *
  * Expected format:
@@ -111,3 +76,37 @@ void convertDateToISO8601(char* out, size_t len);
  * @return true if parsing succeeded, false otherwise.
  */
 bool convertISO8601ToDateTime(const char* iso8601, DateTime* out);
+
+/**
+ * @brief Formats a DateTime as a filename-friendly date string.
+ *
+ * Produces a string in the format "YYYY_MM_DD", for example "2026_06_05".
+ *
+ * @param t DateTime instance to format.
+ * @return String with the date formatted as "YYYY_MM_DD".
+ */
+String isoformat_date(const DateTime& t);
+
+/**
+ * @brief Format a date/time as ISO8601.
+ *
+ * Output format: "YYYY-MM-DDTHH:MM:SS".
+ *
+ * @param out Output buffer.
+ * @param len Output buffer size, minimum 20 bytes.
+ * @param year Year.
+ * @param month Month [1..12].
+ * @param day Day [1..31].
+ * @param hour Hour [0..23].
+ * @param minute Minute [0..59].
+ * @param second Second [0..59].
+ * @return true if formatting succeeded, false otherwise.
+ */
+bool formatISO8601(char* out,
+                   size_t len,
+                   uint16_t year,
+                   uint8_t month,
+                   uint8_t day,
+                   uint8_t hour,
+                   uint8_t minute,
+                   uint8_t second);

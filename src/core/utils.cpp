@@ -1,33 +1,36 @@
 /**
  * @file utils.cpp
- * @brief Utility functions for time formatting and synchronized timing.
+ * @brief Utility functions for time formatting, BCD conversion and synchronized timing.
  *
  * This file contains helper functions for:
  * - Formatting `DateTime` objects into ISO8601-like strings.
  * - Creating date-only strings for filenames.
- * - Computing millisecond timestamps synchronized with the RTC, compensating for drift.
+ * - Converting ISO8601 strings to logger/RTC date structures.
+ * - Computing millisecond timestamps synchronized with the RTC.
  */
 
 #include "utils.h"
+
+#include <Arduino.h>
+#include <RTClib.h>
+#include <Wire.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "log.h"
 #include "rtc.h"
 #include "sd_manager.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 uint32_t synchro_offset_ms,
     previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
-uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet over the time
+uint32_t synchro_slope = 0;      // Slope that represents the drift of the offset over time
 
-#include "utils.h"
-#include "rtc.h"
-#include "sd_manager.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "Wire.h"
-#include "log.h"
-
+/**
+ * @brief Scan the I2C bus and log detected devices.
+ *
+ * @return true if at least one I2C device responds, false otherwise.
+ */
 bool scanI2CBus() {
     uint8_t count = 0;
 
@@ -55,12 +58,10 @@ bool scanI2CBus() {
 }
 
 /**
- * @brief Formats a `DateTime` object as `"YYYY-MM-DD{sep}HH:MM:SS[.ms]{sep}"`.
+ * @brief Formats a DateTime object as `"YYYY-MM-DD{sep}HH:MM:SS[.mmm]"`.
  *
- * @param t          The `DateTime` object to format.
- * @param ms         Milliseconds value to append if `include_ms` is true.
- * @param separator  String separator inserted between date and time, and appended at the end.
- * @param include_ms If true, milliseconds are included; otherwise only full seconds are shown.
+ * @param t    DateTime object to format.
+ * @param opts Formatting options: separator and optional milliseconds.
  * @return Formatted timestamp string.
  */
 String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
@@ -95,11 +96,12 @@ String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
 }
 
 /**
- * @brief Formats a `DateTime` object into a date string `"YYYY_MM_DD"`.
+ * @brief Formats a DateTime object into a date string.
  *
- * Ensures leading zeros for month and day. Intended for filenames or log entries.
+ * Output format: `"YYYY_MM_DD"`.
+ * Intended for filenames and daily log names.
  *
- * @param t The `DateTime` object to format.
+ * @param t DateTime object to format.
  * @return Formatted date string.
  */
 String isoformat_date(const DateTime& t) {
@@ -108,10 +110,10 @@ String isoformat_date(const DateTime& t) {
     return String(buffer);
 }
 
-struct SynchroParams {
-    u_long synchro_offset_ms;
-    u_long synchro_slope;
-};
+// struct SynchroParams {
+//     u_long synchro_offset_ms;
+//     u_long synchro_slope;
+// };
 
 // /**
 //  *  @brief Synchronizes the system clock with the
@@ -202,17 +204,46 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
 }
 
 /**
- * @brief Write the firmware compilation timestamp in ISO8601 to @p out.
+ * @brief Format a date/time as ISO8601.
  *
- * "Jul 23 2025" ;  "14:30:00"
- * Convert to format like "2025-07-23T14:30:00"
+ * Example:
+ * 2025-07-23T14:30:00
  *
  * @param out Output buffer.
- * @param len Size of @p out. (Recommend at least 20 bytes)
+ * @param len Output buffer size (minimum 20 bytes).
+ * @param year Year.
+ * @param month Month [1..12].
+ * @param day Day [1..31].
+ * @param hour Hour [0..23].
+ * @param minute Minute [0..59].
+ * @param second Second [0..59].
+ *
+ * @return true if formatting succeeded.
+ * @return false if arguments are invalid.
  */
-// TODO should take a DateTime as arg instead of using __DATE__ and __TIME__
-void convertDateToISO8601(char* out, size_t len) {
-    snprintf(out, len, "20%.*sT%.*s:00", 6, __DATE__ + 7, 5, __TIME__);
+bool formatISO8601(char* out,
+                   size_t len,
+                   uint16_t year,
+                   uint8_t month,
+                   uint8_t day,
+                   uint8_t hour,
+                   uint8_t minute,
+                   uint8_t second) {
+    if (!out || len < 20) {
+        return false;
+    }
+
+    if (month < 1 || month > 12) {
+        return false;
+    }
+
+    if (day < 1 || day > 31) {
+        return false;
+    }
+
+    snprintf(out, len, "%04u-%02u-%02uT%02u:%02u:%02u", year, month, day, hour, minute, second);
+
+    return true;
 }
 
 /**

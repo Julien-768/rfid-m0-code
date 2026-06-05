@@ -109,7 +109,10 @@ bool parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, s
 /**
  * @brief Build a GET_INFO JSON response.
  *
- * @param version Firmware version string.
+ * The response contains firmware name, firmware version, firmware compilation
+ * timestamp and PlatformIO board name.
+ *
+ * @param version Firmware version string, or nullptr if unknown.
  *
  * @return Pointer to a static JSON buffer.
  */

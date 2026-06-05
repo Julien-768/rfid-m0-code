@@ -268,24 +268,43 @@ bool JsonProtocol::parseCommand(const char* json_string,
 }
 
 /**
- * @brief Build JSON with firmware version and compilation date.
+ * @brief Build JSON with firmware information.
  *
- * Uses @ref convertDateToISO8601() to generate the compilation timestamp.
+ * The response includes firmware name, firmware version, firmware compilation
+ * timestamp, and PlatformIO board name.
  *
- * @param version Firmware version string.
- * @return Pointer to a static internal buffer (overwritten at each call).
+ * The compilation timestamp is obtained from @ref getCompilationDateTime(),
+ * which reconstructs the build timestamp embedded by the compiler from
+ * `__DATE__` and `__TIME__`, then formats it as ISO-8601.
+ *
+ * Example:
+ * @code
+ * {
+ *   "info": {
+ *     "firmware_name": "rfid_m0",
+ *     "firmware_version": "v1.2.3",
+ *     "compilation_date": "2026-06-05T14:30:00",
+ *     "board": "adafruit_feather_m0"
+ *   }
+ * }
+ * @endcode
+ *
+ * @param version Firmware version string, or nullptr if unknown.
+ * @return Pointer to a static internal buffer, overwritten at each call.
  */
 const char* JsonProtocol::buildInfoJSON(const char* version) {
     static char buffer[192];
     StaticJsonDocument<192> doc;
 
-    char dateCompil[24];
-    convertDateToISO8601(dateCompil, sizeof(dateCompil));
+    IsoFormatOptions opts;
+    opts.separator = "T";
+
+    const DateTime buildTime = getCompilationDateTime();
 
     JsonObject obj          = doc.createNestedObject("info");
     obj["firmware_name"]    = "rfid_m0";
     obj["firmware_version"] = version ? version : "UNKNOWN";
-    obj["compilation_date"] = dateCompil;
+    obj["compilation_date"] = isoformat(buildTime, {opts});
     obj["board"]            = __PIO_BOARD_NAME__;
 
     serializeJson(doc, buffer);
