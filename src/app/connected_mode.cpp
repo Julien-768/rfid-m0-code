@@ -224,7 +224,7 @@ void runConnectedMode(SystemState& state) {
         case CommandType::GET_CONFIG: {
             ConfigResponsePayload payload{};
 
-            DateTime now = rtc().now();
+            DateTime now = logger_now();
 
             snprintf(payload.dateCurrentIso,
                      sizeof(payload.dateCurrentIso),
@@ -265,7 +265,7 @@ void runConnectedMode(SystemState& state) {
 
                 rtc_apply_external_time(dt);
 
-                GUI_SERIAL.println(JsonProtocol::buildTimeAckJSON(rtc().now()));
+                GUI_SERIAL.println(JsonProtocol::buildTimeAckJSON(logger_now()));
 
             } else {
 
@@ -276,7 +276,7 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_TIME: {
-            GUI_SERIAL.println(JsonProtocol::buildTimeJSON(rtc().now()));
+            GUI_SERIAL.println(JsonProtocol::buildTimeJSON(logger_now()));
 
             break;
         }
@@ -343,7 +343,7 @@ void runConnectedMode(SystemState& state) {
 
         case CommandType::SET_RUN_START: {
             if (strlen(get_data_filename()) == 0) {
-                if (!check_and_create_new_daily_file(rtc().now())) {
+                if (!check_and_create_new_daily_file(logger_now(), rtc_available)) {
                     LOG_ERROR("Failed to create daily file before deployment");
                     GUI_SERIAL.println(
                         "{\"run\":\"ERROR\",\"reason\":\"daily_file_create_failed\"}");
