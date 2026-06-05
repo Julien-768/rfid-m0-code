@@ -22,7 +22,9 @@
  *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
  *     - Factory identity (from MCU Flash via @ref logger_identity.h)
  * - GET_VBAT
- *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
+ *   - Returns the measured battery/VBAT voltage in millivolts.
+ *   - Uses telemetry reading without battery-range plausibility rejection, so USB
+ *     or external-power values can still be reported for diagnostics.
  * - GET_TIME
  *   - Returns the current RTC datetime in ISO-8601 format.
  *   @code
@@ -205,19 +207,15 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_VBAT: {
-            if (!battery_is_available()) {
-                GUI_SERIAL.println("{\"error\":\"Battery measurement not available\"}");
+            int32_t vbat_mv = 0;
+            bool changed    = false;
+
+            if (!battery_service_read_vbat_telemetry_mv(vbat_mv, changed)) {
+                GUI_SERIAL.println("{\"error\":\"Failed to read battery voltage\"}");
                 break;
-            } else {
-                int32_t vbat_mv;
-                bool changed;
-                if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                    GUI_SERIAL.println("{\"error\":\"Failed to read battery voltage\"}");
-                    break;
-                }
-                const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                GUI_SERIAL.println(json);
             }
+
+            GUI_SERIAL.println(JsonProtocol::buildVbatJSON(vbat_mv));
             break;
         }
 

@@ -234,6 +234,7 @@ bool battery_service_decision(const char* context, int32_t vbat_mv) {
  * @param cfg Measurement configuration (pin/ratio/ADC ref/resolution/plausibility).
  * @see battery_service_apply_type_string()
  * @see battery_service_read_vbat_filtered_mv()
+ * @see battery_service_read_vbat_telemetry_mv()
  */
 bool battery_service_init(const battery_service_config_t& cfg) {
 
@@ -261,7 +262,11 @@ bool battery_service_init(const battery_service_config_t& cfg) {
               batt_filter_cfg.ema_alpha,
               batt_filter_cfg.delta_threshold_mv);
 
-    return battery_init(batt_hw_cfg);
+    batt_available = battery_init(batt_hw_cfg);
+
+    LOG_INFO("Battery service %s", batt_available ? "available" : "not available");
+
+    return batt_available;
 }
 
 /**
@@ -312,6 +317,7 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
     int32_t v = read_battery_voltage(batt_hw_cfg.pin, batt_hw_cfg.adc_cfg);
 
     if (v < 0) {
+        LOG_WARN("VBAT read failed: raw driver result=%ld", v);
         vbat_mv = v;
         changed = false;
         return false;
@@ -320,6 +326,10 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
     if (!check_battery_voltage_plausibility(v,
                                             batt_policy_cfg.plausible_min_mv,
                                             batt_policy_cfg.plausible_max_mv)) {
+        LOG_WARN("VBAT plausibility failed: v=%ld min=%ld max=%ld",
+                 v,
+                 batt_policy_cfg.plausible_min_mv,
+                 batt_policy_cfg.plausible_max_mv);
         vbat_mv = -2;
         changed = false;
         return false;
@@ -330,6 +340,44 @@ bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed) {
     vbat_mv = batt_filter_state.ema_mv;
 
     LOG_DEBUG("VBAT raw=%ld median=%ld ema=%ld changed=%d",
+              v,
+              batt_filter_state.median_mv,
+              batt_filter_state.ema_mv,
+              (int)changed);
+
+    return true;
+}
+
+/**
+ * @brief Read battery voltage for telemetry without service plausibility checks.
+ *
+ * This function is intended for GUI/diagnostic reporting. It reads the battery
+ * voltage through the driver and applies the service filter, but does not reject
+ * values outside the configured battery operating range.
+ *
+ * This allows reporting cases such as USB/external power or no-battery
+ * situations, where VBAT may be above the nominal 1S battery range.
+ *
+ * @param[out] vbat_mv Filtered battery voltage in mV, or a negative driver error code.
+ * @param[out] changed True if the filtered value changed significantly.
+ *
+ * @return true if the ADC read succeeded.
+ * @return false if the driver returned an error.
+ */
+bool battery_service_read_vbat_telemetry_mv(int32_t& vbat_mv, bool& changed) {
+    const int32_t v = read_battery_voltage(batt_hw_cfg.pin, batt_hw_cfg.adc_cfg);
+
+    if (v < 0) {
+        LOG_WARN("VBAT telemetry read failed: driver result=%ld", v);
+        vbat_mv = v;
+        changed = false;
+        return false;
+    }
+
+    changed = battery_filter_update(batt_filter_state, v, batt_filter_cfg);
+    vbat_mv = batt_filter_state.ema_mv;
+
+    LOG_DEBUG("VBAT telemetry raw=%ld median=%ld ema=%ld changed=%d",
               v,
               batt_filter_state.median_mv,
               batt_filter_state.ema_mv,
