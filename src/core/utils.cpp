@@ -233,7 +233,7 @@ bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
  */
 DateTime logger_now() {
     if (rtc_available) {
-        return rtc.now();
+        return rtc().now();
     }
 
     static const DateTime fallback_start(__DATE__, __TIME__);
