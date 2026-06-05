@@ -3,28 +3,6 @@
  * @defgroup SD_Manager SD Manager
  * @ingroup SystemModules
  * @brief SD card management and buffered data logging for the Logger.
- *
- * The **SD Manager** module handles initialization, daily file management, and
- * buffered writing for the Logger. It ensures reliable, power-efficient logging
- * even under intermittent storage access or during long deployments.
- *
- * ## Responsibilities
- * - Initialize and verify SD card communication.
- * - Manage a circular buffer for batched measurement writes.
- * - Create and maintain daily measurement and system log files.
- * - Write measurement data from sensors to a CSV file.
- * - Write system logs to a separate LOG file.
- * - Handle SD write failures and transition to safe shutdown (END-OF-LIFE).
- *
- * ## Daily files
- * - Measurements: YYYYMMDD.CSV
- * - System logs:  YYYYMMDD.LOG
- *
- * ## Error Handling
- * - On initialization failure -> @ref ERR_SD_NOT_FOUND, enters `STATE_ENDOFLIFE`.
- * - On write or flush error -> @ref ERR_SD_WRITE_FAIL, enters `STATE_ENDOFLIFE`.
- *
- * @{
  */
 
 #include <Arduino.h>
@@ -40,22 +18,56 @@
 
 // ---------------------------------------------------------------------------
 // Global filenames
-// 8.3 FAT-compatible names: YYYYMMDD.CSV / YYYYMMDD.LOG
 // ---------------------------------------------------------------------------
-char filename_data[16] = {0};
-char filename_log[16]  = {0};
 
+/**
+ * @brief Current measurement CSV filename.
+ *
+ * FAT 8.3 compatible.
+ * Examples:
+ * - With RTC:    20260205.CSV
+ * - Without RTC: NORTC00.CSV
+ */
+char filename_data[16] = {0};
+
+/**
+ * @brief Current system log filename.
+ *
+ * FAT 8.3 compatible.
+ * Examples:
+ * - With RTC:    20260205.LOG
+ * - Without RTC: NORTC00.LOG
+ */
+char filename_log[16] = {0};
+
+/**
+ * @brief Return the current measurement CSV filename.
+ *
+ * @return Null-terminated filename string.
+ */
 const char* get_data_filename() {
     return filename_data;
 }
 
+/**
+ * @brief Return the current system log filename.
+ *
+ * @return Null-terminated filename string.
+ */
 const char* get_log_filename() {
     return filename_log;
 }
 
-// Define the global CircularBuffer object.
+/**
+ * @brief Global SD circular buffer instance.
+ */
 CircularBuffer sdBuffer_instance;
 
+/**
+ * @brief Return the global SD circular buffer instance.
+ *
+ * @return Reference to the circular buffer.
+ */
 CircularBuffer& get_sdBuffer() {
     return sdBuffer_instance;
 }
@@ -63,6 +75,17 @@ CircularBuffer& get_sdBuffer() {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * @brief Build a daily FAT 8.3 filename from a valid RTC date.
+ *
+ * Format: YYYYMMDD.EXT
+ *
+ * @param out Destination buffer.
+ * @param size Destination buffer size.
+ * @param now Current RTC date/time.
+ * @param ext Three-letter file extension.
+ */
 static void make_daily_filename(char* out, size_t size, const DateTime& now, const char* ext) {
     if (!out || size == 0) return;
     if (!ext) ext = "TXT";
@@ -70,6 +93,63 @@ static void make_daily_filename(char* out, size_t size, const DateTime& now, con
     snprintf(out, size, "%04d%02d%02d.%s", now.year(), now.month(), now.day(), ext);
 }
 
+/**
+ * @brief Build a no-RTC FAT 8.3 filename.
+ *
+ * Format: NORTCnn.EXT
+ *
+ * @param out Destination buffer.
+ * @param size Destination buffer size.
+ * @param index Numeric file index from 0 to 99.
+ * @param ext Three-letter file extension.
+ */
+static void make_nortc_filename(char* out, size_t size, uint8_t index, const char* ext) {
+    if (!out || size == 0) return;
+    if (!ext) ext = "TXT";
+
+    snprintf(out, size, "NORTC%02u.%s", index, ext);
+}
+
+/**
+ * @brief Select the first available no-RTC filename pair.
+ *
+ * The function searches for the first pair where neither the CSV nor the LOG
+ * file already exists. This prevents overwriting data when the RTC is missing.
+ *
+ * Generated names are FAT 8.3 compatible:
+ * - NORTC00.CSV / NORTC00.LOG
+ * - NORTC01.CSV / NORTC01.LOG
+ * - ...
+ * - NORTC99.CSV / NORTC99.LOG
+ *
+ * @return true if a free pair was found, false otherwise.
+ */
+static bool make_nortc_filename_pair() {
+    char candidate_data[16] = {0};
+    char candidate_log[16]  = {0};
+
+    for (uint8_t i = 0; i < 100; i++) {
+        make_nortc_filename(candidate_data, sizeof(candidate_data), i, "CSV");
+        make_nortc_filename(candidate_log, sizeof(candidate_log), i, "LOG");
+
+        if (!SD.exists(candidate_data) && !SD.exists(candidate_log)) {
+            snprintf(filename_data, sizeof(filename_data), "%s", candidate_data);
+            snprintf(filename_log, sizeof(filename_log), "%s", candidate_log);
+            return true;
+        }
+    }
+
+    error_signal(ERR_SD_WRITE_FAIL);
+    return false;
+}
+
+/**
+ * @brief Append one text line to a file.
+ *
+ * @param filename Target filename.
+ * @param line Line to append.
+ * @return true on success, false on error.
+ */
 static bool write_line_to_file(const char* filename, const char* line) {
     if (!filename || filename[0] == '\0' || !line) {
         error_signal(ERR_SD_WRITE_FAIL);
@@ -93,6 +173,12 @@ static bool write_line_to_file(const char* filename, const char* line) {
     return true;
 }
 
+/**
+ * @brief Create an empty file.
+ *
+ * @param filename File to create.
+ * @return true on success, false on error.
+ */
 static bool create_empty_file(const char* filename) {
     if (!filename || filename[0] == '\0') {
         error_signal(ERR_SD_WRITE_FAIL);
@@ -109,9 +195,45 @@ static bool create_empty_file(const char* filename) {
     return true;
 }
 
+/**
+ * @brief Create a measurement CSV file and write its header.
+ *
+ * @param filename Target CSV filename.
+ * @return true on success, false on error.
+ */
+static bool create_data_file_with_header(const char* filename) {
+    if (!filename || filename[0] == '\0') {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    File file = SD.open(filename, FILE_WRITE);
+    if (!file) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    size_t written = file.println("timestamp;sensor;value;unit");
+    file.close();
+
+    if (written == 0) {
+        error_signal(ERR_SD_WRITE_FAIL);
+        return false;
+    }
+
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // SD initialization
 // ---------------------------------------------------------------------------
+
+/**
+ * @brief Initialize SD card communication.
+ *
+ * @param pin_cs Chip select pin.
+ * @return true if the SD card is available, false otherwise.
+ */
 bool sd_initialization(uint8_t pin_cs) {
     if (!SD.begin(pin_cs)) {
         error_signal(ERR_SD_NOT_FOUND);
@@ -125,6 +247,16 @@ bool sd_initialization(uint8_t pin_cs) {
 // ---------------------------------------------------------------------------
 // Circular buffer
 // ---------------------------------------------------------------------------
+
+/**
+ * @brief Add raw characters to the circular SD buffer.
+ *
+ * If the buffer becomes full, the tail is advanced to preserve the newest data.
+ *
+ * @param cb Circular buffer pointer.
+ * @param line Null-terminated text to append.
+ * @return true on success, false if input is invalid.
+ */
 bool addToCircularBuffer(CircularBuffer* cb, const char* line) {
     static bool overflowWarned = false;
 
@@ -148,19 +280,27 @@ bool addToCircularBuffer(CircularBuffer* cb, const char* line) {
     return true;
 }
 
+/**
+ * @brief Add one complete line to the circular buffer.
+ *
+ * A newline character is appended after the line.
+ *
+ * @param cb Circular buffer pointer.
+ * @param line Null-terminated line.
+ * @return true on success, false on error.
+ */
 static bool addLineToCircularBuffer(CircularBuffer* cb, const char* line) {
     if (!addToCircularBuffer(cb, line)) return false;
     return addToCircularBuffer(cb, "\n");
 }
 
 /**
- * @brief Flush buffered measurement data to the daily CSV file.
+ * @brief Flush buffered measurement data to the current CSV file.
  *
- * Writes data from the circular buffer to the SD card when at least one
- * complete SD sector worth of data is available. The buffer contains CSV
- * measurement lines only, not system logs.
+ * Data is written only when at least one SD sector worth of data is available.
  *
- * @return 0 on success/no-op, 1 on failure.
+ * @param cb Circular buffer pointer.
+ * @return 0 on success or no-op, 1 on failure.
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb) {
     if (!cb) return 1;
@@ -202,13 +342,16 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb) {
 }
 
 // ---------------------------------------------------------------------------
-// Daily file management
+// File management
 // ---------------------------------------------------------------------------
+
 /**
  * @brief Create or select the daily measurement CSV file.
  *
  * Filename format: YYYYMMDD.CSV
- * CSV format: timestamp;sensor;value;unit
+ *
+ * @param now Current RTC date/time.
+ * @return true on success, false on error.
  */
 bool daily_data_file(const DateTime& now) {
     make_daily_filename(filename_data, sizeof(filename_data), now, "CSV");
@@ -218,17 +361,7 @@ bool daily_data_file(const DateTime& now) {
         return true;
     }
 
-    File file = SD.open(filename_data, FILE_WRITE);
-    if (!file) {
-        error_signal(ERR_SD_WRITE_FAIL);
-        return false;
-    }
-
-    size_t written = file.println("timestamp;sensor;value;unit");
-    file.close();
-
-    if (written == 0) {
-        error_signal(ERR_SD_WRITE_FAIL);
+    if (!create_data_file_with_header(filename_data)) {
         return false;
     }
 
@@ -240,6 +373,9 @@ bool daily_data_file(const DateTime& now) {
  * @brief Create or select the daily system log file.
  *
  * Filename format: YYYYMMDD.LOG
+ *
+ * @param now Current RTC date/time.
+ * @return true on success, false on error.
  */
 bool daily_log_file(const DateTime& now) {
     make_daily_filename(filename_log, sizeof(filename_log), now, "LOG");
@@ -256,7 +392,55 @@ bool daily_log_file(const DateTime& now) {
     return true;
 }
 
-bool check_and_create_new_daily_file(const DateTime& now) {
+/**
+ * @brief Create or select a no-RTC measurement and log file pair.
+ *
+ * This function is used when the RTC is not available. It creates a new file
+ * pair using the NORTCnn naming scheme.
+ *
+ * @return true on success, false if no free filename remains or SD write fails.
+ */
+static bool nortc_file_pair() {
+    if (filename_data[0] != '\0' && filename_log[0] != '\0') {
+        return true;
+    }
+
+    if (!make_nortc_filename_pair()) {
+        return false;
+    }
+
+    if (!create_empty_file(filename_log)) {
+        return false;
+    }
+
+    if (!create_data_file_with_header(filename_data)) {
+        return false;
+    }
+
+    LOG_INFO("No-RTC file pair created: %s / %s", filename_data, filename_log);
+    return true;
+}
+
+/**
+ * @brief Check whether a new file set must be created.
+ *
+ * With RTC:
+ * - Creates or selects daily files.
+ * - Rolls over when the day changes.
+ *
+ * Without RTC:
+ * - Creates one no-RTC file pair per boot/session.
+ * - Uses the first free NORTCnn.CSV / NORTCnn.LOG pair.
+ *
+ * @param now Current date/time object. Only trusted when rtc_available is true.
+ * @param rtc_available true if RTC date/time is valid.
+ * @return true on success, false on error.
+ */
+bool check_and_create_new_daily_file(const DateTime& now, bool rtc_available) {
+    if (!rtc_available) {
+        return nortc_file_pair();
+    }
+
     if (now.day() == rtc_state().last_log_day && filename_data[0] != '\0' &&
         filename_log[0] != '\0') {
         return true;
@@ -271,24 +455,30 @@ bool check_and_create_new_daily_file(const DateTime& now) {
     }
 
     rtc_state().last_log_day = now.day();
+
     LOG_DEBUG("Initialization or day change detected. New daily files: %s / %s",
               get_data_filename(),
               get_log_filename());
+
     return true;
 }
 
 // ---------------------------------------------------------------------------
 // Measurement logging
 // ---------------------------------------------------------------------------
+
 /**
- * @brief Log a single timestamped measurement to CSV file or buffer.
+ * @brief Log a single timestamped measurement.
  *
  * Output format:
- * @code
  * YYYY-MM-DD HH:MM:SS.mmm;sensor_name;value;unit;
- * @endcode
  *
- * @return true on success, false on write/format error.
+ * @param now Current date/time.
+ * @param sensor Sensor name.
+ * @param value Measured value.
+ * @param unit Measurement unit.
+ * @param use_buffer true to write to circular buffer, false to write directly.
+ * @return true on success, false on write or format error.
  */
 bool logMeasurement(
     const DateTime& now, const char* sensor, float value, const char* unit, bool use_buffer) {
@@ -327,11 +517,14 @@ bool logMeasurement(
 // ---------------------------------------------------------------------------
 // System log event writing
 // ---------------------------------------------------------------------------
+
 /**
- * @brief Append a fully formatted system log line to the daily LOG file.
+ * @brief Append a fully formatted system log line to the current LOG file.
  *
- * The timestamp and level are already formatted by log.cpp. This function only
- * selects the system log file and appends the received line.
+ * If the log filename is not ready yet, the message is kept temporarily and
+ * written once the file becomes available.
+ *
+ * @param message Fully formatted log message.
  */
 void log_event(const char* message) {
     static char pending[256] = {0};
@@ -367,4 +560,4 @@ void log_event(const char* message) {
     }
 }
 
-/** @} */  // end of SD_Manager group
+/** @} */
