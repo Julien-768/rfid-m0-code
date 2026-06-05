@@ -2,10 +2,10 @@
  * @file main.cpp
  * @defgroup MainApplication GreatTitCore Application
  * @ingroup SystemModules
- * @brief Main control logic and global runtime state machine of the Great Tit Logger.
+ * @brief Main control logic and global runtime state machine of the Great Tit device.
  *
  * The **Main Application** coordinates all core modules of the autonomous
- * logger platform. It implements the global system state machine, manages
+ * device platform. It implements the global system state machine, manages
  * low-power transitions, and controls shared hardware resources depending on
  * the active runtime mode.
  *
@@ -48,7 +48,7 @@
  * @ref runBootSequence().
  *
  * After boot:
- * - The logger first enters @ref STATE_CONNECTED for a temporary GUI/UART
+ * - The device first enters @ref STATE_CONNECTED for a temporary GUI/UART
  *   configuration window.
  * - If no GUI activity is detected before timeout expiration, the system
  *   automatically transitions to @ref STATE_INIT.
@@ -88,7 +88,7 @@
 #include "deploy_mode.h"
 #include "sensors.h"
 #include "sensors_internal.h"
-#include "logger_identity.h"
+#include "device_identity.h"
 #include "mcu_uid.h"
 #include "utils.h"
 #include "battery.h"
@@ -253,7 +253,7 @@ static SystemState runBootSequence() {
     const auto& idFlash = device_id_get();
     LOG_INFO("Factory identity loaded from flash");
     LOG_INFO("\tManufacturer: %s", idFlash.manufacturer);
-    LOG_INFO("\tLogger type: %s", idFlash.logger_type);
+    LOG_INFO("\tdevice type: %s", idFlash.device_type);
     LOG_INFO("\tDate of fabrication: %s", idFlash.date_fab);
     LOG_INFO("\tSerial number: %s", idFlash.serial_number);
 

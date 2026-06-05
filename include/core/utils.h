@@ -42,25 +42,25 @@ uint8_t bcdToDec(uint8_t val);
  * @brief Parses an ISO8601 datetime string and stores it in BCD format.
  *
  * Converts an ISO8601 string of the form `"YYYY-MM-DDTHH:MM:SS"` into a
- * `LoggerTime_t` struct where each field is stored in BCD format.
+ * `deviceTime_t` struct where each field is stored in BCD format.
  *
  * @param iso8601 Input string, e.g. `"2025-07-23T14:30:00"`.
- * @param out Pointer to a LoggerTime_t struct to receive the BCD-encoded result.
+ * @param out Pointer to a deviceTime_t struct to receive the BCD-encoded result.
  * @return `true` if parsing and conversion succeeded, `false` otherwise.
  */
-bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out);
+bool convertDatetoBcd(const char* iso8601, deviceTime_t* out);
 
 /**
- * @brief Formats a BCD-encoded LoggerTime_t as an ISO8601 string.
+ * @brief Formats a BCD-encoded deviceTime_t as an ISO8601 string.
  *
- * Converts a `LoggerTime_t` struct (with BCD-encoded fields) into a
+ * Converts a `deviceTime_t` struct (with BCD-encoded fields) into a
  * standard ISO8601 timestamp string.
  *
- * @param in Pointer to the LoggerTime_t to convert.
+ * @param in Pointer to the deviceTime_t to convert.
  * @param out Output buffer for the resulting string.
  * @param len Size of the output buffer in bytes (should be ≥ 20).
  */
-void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
+void convertBcdDateToISO8601(const deviceTime_t* in, char* out, size_t len);
 
 /**
  * @brief Convert an ISO8601 datetime string to a DateTime object.

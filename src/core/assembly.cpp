@@ -2,20 +2,20 @@
  * @file hw_assembly.cpp
  * @defgroup Assembly_Manager Assembly Manager
  * @ingroup SystemModules
- * @brief SD-card persistent metadata for logger hardware/software identity (hw_assembly.cfg).
+ * @brief SD-card persistent metadata for device hardware/software identity (hw_assembly.cfg).
  *
  * This module manages the `hw_assembly.cfg` JSON file stored on the SD card.
- * It stores non-volatile metadata describing the logger unit:
+ * It stores non-volatile metadata describing the device unit:
  * - Mainboard UID (MCU / Feather UID)
  * - Sensor UIDs (AS7341, TSL2591)
  * - Software / experiment tags
- * - Human-readable logger serial number (SN)
+ * - Human-readable device serial number (SN)
  *
  * ## Relationship with factory identity (Flash)
  * The factory identity (manufacturer / type / date / serial number) is stored
- * in the SAMD21 non-volatile memory (Flash / NVM) via the `logger_identity` module.
+ * in the SAMD21 non-volatile memory (Flash / NVM) via the `device_identity` module.
  * At boot, this module can synchronize `hw_assembly.cfg` with that factory identity,
- * mainly to ensure `sn_logger` matches the factory-programmed serial number.
+ * mainly to ensure `device_sn` matches the factory-programmed serial number.
  *
  * ## File format
  * Example JSON:
@@ -26,7 +26,7 @@
  *   "uid_light_sensor2": "TSL2591_0x50",
  *   "uid_software": "Moonraker_v1.0.0",
  *   "uid_experiment": "Moonraker",
- *   "sn_logger": "MRK-0001"
+ *   "device_sn": "RFD-0001"
  * }
  * @endcode
  *
@@ -35,7 +35,7 @@
  *          in this module.
  *
  * @see assembly.h
- * @see logger_identity.h
+ * @see device_identity.h
  * @{
  */
 
@@ -43,7 +43,7 @@
 #include <ArduinoJson.h>
 #include <SD.h>
 #include "log.h"
-#include "logger_identity.h"
+#include "device_identity.h"
 
 /**
  * @brief Path to the hw_assembly configuration file on the SD card.
@@ -127,7 +127,7 @@ bool create_assembly_file() {
     doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;  // TSL2591 sensor
     doc["uid_software"]      = hw_assembly.uid_software;
     doc["uid_experiment"]    = hw_assembly.uid_experiment;
-    doc["sn_logger"]         = hw_assembly.sn_logger;
+    doc["device_sn"]         = hw_assembly.device_sn;
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
     LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
@@ -158,7 +158,7 @@ bool create_assembly_file() {
  *   "uid_light_sensor2":"TSL2591_0x50",
  *   "uid_software":     "Moonraker_v0.1",
  *   "uid_experiment":   "Moonraker",
- *   "sn_logger":        "MRK-0001"
+ *   "device_sn":        "RFD-0001"
  * }
  * @endcode
  *
@@ -200,7 +200,7 @@ bool assembly_load(Assembly& hw_assembly_local) {
                               "uid_light_sensor2",
                               "uid_software",
                               "uid_experiment",
-                              "sn_logger",
+                              "device_sn",
                               "battery_type",
                               "rtc_type"};
 
@@ -216,7 +216,7 @@ bool assembly_load(Assembly& hw_assembly_local) {
     hw_assembly_local.uid_light_sensor2 = doc["uid_light_sensor2"].as<String>();
     hw_assembly_local.uid_software      = doc["uid_software"].as<String>();
     hw_assembly_local.uid_experiment    = doc["uid_experiment"].as<String>();
-    hw_assembly_local.sn_logger         = doc["sn_logger"].as<String>();
+    hw_assembly_local.device_sn         = doc["device_sn"].as<String>();
     hw_assembly_local.battery_type      = doc["battery_type"].as<String>();
     hw_assembly_local.rtc_type          = doc["rtc_type"].as<String>();
 
@@ -265,7 +265,7 @@ bool assembly_save(const Assembly& hw_assembly) {
     doc["uid_light_sensor2"] = hw_assembly.uid_light_sensor2;
     doc["uid_software"]      = hw_assembly.uid_software;
     doc["uid_experiment"]    = hw_assembly.uid_experiment;
-    doc["sn_logger"]         = hw_assembly.sn_logger;
+    doc["device_sn"]         = hw_assembly.device_sn;
     doc["battery_type"]      = hw_assembly.battery_type;
     doc["rtc_type"]          = hw_assembly.rtc_type;
     LOG_DEBUG("JSON capacity used: %d", doc.memoryUsage());
@@ -288,7 +288,7 @@ bool assembly_save(const Assembly& hw_assembly) {
  * SAMD21 flash (via @ref device_id_get()).
  *
  * Fields synchronized:
- * - `sn_logger` (only if the factory SN is not "UNKNOWN")
+ * - `device_sn` (only if the factory SN is not "UNKNOWN")
  *
  * The function rewrites `hw_assembly.cfg` only if at least one field changes.
  *
@@ -301,16 +301,16 @@ bool assembly_save(const Assembly& hw_assembly) {
  * @see assembly_save()
  */
 bool assembly_sync_sn(Assembly& hw_assembly) {
-    const LoggerIdentityFlash& id_flash = device_id_get();
+    const deviceIdentityFlash& id_flash = device_id_get();
     // bool modified                       = false;
 
     // --- Serial number sync ---
     if (strcmp(id_flash.serial_number, "UNKNOWN") != 0) {
-        if (hw_assembly.sn_logger != id_flash.serial_number) {
+        if (hw_assembly.device_sn != id_flash.serial_number) {
             LOG_INFO("Updating SN from flash: %s -> %s",
-                     hw_assembly.sn_logger.c_str(),
+                     hw_assembly.device_sn.c_str(),
                      id_flash.serial_number);
-            hw_assembly.sn_logger = id_flash.serial_number;
+            hw_assembly.device_sn = id_flash.serial_number;
             return true;
         }
     } else {

@@ -1,6 +1,6 @@
 /**
  * @file sd_manager.h
- * @brief SD card logging manager for the low-power data logger.
+ * @brief SD card logging manager for the low-power data device.
  *
  * This module provides all SD card management utilities, including:
  * - SD initialization
@@ -114,7 +114,7 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb);
  * @brief Create or open the daily log file based on the given timestamp.
  *
  * Generates a filename in `YYYYMMDD.TXT` format and ensures the file exists.
- * If the file cannot be created or opened, the logger transitions to
+ * If the file cannot be created or opened, the device transitions to
  * END-OF-LIFE mode.
  *
  * @param filename Output buffer where the filename (8.3 format) is stored.

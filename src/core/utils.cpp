@@ -5,7 +5,7 @@
  * This file contains helper functions for:
  * - Formatting `DateTime` objects into ISO8601-like strings.
  * - Creating date-only strings for filenames.
- * - Converting ISO8601 strings to logger/RTC date structures.
+ * - Converting ISO8601 strings to device/RTC date structures.
  * - Computing millisecond timestamps synchronized with the RTC.
  */
 
@@ -160,15 +160,15 @@ uint8_t bcdToDec(uint8_t val) {
 }
 
 /**
- * @brief Convert ISO8601 datetime string to @ref LoggerTime_t (BCD-encoded).
+ * @brief Convert ISO8601 datetime string to @ref deviceTime_t (BCD-encoded).
  *
  * Expected format: `"YYYY-MM-DDTHH:MM:SS"` (e.g., `"2025-07-23T14:30:00"`).
  *
  * @param iso8601 Null-terminated ISO8601 string.
- * @param out Pointer to @ref LoggerTime_t to fill.
+ * @param out Pointer to @ref deviceTime_t to fill.
  * @return true on successful parsing, false otherwise.
  */
-bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
+bool convertDatetoBcd(const char* iso8601, deviceTime_t* out) {
     int y, m, d, h, min, s;
     if (sscanf(iso8601, "%d-%d-%dT%d:%d:%d", &y, &m, &d, &h, &min, &s) != 6) return false;
 
@@ -183,15 +183,15 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
 }
 
 /**
- * @brief Convert a @ref LoggerTime_t (BCD-encoded) to an ISO8601 string.
+ * @brief Convert a @ref deviceTime_t (BCD-encoded) to an ISO8601 string.
  *
  * Output format: `"YYYY-MM-DDTHH:MM:SS"`.
  *
- * @param in  Pointer to BCD-encoded @ref LoggerTime_t.
+ * @param in  Pointer to BCD-encoded @ref deviceTime_t.
  * @param out Output buffer for the ISO string.
  * @param len Length of @p out (recommend at least 20 bytes).
  */
-void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
+void convertBcdDateToISO8601(const deviceTime_t* in, char* out, size_t len) {
     snprintf(out,
              len,
              "20%02x-%02x-%02xT%02x:%02x:%02x",
@@ -264,7 +264,7 @@ bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
         return false;
     }
 
-    LoggerTime_t t{};
+    deviceTime_t t{};
 
     if (!convertDatetoBcd(iso8601, &t)) {
         return false;

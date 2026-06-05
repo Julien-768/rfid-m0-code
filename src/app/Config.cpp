@@ -1,6 +1,6 @@
 /**
  * @file Config.cpp
- * @brief Runtime configuration handling for the logger.
+ * @brief Runtime configuration handling for the device.
  *
  * This module defines the global runtime configuration and provides helpers
  * to load options from the SD card.

@@ -34,7 +34,7 @@ extern bool rtc_available;
  * - year: 00..99 (for 2000..2099)
  * - month/day/hour/minute/second: standard ranges
  *
- * The main difference between LoggerTime_t and DateTime is
+ * The main difference between deviceTime_t and DateTime is
  * in year representation (00..99 vs 2000..2099).
  */
 typedef struct {
@@ -44,7 +44,7 @@ typedef struct {
     uint8_t hour;    ///< 00..23 (BCD)
     uint8_t minute;  ///< 00..59 (BCD)
     uint8_t second;  ///< 00..59 (BCD)
-} LoggerTime_t;
+} deviceTime_t;
 
 /**
  * @brief Runtime RTC state used by the application.

@@ -1,6 +1,6 @@
 /**
  * @file log.cpp
- * @brief Logger backend for serial and SD output.
+ * @brief device backend for serial and SD output.
  */
 
 /**
@@ -27,7 +27,7 @@ SoftTx SerialAlt(SerialAlt_TX, 9600);
 #endif
 
 // ---------------------------------------------------------------------------
-// Serial logger initialization
+// Serial device initialization
 // ---------------------------------------------------------------------------
 void logInit() {
 #if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)
@@ -228,7 +228,7 @@ static void formatTimestamp(char* timestamp, size_t size) {
 }
 
 // ---------------------------------------------------------------------------
-// printf-like logger backend
+// printf-like device backend
 // ---------------------------------------------------------------------------
 void logPrintf(uint8_t level, const char* fmt, ...) {
     if (!fmt) return;
@@ -289,7 +289,7 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
 }
 
 // ---------------------------------------------------------------------------
-// Flush logger outputs
+// Flush device outputs
 // ---------------------------------------------------------------------------
 void log_flush() {
 #if (LOG_SERIAL_OUTPUT == LOG_USB_SERIAL)

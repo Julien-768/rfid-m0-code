@@ -2,10 +2,10 @@
  * @file connected_mode.h
  * @brief Interface for the UART/JSON connected mode handler.
  *
- * Connected mode allows the logger to communicate with a host application
+ * Connected mode allows the device to communicate with a host application
  * (e.g., LoggerApp) via UART using JSON messages. This mode is typically used
  * for:
- * - Retrieving logger information and status
+ * - Retrieving device information and status
  * - Sending configuration data
  * - Initiating specific commands before deployment
  */
@@ -24,6 +24,6 @@
  * as @ref STATE_DEPLOY based on received commands.
  *
  * @param state Reference to the global system state variable.
- *              The function can update this to change the logger mode.
+ *              The function can update this to change the device mode.
  */
 void runConnectedMode(SystemState& state);

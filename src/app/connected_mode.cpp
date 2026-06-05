@@ -4,7 +4,7 @@
  * @ingroup SystemModules
  * @brief UART JSON command handling for CONNECTED mode.
  *
- * This module implements the **CONNECTED** state logic of the logger.
+ * This module implements the **CONNECTED** state logic of the device.
  * In this mode, the device communicates with an external GUI/tool over UART
  * @c GUI_SERIAL using a line-based JSON protocol.
  *
@@ -18,9 +18,9 @@
  * - GET_INFO
  *   - Returns firmware version and build metadata.
  * - GET_ID
- *   - Returns logger identification data:
+ *   - Returns device identification data:
  *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
- *     - Factory identity (from MCU Flash via @ref logger_identity.h)
+ *     - Factory identity (from MCU Flash via @ref device_identity.h)
  * - GET_VBAT
  *   - Returns the measured battery/VBAT voltage in millivolts.
  *   - Uses telemetry reading without battery-range plausibility rejection, so USB
@@ -54,12 +54,12 @@
  *     via @ref device_id_program.
  *
  * Factory identity storage
- * Factory identity (manufacturer / logger type / fabrication date / serial number)
+ * Factory identity (manufacturer / device type / fabrication date / serial number)
  * is stored in SAMD21 internal non-volatile memory (Flash).
  * This module does not access any EEPROM.
  *
  * @see JsonProtocol
- * @see logger_identity.h
+ * @see device_identity.h
  * @see assembly.h
  * @see rtc.h
  * @{
@@ -75,7 +75,7 @@
 #include "sensors_internal.h"
 #include "rtc.h"
 #include "assembly.h"
-#include "logger_identity.h"
+#include "device_identity.h"
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery_service.h"
@@ -120,7 +120,7 @@ static void sendConnectedReadyOnce(bool& ready_sent,
  * normal deployment startup.
  *
  * If no UART activity is detected on @c GUI_SERIAL for a fixed timeout, the
- * function transitions to @ref STATE_INIT so the logger can continue its normal
+ * function transitions to @ref STATE_INIT so the device can continue its normal
  * boot sequence and enter DEPLOY mode.
  *
  * Processing steps:
@@ -197,8 +197,8 @@ void runConnectedMode(SystemState& state) {
             strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID) - 1);
             strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer) - 1);
             strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab) - 1);
-            strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type) - 1);
-            strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn) - 1);
+            strncpy(payload.device_type, id.device_type, sizeof(payload.device_type) - 1);
+            strncpy(payload.device_sn, id.serial_number, sizeof(payload.device_sn) - 1);
 
             const char* json = JsonProtocol::buildIdJSON(payload);
 
@@ -362,9 +362,9 @@ void runConnectedMode(SystemState& state) {
             LOG_INFO("Factory SET_IDENTITY command received");
 
             device_id_applyFromFields(parsed.identity.manufacturer,
-                                      parsed.identity.logger_type,
+                                      parsed.identity.device_type,
                                       parsed.identity.date_fab,
-                                      parsed.identity.logger_sn);
+                                      parsed.identity.device_sn);
 
             GUI_SERIAL.println("{\"identity\":\"ACK\"}");
             break;

@@ -2,7 +2,7 @@
  * @file fw_version.h
  * @brief Firmware version definitions.
  *
- * This file provides the firmware version string used by the logger and GUI.
+ * This file provides the firmware version string used by the device and GUI.
  *
  * In CI/tag builds, this file may be auto-generated from the Git tag.
  * Local development builds use the default development version below.

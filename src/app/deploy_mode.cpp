@@ -1,9 +1,9 @@
 /**
  * @file deploy_mode.cpp
- * @brief Implementation of the DEPLOY runtime state for the logger.
+ * @brief Implementation of the DEPLOY runtime state for the device.
  *
  * This module implements the main low-power acquisition loop used during
- * deployment. In DEPLOY mode, the logger:
+ * deployment. In DEPLOY mode, the device:
  *
  * - Sleeps in standby until an enabled wake source triggers.
  * - Uses RTC as the only wake source outside the active schedule window.

@@ -2,7 +2,7 @@
  * @file system_state.h
  * @brief Global state machine definitions.
  *
- * Defines all operational states used by the logger main application loop.
+ * Defines all operational states used by the device main application loop.
  *
  * ## State overview
  *
@@ -29,7 +29,7 @@
 #include <stdint.h>
 
 /**
- * @brief Global runtime states of the logger.
+ * @brief Global runtime states of the device.
  */
 enum SystemState : uint8_t {
     STATE_INIT      = 0x00,  ///< Runtime initialization and mode selection
