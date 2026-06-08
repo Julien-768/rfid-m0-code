@@ -326,6 +326,19 @@ static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
     return true;
 }
 
+/**
+ * @brief Clear all currently available bytes from a generic Stream.
+ *
+ * @param serial Serial stream to flush.
+ */
+static void flush_stream_rx(Stream* serial) {
+    if (!serial) return;
+
+    while (serial->available()) {
+        serial->read();
+    }
+}
+
 /* ------------------------ Public API ------------------------ */
 
 /**
@@ -357,7 +370,30 @@ void rfid_driver::init(rfid_driver_t* drv,
 }
 
 /**
- * @brief Prepare the RFID UART before reader power-up.
+ * @brief Prepare a generic RFID serial stream before reader power-up.
+ *
+ * Clears pending RX bytes before the RFID power rail is enabled. Generic
+ * Stream instances cannot be restarted by this driver; only currently
+ * available bytes are discarded.
+ *
+ * This should be called before powering the reader so the boot banner emitted
+ * immediately after power-up can be captured by
+ * @ref rfid_driver::wait_for_boot_message().
+ *
+ * @param serial Serial stream connected to the RFID reader.
+ */
+void rfid_driver::prepare_serial(Stream* serial) {
+    if (!serial) {
+        return;
+    }
+
+    flush_stream_rx(serial);
+
+    LOG_DEBUG("RFID generic serial stream prepared for reader startup");
+}
+
+/**
+ * @brief Prepare a hardware RFID UART before reader power-up.
  *
  * Restarts the hardware serial port at the RFID reader baudrate and clears
  * pending RX bytes before the RFID power rail is enabled.
@@ -376,23 +412,48 @@ void rfid_driver::prepare_serial(HardwareSerial* serial) {
     HardwareSerialControl::restart(serial, 9600, 100);
     HardwareSerialControl::flushRx(serial);
 
-    LOG_DEBUG("RFID serial prepared for reader startup");
+    LOG_DEBUG("RFID hardware serial prepared for reader startup");
+}
+
+/**
+ * @brief Start the RFID driver on a prepared generic serial stream.
+ *
+ * This function attaches the RFID driver to an already prepared Stream, clears
+ * any remaining startup bytes from the RX buffer, and initializes the driver
+ * state.
+ *
+ * The RFID startup sequence should be handled before this call:
+ * - prepare the stream with @ref rfid_driver::prepare_serial()
+ * - enable the RFID power rail
+ * - wait for the reader boot message with @ref rfid_driver::wait_for_boot_message()
+ *
+ * This function does not restart the stream, does not power the reader, and
+ * does not wait for the reader boot banner.
+ *
+ * @param drv               Driver instance storage.
+ * @param serial            Serial stream connected to the RFID reader.
+ * @param type              RFID tag type.
+ * @param poll_interval_ms  Poll interval in milliseconds.
+ */
+void rfid_driver::start(rfid_driver_t* drv,
+                        Stream* serial,
+                        tag_type_t tag_type,
+                        uint32_t poll_interval_ms) {
+    if (!drv || !serial) return;
+
+    flush_stream_rx(serial);
+
+    init(drv, serial, tag_type, poll_interval_ms);
+    drv->hw_serial = nullptr;
+
+    LOG_DEBUG("RFID driver started on generic serial stream");
 }
 
 /**
  * @brief Start the RFID driver on a prepared hardware serial port.
  *
- * This function attaches the RFID driver to an already prepared UART, clears
- * any remaining startup bytes from the RX buffer, and initializes the driver
- * state.
- *
- * The RFID startup sequence must be handled before this call:
- * - prepare the UART with @ref rfid_driver::prepare_serial()
- * - enable the RFID power rail
- * - wait for the reader boot message with @ref rfid_driver::wait_for_boot_message()
- *
- * This function does not restart the UART, does not power the reader, and does
- * not wait for the reader boot banner.
+ * This overload keeps hardware-specific ownership tracking so
+ * @ref release_serial() can stop the UART peripheral.
  *
  * @param drv               Driver instance storage.
  * @param serial            Hardware serial port connected to the RFID reader.
@@ -465,9 +526,7 @@ void rfid_driver::flush_rx(rfid_driver_t* drv) {
     if (drv->hw_serial) {
         HardwareSerialControl::flushRx(drv->hw_serial);
     } else {
-        while (drv->port->available()) {
-            drv->port->read();
-        }
+        flush_stream_rx(drv->port);
     }
 
     line_reader_init(&drv->lr);
