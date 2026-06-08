@@ -76,7 +76,7 @@ typedef struct {
 
     line_reader_t lr;
 
-    enum : uint8_t { QSIZE = 4 };
+    enum : uint8_t { QSIZE = 8 };
     tag_info_t q[QSIZE];
     uint8_t head;
     uint8_t tail;

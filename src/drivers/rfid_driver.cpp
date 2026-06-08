@@ -164,7 +164,7 @@ static void trim_inplace(char* s) {
  * @brief Sanitize a raw RFID line into a cleaned HEX string.
  *
  * Rules:
- *  - Remove occurrences of "+ "
+ *  - Remove occurrences of "+" and any spaces/tabs immediately after it
  *  - Remove leading "rq" or "ru" prefix (case-insensitive)
  *
  * @param src Source string.
@@ -180,8 +180,11 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
     size_t remaining = dst_sz - 1;
 
     while (*r && remaining) {
-        if (*r == '+' && r[1] == ' ') {
-            r += 2;
+        if (*r == '+') {
+            r++;
+            while (*r == ' ' || *r == '\t') {
+                r++;
+            }
             continue;
         }
         *w++ = *r++;
@@ -678,9 +681,12 @@ bool rfid_driver::wait_for_boot_message(Stream* serial, uint32_t timeout_ms) {
     const uint32_t start_ms = millis();
     uint32_t boot_ms        = 0;
 
-    String line;
+    char line[129];
+    size_t line_len        = 0;
     bool boot_received     = false;
     bool firmware_received = false;
+
+    line[0] = '\0';
 
     LOG_DEBUG("Waiting for RFID boot message");
 
@@ -689,27 +695,31 @@ bool rfid_driver::wait_for_boot_message(Stream* serial, uint32_t timeout_ms) {
             const char c = static_cast<char>(serial->read());
 
             if (c == '\n' || c == '\r' || c == '>') {
-                if (line.length() > 0) {
+                if (line_len > 0) {
                     if (!boot_received &&
-                        (line.indexOf("BTboot") >= 0 || line.indexOf("btboot") >= 0)) {
+                        (strstr(line, "BTboot") != NULL || strstr(line, "btboot") != NULL)) {
                         boot_received = true;
                         boot_ms       = millis();
                         LOG_INFO("RFID boot message received");
                     }
 
-                    if (!firmware_received && line.indexOf("TECTUS") >= 0) {
+                    if (!firmware_received && strstr(line, "TECTUS") != NULL) {
                         firmware_received = true;
-                        LOG_INFO("RFID reader firmware: %s", line.c_str());
+                        LOG_INFO("RFID reader firmware: %s", line);
                     }
                 }
 
-                line = "";
+                line_len = 0;
+                line[0]  = '\0';
             } else {
-                line += c;
-
-                if (line.length() > 128) {
-                    line.remove(0, line.length() - 64);
+                if (line_len >= sizeof(line) - 1) {
+                    memmove(line, line + 64, 64);
+                    line_len       = 64;
+                    line[line_len] = '\0';
                 }
+
+                line[line_len++] = c;
+                line[line_len]   = '\0';
             }
         }
 
