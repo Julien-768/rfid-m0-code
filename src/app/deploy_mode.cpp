@@ -168,7 +168,7 @@ static void log_user_battery_check() {
 
     LOG_INFO("VBAT user check: %ld mV%s", vbat_mv, changed ? " changed" : " unchanged");
 
-    if (!logMeasurement(logger_now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer)) {
+    if (!logMeasurement(device_now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer)) {
         LOG_ERROR("VBAT user check CSV logging failed");
     }
 }
@@ -184,7 +184,7 @@ static void deploy_handle_power_button(SystemState& state) {
 
     if (button_event.type == pwr_manager::POWER_BUTTON_LONG_PRESS) {
         LOG_WARN("Long power-button press: user shutdown requested");
-        if (!logMeasurement(logger_now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer)) {
+        if (!logMeasurement(device_now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer)) {
             LOG_ERROR("Shutdown logging failed");
         }
         log_flush();
@@ -412,7 +412,7 @@ void deploy_enter(ir_pwm& ir_driver) {
         delay(100);
     }
 
-    DateTime now = logger_now();
+    DateTime now = device_now();
     if (!ensure_daily_file_once_per_day(now)) {
         return;
     }
@@ -550,7 +550,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     interrupts();
 
     // Outside active window, ignore non-RTC events defensively.
-    now = logger_now();
+    now = device_now();
     apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
 
     // If we woke up outside the active window due to a non-RTC event, ignore it and go back to sleep.
@@ -769,7 +769,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
             if (should_log) {
                 LOG_INFO("RFID tag detected: %s", tag.tag);
 
-                DateTime tag_now = logger_now();
+                DateTime tag_now = device_now();
 
                 if (!ensure_daily_file_once_per_day(tag_now)) {
                     state = STATE_ENDOFLIFE;

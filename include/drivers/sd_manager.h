@@ -12,7 +12,7 @@
  *
  * ## Filename policy
  *
- * The Adalogger M0 uses FAT-compatible filenames. This module therefore keeps
+ * The Adadevice M0 uses FAT-compatible filenames. This module therefore keeps
  * filenames compatible with the 8.3 format.
  *
  * With RTC available:

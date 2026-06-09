@@ -59,19 +59,19 @@ uint8_t bcdToDec(uint8_t val);
  * @brief Parses an ISO8601 datetime string and stores it in BCD format.
  *
  * @param iso8601 Input string, e.g. "2025-07-23T14:30:00".
- * @param out Pointer to the LoggerTime_t output structure.
+ * @param out Pointer to the device_time_t output structure.
  * @return true if parsing succeeded, false otherwise.
  */
-bool convertDatetoBcd(const char* iso8601, deviceTime_t* out);
+bool convertDatetoBcd(const char* iso8601, device_time_t* out);
 
 /**
- * @brief Formats a BCD-encoded deviceTime_t as an ISO8601 string.
+ * @brief Formats a BCD-encoded device_time_t as an ISO8601 string.
  *
- * @param in Pointer to the BCD-encoded LoggerTime_t.
+ * @param in Pointer to the BCD-encoded device_time_t.
  * @param out Output buffer.
  * @param len Output buffer size in bytes.
  */
-void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
+void convertBcdDateToISO8601(const device_time_t* in, char* out, size_t len);
 
 /**
  * @brief Converts an ISO8601 datetime string to a DateTime object.
@@ -83,15 +83,15 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len);
 bool convertISO8601ToDateTime(const char* iso8601, DateTime* out);
 
 /**
- * @brief Returns the current logger timestamp.
+ * @brief Returns the current device timestamp.
  *
  * @return Current date and time.
  */
-DateTime logger_now();
+DateTime device_now();
 
 /**
- * @brief Returns the current millisecond fraction of the logger timestamp.
+ * @brief Returns the current millisecond fraction of the device timestamp.
  *
  * @return Milliseconds in the range [0, 999].
  */
-uint16_t logger_ms();
+uint16_t device_ms();

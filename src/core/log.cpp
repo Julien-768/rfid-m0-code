@@ -192,12 +192,12 @@ static void formatLogLine(char* out,
 static void formatTimestamp(char* timestamp, size_t size) {
     if (!timestamp || size == 0) return;
 
-    DateTime now = logger_now();
+    DateTime now = device_now();
 
     IsoFormatOptions opts;
     opts.separator  = " ";
     opts.include_ms = true;
-    opts.ms         = logger_ms();
+    opts.ms         = device_ms();
 
     String formatted = isoformat(now, opts);
 

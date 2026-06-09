@@ -185,7 +185,7 @@ static SystemState runBootSequence() {
     /*
     Check and create the daily log file on SD card
     */
-    DateTime now = logger_now();
+    DateTime now = device_now();
     if (!check_and_create_new_daily_file(now, rtc_available)) {
         LOG_ERROR("Failed to create daily log file at boot");
         return STATE_ENDOFLIFE;

@@ -3,7 +3,7 @@
  * @brief Interface for the UART/JSON connected mode handler.
  *
  * Connected mode allows the device to communicate with a host application
- * (e.g., LoggerApp) via UART using JSON messages. This mode is typically used
+ * (e.g., DeviceApp) via UART using JSON messages. This mode is typically used
  * for:
  * - Retrieving device information and status
  * - Sending configuration data
