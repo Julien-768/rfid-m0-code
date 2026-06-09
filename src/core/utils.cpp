@@ -1,33 +1,43 @@
 /**
  * @file utils.cpp
- * @brief Utility functions for time formatting and synchronized timing.
- *
- * This file contains helper functions for:
- * - Formatting `DateTime` objects into ISO8601-like strings.
- * - Creating date-only strings for filenames.
- * - Computing millisecond timestamps synchronized with the RTC, compensating for drift.
+ * @brief Utility functions for date/time formatting, conversion and hardware helpers.
  */
 
 #include "utils.h"
-#include "rtc.h"
-#include "sd_manager.h"
+
+#include <Arduino.h>
+#include <RTClib.h>
+#include <Wire.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-uint32_t synchro_offset_ms,
-    previous_synchro_offset_ms;  // Offset in millisecond between the RTC and millis()
-uint32_t synchro_slope = 0;      // Slope that represents the drift of the offet over the time
-
-#include "utils.h"
 #include "rtc.h"
 #include "sd_manager.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "Wire.h"
 #include "log.h"
 
+/**
+ * @brief Offset between RTC time and the Arduino millis() counter.
+ */
+uint32_t synchro_offset_ms = 0;
+
+/**
+ * @brief Previous RTC synchronization offset.
+ */
+uint32_t previous_synchro_offset_ms = 0;
+
+/**
+ * @brief Estimated drift slope of the millis() counter relative to the RTC.
+ */
+uint32_t synchro_slope = 0;
+
+/**
+ * @brief Scan the I2C bus and report detected devices.
+ *
+ * Iterates through valid I2C addresses and checks for responding devices.
+ *
+ * @return true if at least one I2C device was found, false otherwise.
+ */
 bool scanI2CBus() {
     uint8_t count = 0;
 
@@ -48,19 +58,17 @@ bool scanI2CBus() {
     if (count == 0) {
         LOG_DEBUG("No I2C devices found");
         return false;
-    } else {
-        LOG_DEBUG("Scan complete. %d device(s) found.", count);
-        return true;
     }
+
+    LOG_DEBUG("Scan complete. %d device(s) found.", count);
+    return true;
 }
 
 /**
- * @brief Formats a `DateTime` object as `"YYYY-MM-DD{sep}HH:MM:SS[.ms]{sep}"`.
+ * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS[.ms]".
  *
- * @param t          The `DateTime` object to format.
- * @param ms         Milliseconds value to append if `include_ms` is true.
- * @param separator  String separator inserted between date and time, and appended at the end.
- * @param include_ms If true, milliseconds are included; otherwise only full seconds are shown.
+ * @param t The DateTime object to format.
+ * @param opts Formatting options.
  * @return Formatted timestamp string.
  */
 String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
@@ -95,53 +103,25 @@ String isoformat(const DateTime& t, const IsoFormatOptions& opts) {
 }
 
 /**
- * @brief Formats a `DateTime` object into a date string `"YYYY_MM_DD"`.
+ * @brief Formats a DateTime object as "YYYY_MM_DD".
  *
- * Ensures leading zeros for month and day. Intended for filenames or log entries.
- *
- * @param t The `DateTime` object to format.
+ * @param t The DateTime object to format.
  * @return Formatted date string.
  */
 String isoformat_date(const DateTime& t) {
     char buffer[16];
+
     snprintf(buffer, sizeof(buffer), "%04d_%02d_%02d", t.year(), t.month(), t.day());
+
     return String(buffer);
 }
 
-struct SynchroParams {
-    u_long synchro_offset_ms;
-    u_long synchro_slope;
-};
-
-// /**
-//  *  @brief Synchronizes the system clock with the
-//  * RTC (Real Time Clock) using the `millis
-//  * `synchro_offset_ms` and `synchro_slope
-//  * `parameters.
-
-//  * @return The corrected `millis` value relative to
-//  * the RTC.
-//  */
-// uint16_t millis_synchro(const SynchroParams& params) {
-
-//     int32_t delta_ms = (int32_t)millis() - synchro_offset_ms;
-
-//     // Estimate the drift since the last RTC sync
-//     int32_t synchro_drift_est_ms = synchro_slope * delta_ms;
-//     synchro_drift_est_ms /= 1000;
-
-//     // Compute corrected millis relative to RTC
-//     int32_t millisSynchro_ms = delta_ms - synchro_drift_est_ms;
-
-//     // Keep only the fractional millisecond part
-//     millisSynchro_ms = millisSynchro_ms % 1000;
-
-//     return (uint16_t)millisSynchro_ms;
-// }
-
 /**
- * @brief Convert an unsigned integer (0–99) to BCD.
- * @param val Value to convert (0..99)
+ * @brief Converts a decimal value to BCD.
+ *
+ * Encodes an integer in the range [0, 99] into a BCD byte.
+ *
+ * @param val Decimal value to convert.
  * @return BCD-encoded byte.
  */
 static uint8_t toBCD(int val) {
@@ -149,8 +129,9 @@ static uint8_t toBCD(int val) {
 }
 
 /**
- * @brief Convert a BCD-encoded byte to decimal (0..99).
- * @param val BCD-encoded byte.
+ * @brief Converts a BCD-encoded byte to decimal.
+ *
+ * @param val BCD-encoded value.
  * @return Decimal value.
  */
 uint8_t bcdToDec(uint8_t val) {
@@ -158,17 +139,24 @@ uint8_t bcdToDec(uint8_t val) {
 }
 
 /**
- * @brief Convert ISO8601 datetime string to @ref LoggerTime_t (BCD-encoded).
+ * @brief Parses an ISO8601 datetime string and stores it in BCD format.
  *
- * Expected format: `"YYYY-MM-DDTHH:MM:SS"` (e.g., `"2025-07-23T14:30:00"`).
+ * Expected format: "YYYY-MM-DDTHH:MM:SS".
  *
- * @param iso8601 Null-terminated ISO8601 string.
- * @param out Pointer to @ref LoggerTime_t to fill.
- * @return true on successful parsing, false otherwise.
+ * @param iso8601 Input string.
+ * @param out Pointer to the LoggerTime_t output structure.
+ * @return true if parsing succeeded, false otherwise.
  */
 bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
+    if (!iso8601 || !out) {
+        return false;
+    }
+
     int y, m, d, h, min, s;
-    if (sscanf(iso8601, "%d-%d-%dT%d:%d:%d", &y, &m, &d, &h, &min, &s) != 6) return false;
+
+    if (sscanf(iso8601, "%d-%d-%dT%d:%d:%d", &y, &m, &d, &h, &min, &s) != 6) {
+        return false;
+    }
 
     out->year   = toBCD(y % 100);
     out->month  = toBCD(m);
@@ -181,50 +169,36 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
 }
 
 /**
- * @brief Convert a @ref LoggerTime_t (BCD-encoded) to an ISO8601 string.
+ * @brief Formats a BCD-encoded LoggerTime_t as an ISO8601 string.
  *
- * Output format: `"YYYY-MM-DDTHH:MM:SS"`.
+ * Output format: "YYYY-MM-DDTHH:MM:SS".
  *
- * @param in  Pointer to BCD-encoded @ref LoggerTime_t.
- * @param out Output buffer for the ISO string.
- * @param len Length of @p out (recommend at least 20 bytes).
+ * @param in Pointer to the BCD-encoded LoggerTime_t.
+ * @param out Output buffer.
+ * @param len Output buffer size in bytes.
  */
 void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
+    if (!in || !out || len == 0) {
+        return;
+    }
+
     snprintf(out,
              len,
-             "20%02x-%02x-%02xT%02x:%02x:%02x",
-             in->year,
-             in->month,
-             in->day,
-             in->hour,
-             in->minute,
-             in->second);
+             "20%02u-%02u-%02uT%02u:%02u:%02u",
+             bcdToDec(in->year),
+             bcdToDec(in->month),
+             bcdToDec(in->day),
+             bcdToDec(in->hour),
+             bcdToDec(in->minute),
+             bcdToDec(in->second));
 }
 
 /**
- * @brief Write the firmware compilation timestamp in ISO8601 to @p out.
+ * @brief Converts an ISO8601 datetime string to a DateTime object.
  *
- * "Jul 23 2025" ;  "14:30:00"
- * Convert to format like "2025-07-23T14:30:00"
+ * Expected format: "YYYY-MM-DDTHH:MM:SS".
  *
- * @param out Output buffer.
- * @param len Size of @p out. (Recommend at least 20 bytes)
- */
-// TODO should take a DateTime as arg instead of using __DATE__ and __TIME__
-void convertDateToISO8601(char* out, size_t len) {
-    snprintf(out, len, "20%.*sT%.*s:00", 6, __DATE__ + 7, 5, __TIME__);
-}
-
-/**
- * @brief Convert an ISO8601 datetime string to a DateTime object.
- *
- * Expected format:
- * `"YYYY-MM-DDTHH:MM:SS"`
- *
- * Example:
- * `"2025-07-23T14:30:00"`
- *
- * @param iso8601 Null-terminated ISO8601 string.
+ * @param iso8601 Input ISO8601 string.
  * @param out Pointer to the destination DateTime object.
  * @return true if parsing succeeded, false otherwise.
  */
@@ -247,4 +221,30 @@ bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
                     bcdToDec(t.second));
 
     return true;
+}
+
+/**
+ * @brief Returns the current logger timestamp.
+ *
+ * Uses the RTC when available. If the RTC is not available, falls back to
+ * the firmware build date and advances it using millis().
+ *
+ * @return Current date and time.
+ */
+DateTime logger_now() {
+    if (rtc_available) {
+        return rtc().now();
+    }
+
+    static const DateTime fallback_start(__DATE__, __TIME__);
+    return fallback_start + TimeSpan(millis() / 1000UL);
+}
+
+/**
+ * @brief Returns the current millisecond fraction of the logger timestamp.
+ *
+ * @return Milliseconds in the range [0, 999].
+ */
+uint16_t logger_ms() {
+    return millis() % 1000UL;
 }
