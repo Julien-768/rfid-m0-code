@@ -164,7 +164,7 @@ static void trim_inplace(char* s) {
  * @brief Sanitize a raw RFID line into a cleaned HEX string.
  *
  * Rules:
- *  - Remove occurrences of "+ "
+ *  - Remove occurrences of "+" and any spaces/tabs immediately after it
  *  - Remove leading "rq" or "ru" prefix (case-insensitive)
  *
  * @param src Source string.
@@ -180,8 +180,11 @@ static bool sanitize_tag(const char* src, char* dst, size_t dst_sz) {
     size_t remaining = dst_sz - 1;
 
     while (*r && remaining) {
-        if (*r == '+' && r[1] == ' ') {
-            r += 2;
+        if (*r == '+') {
+            r++;
+            while (*r == ' ' || *r == '\t') {
+                r++;
+            }
             continue;
         }
         *w++ = *r++;
@@ -245,17 +248,44 @@ static bool is_valid_hex(const char* s, HexLengthConstraints constraints) {
 /* ------------------------ Driver helpers ------------------------ */
 
 /**
- * @brief Get the poll command string for a given tag type.
+ * @brief Return the Scotty reader polling command associated with a tag type.
  *
- * @param t Tag type.
- * @return Command string to send to the reader, or null if unsupported.
+ * Mapping between application tag types and Scotty reader commands:
+ *
+ *   - TAG_TYPE_FDX
+ *       Command : "@rq\r"
+ *       Protocol: FDX-B (ISO 11784 / ISO 11785)
+ *       Payload : 64-bit animal identifier + control bits
+ *       Reader output: typically 16 hexadecimal digits.
+ *
+ *   - TAG_TYPE_HDX
+ *       Command : "@xr\r"
+ *       Protocol: HDX / TI-RFID TIRIS (134.2 kHz)
+ *       Payload : 64-bit identifier/data frame
+ *       Reader output: 16 hexadecimal digits.
+ *
+ *   - TAG_TYPE_EM4102
+ *       Command : "@ru\r"
+ *       Protocol: EM4100 / EM4102 (UNIQUE)
+ *       Modulation: ASK Manchester
+ *       Payload : 40-bit identifier
+ *       Reader output: 10 hexadecimal digits.
+ *
+ * Returned strings are complete commands ready to be sent to the Scotty
+ * reader in machine mode, including the '@' prefix and terminating
+ * carriage return ('\r').
+ *
+ * @param t RFID tag type to poll.
+ *
+ * @return Pointer to a static command string if the tag type is supported,
+ *         or NULL otherwise.
  */
-static const char* cmd_for(tag_type_t t) {
+static const char* poll_command_for_tag(tag_type_t t) {
     switch (t) {
         case TAG_TYPE_FDX:
             return "@rq\r";
         case TAG_TYPE_HDX:
-            return "@todo\r";
+            return "@xr\r";
         case TAG_TYPE_EM4102:
             return "@ru\r";
         default:
@@ -296,6 +326,19 @@ static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
     return true;
 }
 
+/**
+ * @brief Clear all currently available bytes from a generic Stream.
+ *
+ * @param serial Serial stream to flush.
+ */
+static void flush_stream_rx(Stream* serial) {
+    if (!serial) return;
+
+    while (serial->available()) {
+        serial->read();
+    }
+}
+
 /* ------------------------ Public API ------------------------ */
 
 /**
@@ -308,12 +351,13 @@ static bool queue_pop(rfid_driver_t* d, tag_info_t* out) {
  */
 void rfid_driver::init(rfid_driver_t* drv,
                        Stream* port,
-                       tag_type_t type,
+                       tag_type_t tag_type,
                        uint32_t poll_interval_ms) {
     if (!drv) return;
 
-    drv->port = port;
-    drv->type = type;
+    drv->port      = port;
+    drv->hw_serial = nullptr;
+    drv->tag_type  = tag_type;
 
     drv->poll_interval_ms = poll_interval_ms;
     drv->last_poll        = millis();
@@ -326,7 +370,30 @@ void rfid_driver::init(rfid_driver_t* drv,
 }
 
 /**
- * @brief Prepare the RFID UART before reader power-up.
+ * @brief Prepare a generic RFID serial stream before reader power-up.
+ *
+ * Clears pending RX bytes before the RFID power rail is enabled. Generic
+ * Stream instances cannot be restarted by this driver; only currently
+ * available bytes are discarded.
+ *
+ * This should be called before powering the reader so the boot banner emitted
+ * immediately after power-up can be captured by
+ * @ref rfid_driver::wait_for_boot_message().
+ *
+ * @param serial Serial stream connected to the RFID reader.
+ */
+void rfid_driver::prepare_serial(Stream* serial) {
+    if (!serial) {
+        return;
+    }
+
+    flush_stream_rx(serial);
+
+    LOG_DEBUG("RFID generic serial stream prepared for reader startup");
+}
+
+/**
+ * @brief Prepare a hardware RFID UART before reader power-up.
  *
  * Restarts the hardware serial port at the RFID reader baudrate and clears
  * pending RX bytes before the RFID power rail is enabled.
@@ -345,23 +412,48 @@ void rfid_driver::prepare_serial(HardwareSerial* serial) {
     HardwareSerialControl::restart(serial, 9600, 100);
     HardwareSerialControl::flushRx(serial);
 
-    LOG_DEBUG("RFID serial prepared for reader startup");
+    LOG_DEBUG("RFID hardware serial prepared for reader startup");
+}
+
+/**
+ * @brief Start the RFID driver on a prepared generic serial stream.
+ *
+ * This function attaches the RFID driver to an already prepared Stream, clears
+ * any remaining startup bytes from the RX buffer, and initializes the driver
+ * state.
+ *
+ * The RFID startup sequence should be handled before this call:
+ * - prepare the stream with @ref rfid_driver::prepare_serial()
+ * - enable the RFID power rail
+ * - wait for the reader boot message with @ref rfid_driver::wait_for_boot_message()
+ *
+ * This function does not restart the stream, does not power the reader, and
+ * does not wait for the reader boot banner.
+ *
+ * @param drv               Driver instance storage.
+ * @param serial            Serial stream connected to the RFID reader.
+ * @param type              RFID tag type.
+ * @param poll_interval_ms  Poll interval in milliseconds.
+ */
+void rfid_driver::start(rfid_driver_t* drv,
+                        Stream* serial,
+                        tag_type_t tag_type,
+                        uint32_t poll_interval_ms) {
+    if (!drv || !serial) return;
+
+    flush_stream_rx(serial);
+
+    init(drv, serial, tag_type, poll_interval_ms);
+    drv->hw_serial = nullptr;
+
+    LOG_DEBUG("RFID driver started on generic serial stream");
 }
 
 /**
  * @brief Start the RFID driver on a prepared hardware serial port.
  *
- * This function attaches the RFID driver to an already prepared UART, clears
- * any remaining startup bytes from the RX buffer, and initializes the driver
- * state.
- *
- * The RFID startup sequence must be handled before this call:
- * - prepare the UART with @ref rfid_driver::prepare_serial()
- * - enable the RFID power rail
- * - wait for the reader boot message with @ref rfid_driver::wait_for_boot_message()
- *
- * This function does not restart the UART, does not power the reader, and does
- * not wait for the reader boot banner.
+ * This overload keeps hardware-specific ownership tracking so
+ * @ref release_serial() can stop the UART peripheral.
  *
  * @param drv               Driver instance storage.
  * @param serial            Hardware serial port connected to the RFID reader.
@@ -370,13 +462,14 @@ void rfid_driver::prepare_serial(HardwareSerial* serial) {
  */
 void rfid_driver::start(rfid_driver_t* drv,
                         HardwareSerial* serial,
-                        tag_type_t type,
+                        tag_type_t tag_type,
                         uint32_t poll_interval_ms) {
     if (!drv || !serial) return;
 
     HardwareSerialControl::flushRx(serial);
 
-    init(drv, serial, type, poll_interval_ms);
+    init(drv, serial, tag_type, poll_interval_ms);
+    drv->hw_serial = serial;
 
     LOG_DEBUG("RFID driver started on hardware serial port");
 }
@@ -397,7 +490,8 @@ void rfid_driver::start(rfid_driver_t* drv,
 void rfid_driver::stop(rfid_driver_t* drv) {
     if (!drv) return;
 
-    drv->port = nullptr;
+    drv->port      = nullptr;
+    drv->hw_serial = nullptr;
     line_reader_init(&drv->lr);
     drv->head  = 0;
     drv->tail  = 0;
@@ -429,9 +523,13 @@ void rfid_driver::flush_rx(rfid_driver_t* drv) {
         return;
     }
 
-    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+    if (drv->hw_serial) {
+        HardwareSerialControl::flushRx(drv->hw_serial);
+    } else {
+        flush_stream_rx(drv->port);
+    }
 
-    HardwareSerialControl::flushRx(serial);
+    line_reader_init(&drv->lr);
 }
 
 /**
@@ -445,13 +543,13 @@ void rfid_driver::flush_rx(rfid_driver_t* drv) {
 void rfid_driver::poll_now(rfid_driver_t* drv) {
     if (!drv || !drv->port) return;
 
-    const char* cmd = cmd_for(drv->type);
+    const char* cmd = poll_command_for_tag(drv->tag_type);
     if (!cmd) return;
 
     drv->port->print(cmd);
     drv->last_poll = millis();
 
-    LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->type, cmd);
+    LOG_DEBUG("type=%d, sent immediate poll command: %s", drv->tag_type, cmd);
 }
 
 /**
@@ -484,13 +582,13 @@ void rfid_driver::tick(rfid_driver_t* drv) {
 
     const uint32_t now = millis();
 
-    if ((uint32_t)(now - drv->last_poll) >= drv->poll_interval_ms) {
+    if (drv->poll_interval_ms > 0 && (uint32_t)(now - drv->last_poll) >= drv->poll_interval_ms) {
         drv->last_poll = now;
 
-        const char* cmd = cmd_for(drv->type);
+        const char* cmd = poll_command_for_tag(drv->tag_type);
         if (cmd) {
             drv->port->print(cmd);
-            LOG_DEBUG("RFID type=%d, poll command sent: %s", drv->type, cmd);
+            LOG_DEBUG("RFID type=%d, poll command sent: %s", drv->tag_type, cmd);
         }
     }
 
@@ -518,7 +616,7 @@ void rfid_driver::tick(rfid_driver_t* drv) {
             continue;
         }
 
-        if (drv->type == TAG_TYPE_FDX) {
+        if (drv->tag_type == TAG_TYPE_FDX) {
             if (!is_valid_hex(cleaned, {RFID_FDX_HEX_LEN, RFID_FDX_HEX_LEN})) {
                 LOG_WARN("RFID invalid FDX response: '%s'", cleaned);
                 continue;
@@ -528,6 +626,20 @@ void rfid_driver::tick(rfid_driver_t* drv) {
                 LOG_WARN("RFID FDX decode failed: '%s'", cleaned);
                 continue;
             }
+        } else if (drv->tag_type == TAG_TYPE_HDX) {
+            if (!is_valid_hex(cleaned, {16, 16})) {
+                LOG_WARN("RFID invalid HDX response: '%s'", cleaned);
+                continue;
+            }
+
+            safe_strcpy(decoded, sizeof(decoded), cleaned);
+        } else if (drv->tag_type == TAG_TYPE_EM4102) {
+            if (!is_valid_hex(cleaned, {10, 10})) {
+                LOG_WARN("RFID invalid EM4102 response: '%s'", cleaned);
+                continue;
+            }
+
+            safe_strcpy(decoded, sizeof(decoded), cleaned);
         } else {
             if (!is_valid_hex(cleaned, {5, 0})) {
                 LOG_WARN("RFID invalid tag response: '%s'", cleaned);
@@ -594,11 +706,12 @@ void rfid_driver::release_serial(rfid_driver_t* drv) {
         return;
     }
 
-    HardwareSerial* serial = static_cast<HardwareSerial*>(drv->port);
+    if (drv->hw_serial) {
+        HardwareSerialControl::stop(drv->hw_serial);
+    }
 
-    HardwareSerialControl::stop(serial);
-
-    drv->port = nullptr;
+    drv->port      = nullptr;
+    drv->hw_serial = nullptr;
 
     LOG_DEBUG("RFID serial released");
 }
@@ -627,9 +740,12 @@ bool rfid_driver::wait_for_boot_message(Stream* serial, uint32_t timeout_ms) {
     const uint32_t start_ms = millis();
     uint32_t boot_ms        = 0;
 
-    String line;
+    char line[129];
+    size_t line_len        = 0;
     bool boot_received     = false;
     bool firmware_received = false;
+
+    line[0] = '\0';
 
     LOG_DEBUG("Waiting for RFID boot message");
 
@@ -638,27 +754,31 @@ bool rfid_driver::wait_for_boot_message(Stream* serial, uint32_t timeout_ms) {
             const char c = static_cast<char>(serial->read());
 
             if (c == '\n' || c == '\r' || c == '>') {
-                if (line.length() > 0) {
+                if (line_len > 0) {
                     if (!boot_received &&
-                        (line.indexOf("BTboot") >= 0 || line.indexOf("btboot") >= 0)) {
+                        (strstr(line, "BTboot") != NULL || strstr(line, "btboot") != NULL)) {
                         boot_received = true;
                         boot_ms       = millis();
                         LOG_INFO("RFID boot message received");
                     }
 
-                    if (!firmware_received && line.indexOf("TECTUS") >= 0) {
+                    if (!firmware_received && strstr(line, "TECTUS") != NULL) {
                         firmware_received = true;
-                        LOG_INFO("RFID reader firmware: %s", line.c_str());
+                        LOG_INFO("RFID reader firmware: %s", line);
                     }
                 }
 
-                line = "";
+                line_len = 0;
+                line[0]  = '\0';
             } else {
-                line += c;
-
-                if (line.length() > 128) {
-                    line.remove(0, line.length() - 64);
+                if (line_len >= sizeof(line) - 1) {
+                    memmove(line, line + 64, 64);
+                    line_len       = 64;
+                    line[line_len] = '\0';
                 }
+
+                line[line_len++] = c;
+                line[line_len]   = '\0';
             }
         }
 

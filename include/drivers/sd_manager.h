@@ -2,60 +2,61 @@
  * @file sd_manager.h
  * @brief SD card logging manager for the low-power data device.
  *
- * This module provides all SD card management utilities, including:
+ * This module provides SD card management utilities for:
  * - SD initialization
- * - Daily file creation
- * - Direct and buffered write modes
- * - Structured measurement logging using @ref logMeasurement()
- * - High-level logging of multi-sensor frames via @ref logSensorFrame()
+ * - Daily file creation when RTC is available
+ * - Fallback file creation when RTC is unavailable
+ * - Direct and buffered measurement logging
+ * - Circular-buffer based SD write batching
+ * - System log event writing
  *
- * The SD Manager operates in two write modes:
- * - **Direct mode** (immediate `File.write()`)
- * - **Buffered mode** using a RAM-based circular buffer to batch writes
+ * ## Filename policy
  *
- * @note Buffered mode reduces the number of SD writes and improves
- *       power efficiency during long deployments.
+ * The Adalogger M0 uses FAT-compatible filenames. This module therefore keeps
+ * filenames compatible with the 8.3 format.
  *
- * Example (DEPLOY mode):
- * @code
- * if (!sd_initialization()) { return; }
+ * With RTC available:
+ * - Measurements: YYYYMMDD.CSV
+ * - System logs:  YYYYMMDD.LOG
  *
- * DateTime now = rtc().now();
- * daily_data_file(get_filename(), now);
+ * Without RTC:
+ * - Measurements: NORTCnn.CSV
+ * - System logs:  NORTCnn.LOG
  *
- * SensorFrame frame = readAllSensors();
- * logSensorFrame(now, frame);   // writes multiple lines (one per measurement)
+ * where `nn` is the first available index from 00 to 99.
  *
- * flushCircularBuffer(&sdBuffer);  // periodically
- * @endcode
+ * ## Write modes
  *
- * @ingroup SD_Manager
+ * Direct mode:
+ * - Each measurement is written immediately to the SD card.
+ *
+ * Buffered mode:
+ * - Measurements are first stored in RAM.
+ * - Data is flushed to the SD card when enough bytes are available.
+ *
+ * @note Buffered mode reduces SD write frequency and improves power efficiency
+ *       during long deployments.
  */
 
 #pragma once
 
-#include <RTClib.h>  ///< For DateTime support
-
-const char* get_data_filename();
-const char* get_log_filename();
-struct SensorFrame;  // Forward declaration
+#include <Arduino.h>
+#include <RTClib.h>
 
 /**
  * @def BUFFER_SIZE
- * @brief Size of the circular buffer in bytes (default: 1024).
+ * @brief Size of the circular SD buffer in bytes.
  *
- * Using a 1024-byte ring buffer provides efficient batching aligned with
- * SD card block sizes (512 bytes), reducing the number of write cycles.
+ * A 1024-byte buffer allows writes to be batched around SD sector boundaries.
  */
 #define BUFFER_SIZE 1024
 
 /**
  * @struct CircularBuffer
- * @brief Ring-buffer structure for batching SD writes.
+ * @brief RAM ring buffer used to batch measurement writes to SD.
  *
  * Characters are appended at @ref head and flushed from @ref tail.
- * When full, the buffer automatically overwrites the oldest data
- * and logs a warning (first occurrence only).
+ * If the buffer becomes full, the oldest data is overwritten.
  */
 typedef struct {
     char buffer[BUFFER_SIZE];  ///< Raw byte storage.
@@ -64,93 +65,125 @@ typedef struct {
 } CircularBuffer;
 
 /**
- * @brief Returns a reference to the global circular buffer for SD writes.
+ * @brief Return the current measurement CSV filename.
+ *
+ * @return Pointer to a null-terminated FAT 8.3 filename.
  */
-extern CircularBuffer& get_sdBuffer();
-
-// Optional: Macro for convenience (use with caution)
-#define sdBuffer get_sdBuffer()
+const char* get_data_filename();
 
 /**
- * @brief Get the current log filename used for SD writes.
+ * @brief Return the current system log filename.
  *
- * @return Pointer to a null-terminated C-string with the filename.
+ * @return Pointer to a null-terminated FAT 8.3 filename.
  */
-extern const char* get_filename();
+const char* get_log_filename();
+
+/**
+ * @brief Return the global circular buffer instance.
+ *
+ * @return Reference to the global @ref CircularBuffer.
+ */
+CircularBuffer& get_sdBuffer();
+
+/**
+ * @def sdBuffer
+ * @brief Convenience macro for accessing the global SD circular buffer.
+ */
+#define sdBuffer get_sdBuffer()
 
 /**
  * @brief Initialize the SD card interface.
  *
- * Mounts the SD card using the hardware SPI peripheral.
- * On success, a system-level log entry is emitted.
- * On failure, the system transitions to END-OF-LIFE mode.
- *
- * @return `true` if the SD card was successfully initialized.
+ * @param pin_cs SD card chip-select pin.
+ * @return true if SD initialization succeeds, false otherwise.
  */
 bool sd_initialization(uint8_t pin_cs);
 
 /**
- * @brief Append a null-terminated text line to the circular buffer.
+ * @brief Append a null-terminated string to the circular buffer.
  *
- * Each character is pushed into the ring buffer. If the buffer becomes full,
- * the oldest data is overwritten to guarantee continuous logging.
+ * No newline is automatically added.
  *
- * @param cb   Pointer to a valid @ref CircularBuffer.
- * @param line C-string to add (without automatic newline).
+ * @param cb Pointer to a valid @ref CircularBuffer.
+ * @param line Null-terminated string to append.
+ * @return true on success, false on invalid input.
  */
 bool addToCircularBuffer(CircularBuffer* cb, const char* line);
 
 /**
- * @brief Flush the circular buffer contents to the SD card.
+ * @brief Flush buffered measurement data to the current CSV file.
  *
- * Data is written only when at least 512 bytes are buffered
- * (matching the SD sector size), improving write efficiency.
+ * The buffer is written only when at least one 512-byte SD sector worth of data
+ * is available.
  *
- * @param cb Pointer to the @ref CircularBuffer instance.
+ * @param cb Pointer to the circular buffer.
+ * @return 0 on success or no-op, 1 on failure.
  */
 u_int8_t flushCircularBuffer(CircularBuffer* cb);
 
 /**
- * @brief Create or open the daily log file based on the given timestamp.
+ * @brief Create or select the daily measurement CSV file.
  *
  * Generates a filename in `YYYYMMDD.TXT` format and ensures the file exists.
  * If the file cannot be created or opened, the device transitions to
  * END-OF-LIFE mode.
  *
- * @param filename Output buffer where the filename (8.3 format) is stored.
- * @param now      Current timestamp used to generate the filename.
+ * Filename format:
+ * @code
+ * YYYYMMDD.CSV
+ * @endcode
+ *
+ * @param now Valid current date/time.
+ * @return true on success, false on SD error.
  */
 bool daily_data_file(const DateTime& now);
 
 /**
- * @brief Check and create the daily log file on SD card
+ * @brief Create or select the daily system log file.
  *
- * Compares the day of the month in `now` with the last logged day stored
- * in `rtc_state`. If they differ, it generates a new daily log filename
- * and updates `rtc_state.last_log_day`.
+ * Requires a valid RTC timestamp.
  *
- * @param now Current DateTime instance.
- */
-bool check_and_create_new_daily_file(const DateTime& now);
-
-/**
- * @brief Create or open the daily system log file based on the given timestamp.
+ * Filename format:
+ * @code
+ * YYYYMMDD.LOG
+ * @endcode
  *
+ * @param now Valid current date/time.
+ * @return true on success, false on SD error.
  */
 bool daily_log_file(const DateTime& now);
 
 /**
- * @brief Log a single measurement in semicolon-delimited format.
+ * @brief Create or select the appropriate data and log files.
+ *
+ * With RTC available:
+ * - Creates/selects daily files.
+ * - Rolls over when the day changes.
+ *
+ * Without RTC:
+ * - Creates/selects one no-RTC file pair for the current boot/session.
+ * - Uses the first available `NORTCnn.CSV` / `NORTCnn.LOG` pair.
+ *
+ * @param now Current DateTime instance. Only trusted when @p rtc_available is true.
+ * @param rtc_available true if RTC date/time is valid.
+ * @return true on success, false on SD error.
+ */
+bool check_and_create_new_daily_file(const DateTime& now, bool rtc_available);
+
+/**
+ * @brief Log a single measurement.
  *
  * Output format:
  * @code
- * YYYY-MM-DD HH:MM:SS;sensor_name;value;unit;
+ * YYYY-MM-DD HH:MM:SS.mmm;sensor_name;value;unit;
  * @endcode
  *
- * @param now    Timestamp associated with the measurement.
- * @param sensor Sensor identifier (e.g. `"AS7341_F1_415nm"`).
- * @param value  Floating-point measurement value.
- * @param unit   Unit string (e.g. `"count"`, `"lux"`, `"V"`).
+ * @param now Timestamp associated with the measurement.
+ * @param sensor Sensor identifier.
+ * @param value Floating-point measurement value.
+ * @param unit Measurement unit.
+ * @param use_buffer true to use the circular buffer, false for direct SD write.
+ * @return true on success, false on formatting or SD write error.
  */
 bool logMeasurement(const DateTime& now,
                     const char* sensor,
@@ -158,4 +191,13 @@ bool logMeasurement(const DateTime& now,
                     const char* unit,
                     bool use_buffer = false);
 
+/**
+ * @brief Append a formatted system log event to the current LOG file.
+ *
+ * The message is expected to already contain timestamp and log level formatting.
+ * If the LOG filename is not ready yet, the latest pending message is retained
+ * and written once the file becomes available.
+ *
+ * @param message Null-terminated formatted log message.
+ */
 void log_event(const char* message);
