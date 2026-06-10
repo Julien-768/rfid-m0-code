@@ -60,6 +60,7 @@ typedef struct {
  *
  * Contains:
  *  - Serial port reference
+ *  - Optional hardware serial reference
  *  - Tag type configuration
  *  - Poll timing management
  *  - Line reader
@@ -67,14 +68,15 @@ typedef struct {
  */
 typedef struct {
     Stream* port;
-    tag_type_t type;
+    HardwareSerial* hw_serial;
+    tag_type_t tag_type;
 
     uint32_t last_poll;
     uint32_t poll_interval_ms;
 
     line_reader_t lr;
 
-    enum : uint8_t { QSIZE = 4 };
+    enum : uint8_t { QSIZE = 8 };
     tag_info_t q[QSIZE];
     uint8_t head;
     uint8_t tail;
@@ -104,10 +106,23 @@ class rfid_driver {
      * @param type              Tag type (affects polling command and decoding).
      * @param poll_interval_ms  Poll interval in milliseconds.
      */
-    static void init(rfid_driver_t* drv, Stream* port, tag_type_t type, uint32_t poll_interval_ms);
+    static void init(rfid_driver_t* drv,
+                     Stream* port,
+                     tag_type_t tag_type,
+                     uint32_t poll_interval_ms);
 
     /**
-     * @brief Prepare the RFID UART before powering the reader.
+     * @brief Prepare the RFID serial stream before powering the reader.
+     *
+     * For a generic Stream, clears stale RX bytes so the reader boot banner can
+     * be captured immediately after power-up.
+     *
+     * @param serial Serial stream connected to the RFID reader.
+     */
+    static void prepare_serial(Stream* serial);
+
+    /**
+     * @brief Prepare a hardware RFID UART before powering the reader.
      *
      * Restarts the hardware serial port and flushes stale RX bytes so the
      * reader boot banner can be captured immediately after power-up.
@@ -148,7 +163,23 @@ class rfid_driver {
     static void flush_rx(rfid_driver_t* drv);
 
     /**
+     * @brief Start the RFID driver on any Arduino Stream.
+     *
+     * @param drv               Driver instance storage.
+     * @param serial            Serial stream connected to the RFID reader.
+     * @param type              RFID tag type.
+     * @param poll_interval_ms  Poll interval in milliseconds.
+     */
+    static void start(rfid_driver_t* drv,
+                      Stream* serial,
+                      tag_type_t tag_type,
+                      uint32_t poll_interval_ms);
+
+    /**
      * @brief Start the RFID driver on a hardware serial port.
+     *
+     * This overload keeps hardware-specific ownership tracking so
+     * @ref release_serial() can stop the UART peripheral.
      *
      * @param drv               Driver instance storage.
      * @param serial            Hardware serial port connected to the RFID reader.
@@ -157,7 +188,7 @@ class rfid_driver {
      */
     static void start(rfid_driver_t* drv,
                       HardwareSerial* serial,
-                      tag_type_t type,
+                      tag_type_t tag_type,
                       uint32_t poll_interval_ms);
 
     /**

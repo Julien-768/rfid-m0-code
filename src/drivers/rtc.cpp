@@ -300,13 +300,9 @@ void rtc_set_alarm_at(const DateTime& when) {
     rtc.clearAlarm(DS3231_ALARM_1);
     rtc.setAlarm1(aligned, DS3231_A1_Second);
 
-    // Optionnel mais fortement recommandé pour debug terrain
-    LOG_DEBUG("RTC alarm set at %04d-%02d-%02d %02d:%02d:00",
-              aligned.year(),
-              aligned.month(),
-              aligned.day(),
-              aligned.hour(),
-              aligned.minute());
+    IsoFormatOptions opts;
+    opts.separator = " ";
+    LOG_DEBUG("RTC alarm set at %s", isoformat(aligned, opts).c_str());
 }
 
 // -----------------------------------------------------------------------------

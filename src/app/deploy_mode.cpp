@@ -137,7 +137,7 @@ static bool ensure_daily_file_once_per_day(const DateTime& now) {
         return true;
     }
 
-    if (!check_and_create_new_daily_file(now)) {
+    if (!check_and_create_new_daily_file(now, rtc_available)) {
         return false;
     }
 
@@ -168,7 +168,7 @@ static void log_user_battery_check() {
 
     LOG_INFO("VBAT user check: %ld mV%s", vbat_mv, changed ? " changed" : " unchanged");
 
-    if (!logMeasurement(rtc().now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer)) {
+    if (!logMeasurement(device_now(), "VBAT_USER_CHECK", (float)vbat_mv, "mV", config.use_buffer)) {
         LOG_ERROR("VBAT user check CSV logging failed");
     }
 }
@@ -184,7 +184,7 @@ static void deploy_handle_power_button(SystemState& state) {
 
     if (button_event.type == pwr_manager::POWER_BUTTON_LONG_PRESS) {
         LOG_WARN("Long power-button press: user shutdown requested");
-        if (!logMeasurement(rtc().now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer)) {
+        if (!logMeasurement(device_now(), "SHUTDOWN_USER", 1.0f, "count", config.use_buffer)) {
             LOG_ERROR("Shutdown logging failed");
         }
         log_flush();
@@ -210,6 +210,11 @@ static void configure_active_window_from_config() {
                           config.schedule_start_minute,
                           config.schedule_end_hour,
                           config.schedule_end_minute});
+
+    if (!rtc_available) {
+        LOG_WARN("RTC unavailable: schedule disabled, running permanently in active mode");
+        return;
+    }
 
     LOG_INFO("Schedule active window: %02u:%02u -> %02u:%02u",
              config.schedule_start_hour,
@@ -280,12 +285,18 @@ static void callback_button() {
 }
 
 static void set_next_deploy_alarm(const DateTime& now, bool active_window) {
+    if (!rtc_available) {
+        LOG_DEBUG("RTC unavailable: deploy alarm not scheduled");
+        return;
+    }
+
     DateTime next;
     if (active_window) {
         next = now + TimeSpan(rtc_period);
     } else {
         next = g_schedule.nextStart(now);
     }
+
     rtc_set_alarm_at(next);
 }
 
@@ -361,7 +372,7 @@ static void apply_awake_window(ir_pwm& ir_driver,
                                const DateTime& now,
                                bool& in_awake_window,
                                rfid_runtime_mode rfid_rt_mode = g_rfid_mode) {
-    const bool new_active_window = g_schedule.isActive(now);
+    const bool new_active_window = rtc_available ? g_schedule.isActive(now) : true;
 
     if (new_active_window && !in_awake_window) {
         deploy_enter_active_window(ir_driver, rfid_rt_mode);
@@ -396,10 +407,12 @@ void deploy_enter(ir_pwm& ir_driver) {
     log_flush();
 
     LOG_DEBUG("Checking initial schedule window at startup");
-    rtc_clear_alarm_flag();
-    delay(100);
+    if (rtc_available) {
+        rtc_clear_alarm_flag();
+        delay(100);
+    }
 
-    DateTime now = rtc().now();
+    DateTime now = device_now();
     if (!ensure_daily_file_once_per_day(now)) {
         return;
     }
@@ -420,16 +433,15 @@ void deploy_enter(ir_pwm& ir_driver) {
     LOG_DEBUG("Setting up DEPLOY mode callbacks");
     pwr_manager::reset_power_button_tracking();
 
-    rtc_set_alarm_callback(callback_rtc);
-    set_next_deploy_alarm(now, in_awake_window);
+    if (rtc_available) {
+        rtc_set_alarm_callback(callback_rtc);
+        set_next_deploy_alarm(now, in_awake_window);
+    } else {
+        LOG_WARN("RTC unavailable: RTC wake callback and alarm disabled");
+    }
 
     ir_driver.set_callback_sensor_1(callback_ir1);
     ir_driver.set_callback_sensor_2(callback_ir2);
-}
-
-static bool rtc_is_present() {
-    Wire.beginTransmission(0x68);
-    return Wire.endTransmission() == 0;
 }
 
 /**
@@ -453,8 +465,8 @@ void deploy_exit(ir_pwm& ir_driver) {
     LOG_DEBUG("clear RTC alarm callback");
     low_power_detach_interrupt(RTC_INTERRUPT_PIN);
 
-    rtc_set_alarm_callback(nullptr);
-    if (rtc_is_initialized()) {
+    if (rtc_available) {
+        rtc_set_alarm_callback(nullptr);
         rtc_clear_alarm_flag();
     } else {
         LOG_WARN("skip rtc_clear_alarm_flag: RTC not initialized");
@@ -503,29 +515,16 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     uint8_t ir1_state = LOW;
     uint8_t ir2_state = LOW;
 
-    // Evaluate policy before sleeping.
-    // now = rtc().now();
-    // apply_awake_window(ir_driver, now, in_awake_window);
-
     // Sleep policy:
     // - Outside active window: RTC must be the only wake source.
     // - Inside active window: keep current behavior.
-    if (!in_awake_window) {
+    if (!rtc_available) {
+        LowPower.idle();
+    } else if (!in_awake_window) {
         LOG_DEBUG("Entering low-power mode. In active window: NO");
         LowPower.sleep();
     } else {
-        // LOG_DEBUG("Before sleep: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
-        //           digitalRead(10), g_deploy_events);
-        // LowPower.sleep();
-
         LowPower.idle();
-        // for (int i = 0; i < 20; i++) {
-        //     // signal_engine_update();
-        //     delay(10);
-        // }
-
-        // LOG_DEBUG("After wake: rtc_irq=%d (0 means active irq, 1 means no irq), events=0x%02X",
-        //           digitalRead(10), g_deploy_events);
     }
 
     pwr_manager::power_button_poll();
@@ -551,11 +550,11 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     interrupts();
 
     // Outside active window, ignore non-RTC events defensively.
-    now = rtc().now();
+    now = device_now();
     apply_awake_window(ir_driver, now, in_awake_window, g_rfid_mode);
 
     // If we woke up outside the active window due to a non-RTC event, ignore it and go back to sleep.
-    if (!in_awake_window) {
+    if (rtc_available && !in_awake_window) {
         if (!(events & DEPLOY_EVT_RTC_WAKE)) {
             LOG_DEBUG("Woke up outside active window, events=0x%02X. Ignoring non-RTC events.",
                       events);
@@ -635,7 +634,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     // ===== Periodic full acquisition (RTC driven) =====
 
     // If we woke up due to RTC, perform a full periodic acquisition and log.
-    if (events & DEPLOY_EVT_RTC_WAKE) {
+    if ((events & DEPLOY_EVT_RTC_WAKE) && rtc_available) {
         LOG_DEBUG("RTC wake-up event.");
         rtc_clear_alarm_flag();
         set_next_deploy_alarm(now, in_awake_window);
@@ -770,7 +769,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
             if (should_log) {
                 LOG_INFO("RFID tag detected: %s", tag.tag);
 
-                DateTime tag_now = rtc().now();
+                DateTime tag_now = device_now();
 
                 if (!ensure_daily_file_once_per_day(tag_now)) {
                     state = STATE_ENDOFLIFE;

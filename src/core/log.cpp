@@ -16,6 +16,7 @@
 #include "sd_manager.h"
 #include "hardware.h"
 #include "SoftTx.h"
+#include "utils.h"
 
 #include <SD.h>
 #include <stdarg.h>
@@ -191,40 +192,16 @@ static void formatLogLine(char* out,
 static void formatTimestamp(char* timestamp, size_t size) {
     if (!timestamp || size == 0) return;
 
-    if (rtc_available) {
-        DateTime now = rtc().now();
+    DateTime now = device_now();
 
-        // Note: millis() is not phase-locked to the RTC second.
-        // This gives useful sub-second ordering, but not true RTC milliseconds.
-        uint16_t ms = millis() % 1000;
+    IsoFormatOptions opts;
+    opts.separator  = " ";
+    opts.include_ms = true;
+    opts.ms         = device_ms();
 
-        snprintf(timestamp,
-                 size,
-                 "%04d-%02d-%02d %02d:%02d:%02d.%03u",
-                 now.year(),
-                 now.month(),
-                 now.day(),
-                 now.hour(),
-                 now.minute(),
-                 now.second(),
-                 ms);
-    } else {
-        uint32_t uptime_ms = millis();
-        uint32_t seconds   = uptime_ms / 1000UL;
+    String formatted = isoformat(now, opts);
 
-        uint32_t hours  = seconds / 3600UL;
-        uint8_t minutes = (seconds % 3600UL) / 60UL;
-        uint8_t secs    = seconds % 60UL;
-        uint16_t ms     = uptime_ms % 1000UL;
-
-        snprintf(timestamp,
-                 size,
-                 "UPTIME %lu:%02u:%02u.%03u",
-                 (unsigned long)hours,
-                 minutes,
-                 secs,
-                 ms);
-    }
+    snprintf(timestamp, size, "%s", formatted.c_str());
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +232,15 @@ void logPrintf(uint8_t level, const char* fmt, ...) {
 
     char timestamp[40];
     formatTimestamp(timestamp, sizeof(timestamp));
+
+    // If RTC is not available, prepend "UPTIME" to the timestamp to indicate it's not real time.
+    if (!rtc_available) {
+        char tmp[48];
+        snprintf(tmp, sizeof(tmp), "UPTIME %s", timestamp);
+
+        strncpy(timestamp, tmp, sizeof(timestamp) - 1);
+        timestamp[sizeof(timestamp) - 1] = '\0';
+    }
 
     char final[256];
     formatLogLine(final,

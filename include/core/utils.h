@@ -1,10 +1,6 @@
 /**
  * @file utils.h
- * @brief Utility functions for time formatting and RTC synchronization.
- *
- * This module provides helpers to format DateTime objects as strings
- * (e.g., for filenames or log entries) and to calculate a synchronized
- * millisecond timestamp for accurate time logs.
+ * @brief Utility functions for date/time formatting, conversion and hardware helpers.
  */
 
 #pragma once
@@ -13,100 +9,89 @@
 #include <RTClib.h>
 #include "rtc.h"
 
+/**
+ * @brief Options used by isoformat() to control timestamp formatting.
+ */
 struct IsoFormatOptions {
-    int ms                = 0;
+    /// Milliseconds value to append when include_ms is true.
+    int ms = 0;
+
+    /// Separator inserted between date and time.
     const char* separator = "T";
-    bool include_ms       = false;
+
+    /// If true, append milliseconds as ".mmm".
+    bool include_ms = false;
 };
 
+/**
+ * @brief Scan the I2C bus and report detected devices.
+ *
+ * @return true if at least one I2C device was found, false otherwise.
+ */
 bool scanI2CBus();
 
 /**
- * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS[.mmm]".
+ * @brief Formats a DateTime object as "YYYY-MM-DD{sep}HH:MM:SS[.ms]".
  *
- * @param t DateTime object to format.
- * @param opts Formatting options: separator and optional milliseconds.
+ * @param t The DateTime object to format.
+ * @param opts Formatting options.
  * @return Formatted timestamp string.
  */
-String isoformat(const DateTime& t, const IsoFormatOptions& opts);
+String isoformat(const DateTime& t, const IsoFormatOptions& opts = IsoFormatOptions());
 
 /**
- * @brief Converts a BCD-encoded byte to its decimal value.
+ * @brief Formats a DateTime object as "YYYY_MM_DD".
  *
- * @param val BCD-encoded value (e.g., 0x25 for decimal 25)
- * @return Decimal integer equivalent of the BCD value.
+ * @param t The DateTime object to format.
+ * @return Formatted date string.
+ */
+String isoformat_date(const DateTime& t);
+
+/**
+ * @brief Converts a BCD-encoded byte to decimal.
+ *
+ * @param val BCD-encoded value.
+ * @return Decimal value.
  */
 uint8_t bcdToDec(uint8_t val);
 
 /**
  * @brief Parses an ISO8601 datetime string and stores it in BCD format.
  *
- * Converts an ISO8601 string of the form `"YYYY-MM-DDTHH:MM:SS"` into a
- * `deviceTime_t` struct where each field is stored in BCD format.
- *
- * @param iso8601 Input string, e.g. `"2025-07-23T14:30:00"`.
- * @param out Pointer to a deviceTime_t struct to receive the BCD-encoded result.
- * @return `true` if parsing and conversion succeeded, `false` otherwise.
+ * @param iso8601 Input string, e.g. "2025-07-23T14:30:00".
+ * @param out Pointer to the device_time_t output structure.
+ * @return true if parsing succeeded, false otherwise.
  */
-bool convertDatetoBcd(const char* iso8601, deviceTime_t* out);
+bool convertDatetoBcd(const char* iso8601, device_time_t* out);
 
 /**
- * @brief Formats a BCD-encoded deviceTime_t as an ISO8601 string.
+ * @brief Formats a BCD-encoded device_time_t as an ISO8601 string.
  *
- * Converts a `deviceTime_t` struct (with BCD-encoded fields) into a
- * standard ISO8601 timestamp string.
- *
- * @param in Pointer to the deviceTime_t to convert.
- * @param out Output buffer for the resulting string.
- * @param len Size of the output buffer in bytes (should be ≥ 20).
+ * @param in Pointer to the BCD-encoded device_time_t.
+ * @param out Output buffer.
+ * @param len Output buffer size in bytes.
  */
-void convertBcdDateToISO8601(const deviceTime_t* in, char* out, size_t len);
+void convertBcdDateToISO8601(const device_time_t* in, char* out, size_t len);
 
 /**
- * @brief Convert an ISO8601 datetime string to a DateTime object.
+ * @brief Converts an ISO8601 datetime string to a DateTime object.
  *
- * Expected format:
- * `"YYYY-MM-DDTHH:MM:SS"`
- *
- * Example:
- * `"2025-07-23T14:30:00"`
- *
- * @param iso8601 Null-terminated ISO8601 string.
+ * @param iso8601 Input ISO8601 string.
  * @param out Pointer to the destination DateTime object.
  * @return true if parsing succeeded, false otherwise.
  */
 bool convertISO8601ToDateTime(const char* iso8601, DateTime* out);
 
 /**
- * @brief Formats a DateTime as a filename-friendly date string.
+ * @brief Returns the current device timestamp.
  *
- * Produces a string in the format "YYYY_MM_DD", for example "2026_06_05".
- *
- * @param t DateTime instance to format.
- * @return String with the date formatted as "YYYY_MM_DD".
+ * @return Current date and time.
  */
-String isoformat_date(const DateTime& t);
+DateTime device_now();
 
 /**
- * @brief Format a date/time as ISO8601.
+ * @brief Returns the current millisecond fraction of the device timestamp.
  *
- * Output format: "YYYY-MM-DDTHH:MM:SS".
- *
- * @param out Output buffer.
- * @param len Output buffer size, minimum 20 bytes.
- * @param year Year.
- * @param month Month [1..12].
- * @param day Day [1..31].
- * @param hour Hour [0..23].
- * @param minute Minute [0..59].
- * @param second Second [0..59].
- * @return true if formatting succeeded, false otherwise.
+ * @return Milliseconds in the range [0, 999].
  */
-bool formatISO8601(char* out,
-                   size_t len,
-                   uint16_t year,
-                   uint8_t month,
-                   uint8_t day,
-                   uint8_t hour,
-                   uint8_t minute,
-                   uint8_t second);
+uint16_t device_ms();

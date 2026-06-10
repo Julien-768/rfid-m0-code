@@ -168,37 +168,27 @@ static SystemState runBootSequence() {
     LOG_INFO(string_widget.c_str());
     if (hw_assembly.rtc_type == "ds3231" and i2c_ok == true) {
         LOG_INFO("RTC used\tDS3231");
-        // // Register RTC ISR callback
-        // rtc_set_alarm_callback(nullptr);
-        // Initialize RTC
         if (!rtc_initialization(RTC_INTERRUPT_PIN)) {
             LOG_ERROR("RTC initialization failed");
             return STATE_ENDOFLIFE;
         }
         // Boot-time sanity check
         rtc_boot_recover();
-        // rtc_boot_recover() handles RTC recovery if needed.
         // Do not force DateTime(__DATE__, __TIME__) here, otherwise the RTC would be reset
         // to the firmware compilation time at each boot/recovery path.
         //rtc_apply_external_time(DateTime(__DATE__, __TIME__));
         rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
-        return STATE_ENDOFLIFE;  // TODO: consider allowing operation without RTC, but with limited functionality (e.g., limited timestamping, limited daily file management)
     }
 
-    if (rtc_available) {
-        /*
-        Check and create the daily log file on SD card
-        */
-        // TODO: add rtc_available in rtc module
-        DateTime now = rtc().now();
-        if (!check_and_create_new_daily_file(now)) {
-            LOG_ERROR("Failed to create daily log file at boot");
-            return STATE_ENDOFLIFE;
-        }
-    } else {
-        LOG_WARN("Skipping daily log file creation: no RTC available");
+    /*
+    Check and create the daily log file on SD card
+    */
+    DateTime now = device_now();
+    if (!check_and_create_new_daily_file(now, rtc_available)) {
+        LOG_ERROR("Failed to create daily log file at boot");
+        return STATE_ENDOFLIFE;
     }
 
     /*
@@ -211,16 +201,6 @@ static SystemState runBootSequence() {
         hw_assembly.uid_mainboard = mcu_uid_read();
         uid_updated               = true;
     }
-    // if (hw_assembly.uid_light_sensor1 == "$uid_light_sensor1$")
-    //     {
-    //         hw_assembly.uid_light_sensor1 = readAS7341DeviceID();  // TODO read from sensor
-    // uid_updated               = true;
-    // }
-    // if (hw_assembly.uid_light_sensor2 == "$uid_light_sensor2$")
-    //     {
-    //         hw_assembly.uid_light_sensor2 = readTSL2591DeviceID();  // TODO read from sensor
-    // uid_updated               = true;
-    // }
 
     if (uid_updated) {
         LOG_INFO("Hardware UIDs updated by software at boot");
@@ -454,9 +434,6 @@ void loop() {
             LOG_ERROR("Entering END OF LIFE mode");
             deploy_exit(ir_driver);
             SD.end();
-            // led_start_blink_isr(1, blink_mode::slow);
-            // led_start_blink_isr(10, blink_mode::fast);
-            // Blink fast 10 times before switching off
             blink_blocking_safe(PIN_BUZZER_LED, 100, 100, 10);
             pwr_manager::request_shutdown();
             delay(2000);
