@@ -19,6 +19,7 @@
  * ## Unit convention
  * All voltages handled by this module are expressed in **millivolts (mV)**:
  * - readings returned by @ref battery_service_read_vbat_filtered_mv()
+ *   and @ref battery_service_read_vbat_telemetry_mv()
  * - thresholds exposed by @ref battery_thresholds_t
  *
  * @note The service stores a board-level measurement configuration and converts it
@@ -116,6 +117,7 @@ extern battery_service_config_t batt_serv_cfg;
  * @see battery_service_config_t
  * @see battery_service_apply_type_string()
  * @see battery_service_read_vbat_filtered_mv()
+ * @see battery_service_read_vbat_telemetry_mv()
  */
 bool battery_service_init(const battery_service_config_t& cfg);
 
@@ -147,6 +149,22 @@ battery_thresholds_t battery_service_apply_type_string(const String& battery_typ
  *         - -2 = plausibility error
  */
 bool battery_service_read_vbat_filtered_mv(int32_t& vbat_mv, bool& changed);
+
+/**
+ * @brief Read VBAT for telemetry/diagnostic reporting.
+ *
+ * Reads the battery voltage and applies the service filter, but does not apply
+ * the service plausibility bounds. This is intended for GUI requests such as
+ * GET_VBAT, where the raw measured voltage should still be reported even if it
+ * is outside the nominal battery operating range.
+ *
+ * @param[out] vbat_mv Filtered battery voltage in mV, or a negative driver error code.
+ * @param[out] changed True if the filtered value changed significantly.
+ *
+ * @return true if the ADC read succeeded.
+ * @return false if the driver returned an error.
+ */
+bool battery_service_read_vbat_telemetry_mv(int32_t& vbat_mv, bool& changed);
 
 /**
  * @brief Periodic battery check with downsampling.

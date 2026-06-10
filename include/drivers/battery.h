@@ -118,7 +118,7 @@ battery_type_t battery_type_from_string(const char* s);
 /**
  * @brief Return default thresholds for a given battery type.
  *
- * Default values are chosen conservatively for embedded logger usage.
+ * Default values are chosen conservatively for embedded device usage.
  * They can be overridden by upper layers if needed.
  *
  * @param type Battery technology.

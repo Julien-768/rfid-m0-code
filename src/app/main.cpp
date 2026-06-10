@@ -2,10 +2,10 @@
  * @file main.cpp
  * @defgroup MainApplication GreatTitCore Application
  * @ingroup SystemModules
- * @brief Main control logic and global runtime state machine of the Great Tit Logger.
+ * @brief Main control logic and global runtime state machine of the Great Tit device.
  *
  * The **Main Application** coordinates all core modules of the autonomous
- * logger platform. It implements the global system state machine, manages
+ * device platform. It implements the global system state machine, manages
  * low-power transitions, and controls shared hardware resources depending on
  * the active runtime mode.
  *
@@ -48,7 +48,7 @@
  * @ref runBootSequence().
  *
  * After boot:
- * - The logger first enters @ref STATE_CONNECTED for a temporary GUI/UART
+ * - The device first enters @ref STATE_CONNECTED for a temporary GUI/UART
  *   configuration window.
  * - If no GUI activity is detected before timeout expiration, the system
  *   automatically transitions to @ref STATE_INIT.
@@ -88,7 +88,7 @@
 #include "deploy_mode.h"
 #include "sensors.h"
 #include "sensors_internal.h"
-#include "logger_identity.h"
+#include "device_identity.h"
 #include "mcu_uid.h"
 #include "utils.h"
 #include "battery.h"
@@ -185,7 +185,7 @@ static SystemState runBootSequence() {
     /*
     Check and create the daily log file on SD card
     */
-    DateTime now = logger_now();
+    DateTime now = device_now();
     if (!check_and_create_new_daily_file(now, rtc_available)) {
         LOG_ERROR("Failed to create daily log file at boot");
         return STATE_ENDOFLIFE;
@@ -233,52 +233,62 @@ static SystemState runBootSequence() {
     const auto& idFlash = device_id_get();
     LOG_INFO("Factory identity loaded from flash");
     LOG_INFO("\tManufacturer: %s", idFlash.manufacturer);
-    LOG_INFO("\tLogger type: %s", idFlash.logger_type);
+    LOG_INFO("\tdevice type: %s", idFlash.device_type);
     LOG_INFO("\tDate of fabrication: %s", idFlash.date_fab);
     LOG_INFO("\tSerial number: %s", idFlash.serial_number);
 
     /*
-     Battery initialization
-     */
+ * Battery initialization
+ */
     LOG_INFO(string_widget.c_str());
+
     battery_service_config_t batt_serv_cfg{};
 
     // Hardware configuration
     batt_serv_cfg.hw.pin = PIN_VBAT;
-    // ADC configuration - defaults as a reminder, can be overridden if needed
+
+    // ADC configuration
     batt_serv_cfg.hw.adc_cfg.ratio      = 2.0f;
     batt_serv_cfg.hw.adc_cfg.adc_ref_mv = 3300;
     batt_serv_cfg.hw.adc_cfg.adc_max    = 4095;
 
     // Get configuration policy from configuration file
     battery_thresholds_t batt_thr = battery_service_apply_type_string(hw_assembly.battery_type);
-    batt_serv_cfg.policy.plausible_min_mv = batt_thr.low_warn_mv;   // e.g. 3300mV for LiPo 1S
-    batt_serv_cfg.policy.plausible_max_mv = batt_thr.high_crit_mv;  // e.g. 4200mV for LiPo 1S
 
-    // Remplir batt_serv_cfg.filter
-    batt_serv_cfg.filter.ema_alpha          = 0.2;  // Smoothing factor for EMA (0..1).
-    batt_serv_cfg.filter.delta_threshold_mv = 10;   // Change in mV for a battery level "changed".
+    // Plausibility range: wider than normal operating range.
+    // Allows USB/no-battery cases to be reported instead of disabling VBAT.
+    batt_serv_cfg.policy.plausible_min_mv = 2500;
+    batt_serv_cfg.policy.plausible_max_mv = 5500;
+
+    // Filter configuration
+    batt_serv_cfg.filter.ema_alpha          = 0.2f;
+    batt_serv_cfg.filter.delta_threshold_mv = 10;
 
     // Init service
     if (!battery_service_init(batt_serv_cfg)) {
-        // Handle battery initialization failure
         LOG_ERROR("Battery service initialization failed");
+        battery_set_available(false);
         return STATE_ENDOFLIFE;
     }
 
-    // Vérification initiale boot
+    battery_set_available(true);
+
+    // Initial boot check
     int32_t vbat_mv = 0;
     bool changed    = false;
+
     if (battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-        battery_set_available(true);
-        if (!battery_service_decision("Boot", vbat_mv)) {
-            // Log and blink error led
+        if (vbat_mv > batt_thr.high_crit_mv) {
+            LOG_WARN(
+                "Boot: VBAT=%ld mV above battery range, likely USB/external power; ignoring "
+                "critical battery check",
+                vbat_mv);
+        } else if (!battery_service_decision("Boot", vbat_mv)) {
             error_signal(ERR_BATTERY_CRITICAL);
             return STATE_ENDOFLIFE;
         }
     } else {
-        LOG_WARN("Initial battery reading failed");
-        battery_set_available(false);
+        LOG_WARN("Initial battery reading invalid or unavailable: vbat_mv=%ld", vbat_mv);
     }
 
     // --- Initialize IR PWM module ---

@@ -1,6 +1,6 @@
 /**
  * @file config.h
- * @brief Runtime configuration model for the logger.
+ * @brief Runtime configuration model for the device.
  *
  * This module defines the runtime configuration used by the application.
  *

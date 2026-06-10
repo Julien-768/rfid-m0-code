@@ -2,7 +2,29 @@
  * @file sd_manager.cpp
  * @defgroup SD_Manager SD Manager
  * @ingroup SystemModules
- * @brief SD card management and buffered data logging for the Logger.
+ * @brief SD card management and buffered data logging for the device.
+ *
+ * The **SD Manager** module handles initialization, daily file management, and
+ * buffered writing for the device. It ensures reliable, power-efficient logging
+ * even under intermittent storage access or during long deployments.
+ *
+ * ## Responsibilities
+ * - Initialize and verify SD card communication.
+ * - Manage a circular buffer for batched measurement writes.
+ * - Create and maintain daily measurement and system log files.
+ * - Write measurement data from sensors to a CSV file.
+ * - Write system logs to a separate LOG file.
+ * - Handle SD write failures and transition to safe shutdown (END-OF-LIFE).
+ *
+ * ## Daily files
+ * - Measurements: YYYYMMDD.CSV
+ * - System logs:  YYYYMMDD.LOG
+ *
+ * ## Error Handling
+ * - On initialization failure -> @ref ERR_SD_NOT_FOUND, enters `STATE_ENDOFLIFE`.
+ * - On write or flush error -> @ref ERR_SD_WRITE_FAIL, enters `STATE_ENDOFLIFE`.
+ *
+ * @{
  */
 
 #include <Arduino.h>

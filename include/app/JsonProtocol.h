@@ -1,6 +1,6 @@
 /**
  * @file JsonProtocol.h
- * @brief JSON protocol helper for the logger over UART.
+ * @brief JSON protocol helper for the device over UART.
  *
  * This module is responsible only for:
  * - parsing incoming JSON into command payloads
@@ -75,9 +75,9 @@ struct ConfigResponsePayload {
 struct SetIdentityPayload {
     char UID[32];
     char manufacturer[16];
-    char logger_type[16];
+    char device_type[16];
     char date_fab[16];
-    char logger_sn[16];
+    char device_sn[16];
 };
 
 /**
@@ -109,7 +109,10 @@ bool parseCommand(const char* json_string, ParsedCommand& out, char* errorBuf, s
 /**
  * @brief Build a GET_INFO JSON response.
  *
- * @param version Firmware version string.
+ * The response contains firmware name, firmware version, firmware compilation
+ * timestamp and PlatformIO board name.
+ *
+ * @param version Firmware version string, or nullptr if unknown.
  *
  * @return Pointer to a static JSON buffer.
  */

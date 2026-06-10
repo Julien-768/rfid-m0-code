@@ -1,6 +1,6 @@
 /**
  * @file JsonProtocol.cpp
- * @brief Implementation of JSON protocol helpers for the logger.
+ * @brief Implementation of JSON protocol helpers for the device.
  *
  * Supported command formats (RX side):
  *
@@ -54,9 +54,9 @@
  *     "command": {
  *       "identity": {
  *         "manufacturer": "CNRS",
- *         "logger_type":  "RFID-M0",
+ *         "device_type":  "RFID-M0",
  *         "date_fab":     "2025-01-01",
- *         "logger_sn":    "MRK-0001"
+ *         "device_sn":    "RFD-0001"
  *       }
  *     }
  *   }
@@ -242,17 +242,17 @@ bool JsonProtocol::parseCommand(const char* json_string,
 
             const char* uid          = ident["uid_mcu"] | "UNKNOWN";
             const char* manufacturer = ident["manufacturer"] | "UNKNOWN";
-            const char* logger_type  = ident["logger_type"] | "UNKNOWN";
+            const char* device_type  = ident["device_type"] | "UNKNOWN";
             const char* date_fab     = ident["date_fab"] | "2025-01-01";
-            const char* logger_sn    = ident["logger_sn"] | "UNKNOWN";
+            const char* device_sn    = ident["device_sn"] | "UNKNOWN";
 
             memset(&out.identity, 0, sizeof(out.identity));
             strncpy(out.identity.UID, uid, sizeof(out.identity.UID) - 1);
 
             strncpy(out.identity.manufacturer, manufacturer, sizeof(out.identity.manufacturer) - 1);
-            strncpy(out.identity.logger_type, logger_type, sizeof(out.identity.logger_type) - 1);
+            strncpy(out.identity.device_type, device_type, sizeof(out.identity.device_type) - 1);
             strncpy(out.identity.date_fab, date_fab, sizeof(out.identity.date_fab) - 1);
-            strncpy(out.identity.logger_sn, logger_sn, sizeof(out.identity.logger_sn) - 1);
+            strncpy(out.identity.device_sn, device_sn, sizeof(out.identity.device_sn) - 1);
 
             out.type = CommandType::SET_IDENTITY;
             if (errorBuf && errorBufLen) errorBuf[0] = '\0';
@@ -268,29 +268,43 @@ bool JsonProtocol::parseCommand(const char* json_string,
 }
 
 /**
- * @brief Build JSON with firmware version and compilation date.
+ * @brief Build JSON with firmware information.
  *
- * Uses @ref isoformat() to generate the compilation timestamp.
+ * The response includes firmware name, firmware version, firmware compilation
+ * timestamp, and PlatformIO board name.
  *
- * @param version Firmware version string.
- * @return Pointer to a static internal buffer (overwritten at each call).
+ * The compilation timestamp is obtained from @ref getCompilationDateTime(),
+ * which reconstructs the build timestamp embedded by the compiler from
+ * `__DATE__` and `__TIME__`, then formats it as ISO-8601.
+ *
+ * Example:
+ * @code
+ * {
+ *   "info": {
+ *     "firmware_name": "rfid_m0",
+ *     "firmware_version": "v1.2.3",
+ *     "compilation_date": "2026-06-05T14:30:00",
+ *     "board": "adafruit_feather_m0"
+ *   }
+ * }
+ * @endcode
+ *
+ * @param version Firmware version string, or nullptr if unknown.
+ * @return Pointer to a static internal buffer, overwritten at each call.
  */
 const char* JsonProtocol::buildInfoJSON(const char* version) {
     static char buffer[192];
     StaticJsonDocument<192> doc;
 
-    const DateTime build_time(F(__DATE__), F(__TIME__));
-
     IsoFormatOptions opts;
     opts.separator = "T";
 
-    char dateCompil[24];
-    strlcpy(dateCompil, isoformat(build_time, opts).c_str(), sizeof(dateCompil));
+    const DateTime buildTime = getCompilationDateTime();
 
     JsonObject obj          = doc.createNestedObject("info");
     obj["firmware_name"]    = "rfid_m0";
     obj["firmware_version"] = version ? version : "UNKNOWN";
-    obj["compilation_date"] = dateCompil;
+    obj["compilation_date"] = isoformat(buildTime, {opts});
     obj["board"]            = __PIO_BOARD_NAME__;
 
     serializeJson(doc, buffer);
@@ -299,7 +313,7 @@ const char* JsonProtocol::buildInfoJSON(const char* version) {
 }
 
 /**
- * @brief Build JSON with logger identification details.
+ * @brief Build JSON with device identification details.
  *
  * @param payload Reference to a @ref SetIdentityPayload structure.
  * @return Pointer to a static internal buffer containing the serialized JSON.
@@ -312,8 +326,8 @@ const char* JsonProtocol::buildIdJSON(const SetIdentityPayload& payload) {
     obj["uid_mcu"]      = payload.UID[0] ? payload.UID : "UNKNOWN";
     obj["manufacturer"] = payload.manufacturer[0] ? payload.manufacturer : "UNKNOWN";
     obj["date_fab"]     = payload.date_fab[0] ? payload.date_fab : "";
-    obj["logger_type"]  = payload.logger_type[0] ? payload.logger_type : "UNKNOWN";
-    obj["logger_sn"]    = payload.logger_sn[0] ? payload.logger_sn : "";
+    obj["device_type"]  = payload.device_type[0] ? payload.device_type : "UNKNOWN";
+    obj["device_sn"]    = payload.device_sn[0] ? payload.device_sn : "";
 
     serializeJson(doc, buffer);
     return buffer;
@@ -337,7 +351,7 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
 }
 
 /**
- * @brief Build a JSON snapshot of the current logger configuration.
+ * @brief Build a JSON snapshot of the current device configuration.
  *
  * Builds the response used by @c GET_CONFIG. The output format mirrors the GUI
  * configuration payload so the same field names are used in both directions.
@@ -347,7 +361,7 @@ const char* JsonProtocol::buildVbatJSON(unsigned int voltage_mV) {
  * enable_ir = enable_ir1 || enable_ir2
  * @endcode
  *
- * The JSON includes the current logger time, acquisition settings, enabled
+ * The JSON includes the current device time, acquisition settings, enabled
  * modules, RFID mode, VBAT logging state, and daily activation schedule window.
  *
  * @param payload Current configuration snapshot to serialize.

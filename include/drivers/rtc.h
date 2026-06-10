@@ -34,7 +34,7 @@ extern bool rtc_available;
  * - year: 00..99 (for 2000..2099)
  * - month/day/hour/minute/second: standard ranges
  *
- * The main difference between LoggerTime_t and DateTime is
+ * The main difference between device_time_t and DateTime is
  * in year representation (00..99 vs 2000..2099).
  */
 typedef struct {
@@ -44,7 +44,7 @@ typedef struct {
     uint8_t hour;    ///< 00..23 (BCD)
     uint8_t minute;  ///< 00..59 (BCD)
     uint8_t second;  ///< 00..59 (BCD)
-} LoggerTime_t;
+} device_time_t;
 
 /**
  * @brief Runtime RTC state used by the application.
@@ -174,7 +174,7 @@ void rtc_clear_and_set_alarm(const DateTime& now, uint32_t interval_s);
  *
  * @param when Absolute time for the next wake-up.
  *
- * @note This function uses `DS3231_A1_Minute` alarm mode, which matches on
+ * @note This function uses `SET_Alarm1` alarm mode, which matches on
  *       minute boundaries. Seconds are ignored and effectively set to 0.
  */
 void rtc_set_alarm_at(const DateTime& when);
@@ -197,8 +197,8 @@ void rtc_set_alarm_callback(rtc_alarm_callback_t callback);
 /**
  * @brief Boot-time RTC sanity + recovery policy.
  *
- * - If RTC time is sane: accept it.
- * - If not sane: fallback to firmware build time.
+ * - If RTC time is sane and the RTC did not report lost power: accept it.
+ * - Otherwise: fallback to firmware build time.
  *
  * @return true if RTC policy executed successfully.
  */
@@ -210,5 +210,15 @@ bool rtc_boot_recover();
  * @param t Time to write into RTC.
  */
 void rtc_apply_external_time(const DateTime& t);
+
+/**
+ * @brief Return the firmware compilation timestamp as a DateTime.
+ *
+ * The timestamp comes from compiler macros `__DATE__` and `__TIME__`.
+ * It is fixed at firmware build time and does not depend on the RTC.
+ *
+ * @return Firmware compilation timestamp.
+ */
+DateTime getCompilationDateTime();
 
 /** @} */  // end of RTC_Manager

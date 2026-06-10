@@ -3,7 +3,7 @@
  * @brief Internal sensor table (g_sensors) declaration.
  *
  * This header is *internal* to the firmware.
- * It exposes the concrete SensorSpec table used by the logger so that
+ * It exposes the concrete SensorSpec table used by the device so that
  * high-level application code can explicitly pass it to:
  *
  *  - Sensors_InitForDeploy(SensorSpec* table, size_t count)
@@ -16,7 +16,7 @@
 
 #include "sensors_hal.h"  // for SensorSpec
 
-/// Logger sensor table (defined in sensors.cpp).
+/// device sensor table (defined in sensors.cpp).
 extern SensorSpec g_sensors[];
 
 /// Number of entries in @ref g_sensors.

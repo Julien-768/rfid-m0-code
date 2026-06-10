@@ -1,6 +1,6 @@
 /**
  * @file pwr_manager.h
- * @brief Power management API for the logger.
+ * @brief Power management API for the device.
  *
  * This module provides:
  * - power button handling and event detection

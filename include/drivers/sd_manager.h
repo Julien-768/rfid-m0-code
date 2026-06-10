@@ -1,8 +1,6 @@
 /**
  * @file sd_manager.h
- * @defgroup SD_Manager SD Manager
- * @ingroup SystemModules
- * @brief SD card logging manager for the low-power data logger.
+ * @brief SD card logging manager for the low-power data device.
  *
  * This module provides SD card management utilities for:
  * - SD initialization
@@ -14,7 +12,7 @@
  *
  * ## Filename policy
  *
- * The Adalogger M0 uses FAT-compatible filenames. This module therefore keeps
+ * The Adadevice M0 uses FAT-compatible filenames. This module therefore keeps
  * filenames compatible with the 8.3 format.
  *
  * With RTC available:
@@ -126,7 +124,9 @@ u_int8_t flushCircularBuffer(CircularBuffer* cb);
 /**
  * @brief Create or select the daily measurement CSV file.
  *
- * Requires a valid RTC timestamp.
+ * Generates a filename in `YYYYMMDD.TXT` format and ensures the file exists.
+ * If the file cannot be created or opened, the device transitions to
+ * END-OF-LIFE mode.
  *
  * Filename format:
  * @code

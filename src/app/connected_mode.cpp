@@ -4,7 +4,7 @@
  * @ingroup SystemModules
  * @brief UART JSON command handling for CONNECTED mode.
  *
- * This module implements the **CONNECTED** state logic of the logger.
+ * This module implements the **CONNECTED** state logic of the device.
  * In this mode, the device communicates with an external GUI/tool over UART
  * @c GUI_SERIAL using a line-based JSON protocol.
  *
@@ -18,11 +18,13 @@
  * - GET_INFO
  *   - Returns firmware version and build metadata.
  * - GET_ID
- *   - Returns logger identification data:
+ *   - Returns device identification data:
  *     - MCU UID (from @ref hw_assembly.cfg / @ref Assembly::uid_mainboard)
- *     - Factory identity (from MCU Flash via @ref logger_identity.h)
+ *     - Factory identity (from MCU Flash via @ref device_identity.h)
  * - GET_VBAT
- *   - Returns battery voltage (mV). (Currently placeholder if not implemented.)
+ *   - Returns the measured battery/VBAT voltage in millivolts.
+ *   - Uses telemetry reading without battery-range plausibility rejection, so USB
+ *     or external-power values can still be reported for diagnostics.
  * - GET_TIME
  *   - Returns the current RTC datetime in ISO-8601 format.
  *   @code
@@ -52,12 +54,12 @@
  *     via @ref device_id_program.
  *
  * Factory identity storage
- * Factory identity (manufacturer / logger type / fabrication date / serial number)
+ * Factory identity (manufacturer / device type / fabrication date / serial number)
  * is stored in SAMD21 internal non-volatile memory (Flash).
  * This module does not access any EEPROM.
  *
  * @see JsonProtocol
- * @see logger_identity.h
+ * @see device_identity.h
  * @see assembly.h
  * @see rtc.h
  * @{
@@ -73,7 +75,7 @@
 #include "sensors_internal.h"
 #include "rtc.h"
 #include "assembly.h"
-#include "logger_identity.h"
+#include "device_identity.h"
 #include "sd_manager.h"
 #include "utils.h"
 #include "battery_service.h"
@@ -91,6 +93,7 @@
  *
  * @param ready_sent Ready flag updated after transmission.
  * @param ready_time_ms Timestamp recorded when READY is sent.
+ * @param last_activity_ms Timestamp of the last UART activity, initialized when READY is sent.
  */
 static void sendConnectedReadyOnce(bool& ready_sent,
                                    uint32_t& ready_time_ms,
@@ -118,7 +121,7 @@ static void sendConnectedReadyOnce(bool& ready_sent,
  * normal deployment startup.
  *
  * If no UART activity is detected on @c GUI_SERIAL for a fixed timeout, the
- * function transitions to @ref STATE_INIT so the logger can continue its normal
+ * function transitions to @ref STATE_INIT so the device can continue its normal
  * boot sequence and enter DEPLOY mode.
  *
  * Processing steps:
@@ -143,10 +146,18 @@ static void sendConnectedReadyOnce(bool& ready_sent,
 
 void runConnectedMode(SystemState& state) {
     static constexpr uint32_t CONNECTED_TIMEOUT_MS = 30000;
-    static uint32_t last_activity_ms               = millis();
 
-    static bool ready_sent        = false;
-    static uint32_t ready_time_ms = 0;
+    static bool connected_entered    = false;
+    static bool ready_sent           = false;
+    static uint32_t ready_time_ms    = 0;
+    static uint32_t last_activity_ms = 0;
+
+    if (!connected_entered) {
+        connected_entered = true;
+        ready_sent        = false;
+        ready_time_ms     = 0;
+        last_activity_ms  = millis();
+    }
 
     sendConnectedReadyOnce(ready_sent, ready_time_ms, last_activity_ms);
 
@@ -157,7 +168,9 @@ void runConnectedMode(SystemState& state) {
     if (!GUI_SERIAL.available()) {
         if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
             LOG_INFO("CONNECTED timeout -> INIT");
-            state = STATE_INIT;
+            connected_entered = false;
+            state             = STATE_INIT;
+            return;
         }
         return;
     }
@@ -195,8 +208,8 @@ void runConnectedMode(SystemState& state) {
             strncpy(payload.UID, hw_assembly.uid_mainboard.c_str(), sizeof(payload.UID) - 1);
             strncpy(payload.manufacturer, id.manufacturer, sizeof(payload.manufacturer) - 1);
             strncpy(payload.date_fab, id.date_fab, sizeof(payload.date_fab) - 1);
-            strncpy(payload.logger_type, id.logger_type, sizeof(payload.logger_type) - 1);
-            strncpy(payload.logger_sn, id.serial_number, sizeof(payload.logger_sn) - 1);
+            strncpy(payload.device_type, id.device_type, sizeof(payload.device_type) - 1);
+            strncpy(payload.device_sn, id.serial_number, sizeof(payload.device_sn) - 1);
 
             const char* json = JsonProtocol::buildIdJSON(payload);
 
@@ -205,26 +218,22 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_VBAT: {
-            if (!battery_is_available()) {
-                GUI_SERIAL.println("{\"error\":\"Battery measurement not available\"}");
+            int32_t vbat_mv = 0;
+            bool changed    = false;
+
+            if (!battery_service_read_vbat_telemetry_mv(vbat_mv, changed)) {
+                GUI_SERIAL.println("{\"error\":\"Failed to read battery voltage\"}");
                 break;
-            } else {
-                int32_t vbat_mv;
-                bool changed;
-                if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
-                    GUI_SERIAL.println("{\"error\":\"Failed to read battery voltage\"}");
-                    break;
-                }
-                const char* json = JsonProtocol::buildVbatJSON(vbat_mv);
-                GUI_SERIAL.println(json);
             }
+
+            GUI_SERIAL.println(JsonProtocol::buildVbatJSON(vbat_mv));
             break;
         }
 
         case CommandType::GET_CONFIG: {
             ConfigResponsePayload payload{};
 
-            DateTime now = logger_now();
+            DateTime now = device_now();
 
             snprintf(payload.dateCurrentIso,
                      sizeof(payload.dateCurrentIso),
@@ -265,7 +274,7 @@ void runConnectedMode(SystemState& state) {
 
                 rtc_apply_external_time(dt);
 
-                GUI_SERIAL.println(JsonProtocol::buildTimeAckJSON(logger_now()));
+                GUI_SERIAL.println(JsonProtocol::buildTimeAckJSON(device_now()));
 
             } else {
 
@@ -276,7 +285,7 @@ void runConnectedMode(SystemState& state) {
         }
 
         case CommandType::GET_TIME: {
-            GUI_SERIAL.println(JsonProtocol::buildTimeJSON(logger_now()));
+            GUI_SERIAL.println(JsonProtocol::buildTimeJSON(device_now()));
 
             break;
         }
@@ -343,7 +352,7 @@ void runConnectedMode(SystemState& state) {
 
         case CommandType::SET_RUN_START: {
             if (strlen(get_data_filename()) == 0) {
-                if (!check_and_create_new_daily_file(logger_now(), rtc_available)) {
+                if (!check_and_create_new_daily_file(device_now(), rtc_available)) {
                     LOG_ERROR("Failed to create daily file before deployment");
                     GUI_SERIAL.println(
                         "{\"run\":\"ERROR\",\"reason\":\"daily_file_create_failed\"}");
@@ -356,7 +365,8 @@ void runConnectedMode(SystemState& state) {
             GUI_SERIAL.println("{\"run\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
-            state = STATE_INIT;
+            connected_entered = false;
+            state             = STATE_INIT;
             break;
         }
 
@@ -364,9 +374,9 @@ void runConnectedMode(SystemState& state) {
             LOG_INFO("Factory SET_IDENTITY command received");
 
             device_id_applyFromFields(parsed.identity.manufacturer,
-                                      parsed.identity.logger_type,
+                                      parsed.identity.device_type,
                                       parsed.identity.date_fab,
-                                      parsed.identity.logger_sn);
+                                      parsed.identity.device_sn);
 
             GUI_SERIAL.println("{\"identity\":\"ACK\"}");
             break;

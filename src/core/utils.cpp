@@ -144,10 +144,10 @@ uint8_t bcdToDec(uint8_t val) {
  * Expected format: "YYYY-MM-DDTHH:MM:SS".
  *
  * @param iso8601 Input string.
- * @param out Pointer to the LoggerTime_t output structure.
+ * @param out Pointer to the device_time_t output structure.
  * @return true if parsing succeeded, false otherwise.
  */
-bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
+bool convertDatetoBcd(const char* iso8601, device_time_t* out) {
     if (!iso8601 || !out) {
         return false;
     }
@@ -169,15 +169,15 @@ bool convertDatetoBcd(const char* iso8601, LoggerTime_t* out) {
 }
 
 /**
- * @brief Formats a BCD-encoded LoggerTime_t as an ISO8601 string.
+ * @brief Formats a BCD-encoded device_time_t as an ISO8601 string.
  *
  * Output format: "YYYY-MM-DDTHH:MM:SS".
  *
- * @param in Pointer to the BCD-encoded LoggerTime_t.
+ * @param in Pointer to the BCD-encoded device_time_t.
  * @param out Output buffer.
  * @param len Output buffer size in bytes.
  */
-void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
+void convertBcdDateToISO8601(const device_time_t* in, char* out, size_t len) {
     if (!in || !out || len == 0) {
         return;
     }
@@ -194,11 +194,58 @@ void convertBcdDateToISO8601(const LoggerTime_t* in, char* out, size_t len) {
 }
 
 /**
- * @brief Converts an ISO8601 datetime string to a DateTime object.
+ * @brief Format a date/time as ISO8601.
  *
- * Expected format: "YYYY-MM-DDTHH:MM:SS".
+ * Example:
+ * 2025-07-23T14:30:00
  *
- * @param iso8601 Input ISO8601 string.
+ * @param out Output buffer.
+ * @param len Output buffer size (minimum 20 bytes).
+ * @param year Year.
+ * @param month Month [1..12].
+ * @param day Day [1..31].
+ * @param hour Hour [0..23].
+ * @param minute Minute [0..59].
+ * @param second Second [0..59].
+ *
+ * @return true if formatting succeeded.
+ * @return false if arguments are invalid.
+ */
+bool formatISO8601(char* out,
+                   size_t len,
+                   uint16_t year,
+                   uint8_t month,
+                   uint8_t day,
+                   uint8_t hour,
+                   uint8_t minute,
+                   uint8_t second) {
+    if (!out || len < 20) {
+        return false;
+    }
+
+    if (month < 1 || month > 12) {
+        return false;
+    }
+
+    if (day < 1 || day > 31) {
+        return false;
+    }
+
+    snprintf(out, len, "%04u-%02u-%02uT%02u:%02u:%02u", year, month, day, hour, minute, second);
+
+    return true;
+}
+
+/**
+ * @brief Convert an ISO8601 datetime string to a DateTime object.
+ *
+ * Expected format:
+ * `"YYYY-MM-DDTHH:MM:SS"`
+ *
+ * Example:
+ * `"2025-07-23T14:30:00"`
+ *
+ * @param iso8601 Null-terminated ISO8601 string.
  * @param out Pointer to the destination DateTime object.
  * @return true if parsing succeeded, false otherwise.
  */
@@ -207,7 +254,7 @@ bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
         return false;
     }
 
-    LoggerTime_t t{};
+    device_time_t t{};
 
     if (!convertDatetoBcd(iso8601, &t)) {
         return false;
@@ -224,14 +271,14 @@ bool convertISO8601ToDateTime(const char* iso8601, DateTime* out) {
 }
 
 /**
- * @brief Returns the current logger timestamp.
+ * @brief Returns the current device timestamp.
  *
  * Uses the RTC when available. If the RTC is not available, falls back to
  * the firmware build date and advances it using millis().
  *
  * @return Current date and time.
  */
-DateTime logger_now() {
+DateTime device_now() {
     if (rtc_available) {
         return rtc().now();
     }
@@ -241,10 +288,10 @@ DateTime logger_now() {
 }
 
 /**
- * @brief Returns the current millisecond fraction of the logger timestamp.
+ * @brief Returns the current millisecond fraction of the device timestamp.
  *
  * @return Milliseconds in the range [0, 999].
  */
-uint16_t logger_ms() {
+uint16_t device_ms() {
     return millis() % 1000UL;
 }
