@@ -93,6 +93,7 @@
  *
  * @param ready_sent Ready flag updated after transmission.
  * @param ready_time_ms Timestamp recorded when READY is sent.
+ * @param last_activity_ms Timestamp of the last UART activity, initialized when READY is sent.
  */
 static void sendConnectedReadyOnce(bool& ready_sent,
                                    uint32_t& ready_time_ms,
@@ -145,10 +146,18 @@ static void sendConnectedReadyOnce(bool& ready_sent,
 
 void runConnectedMode(SystemState& state) {
     static constexpr uint32_t CONNECTED_TIMEOUT_MS = 30000;
-    static uint32_t last_activity_ms               = millis();
 
-    static bool ready_sent        = false;
-    static uint32_t ready_time_ms = 0;
+    static bool connected_entered    = false;
+    static bool ready_sent           = false;
+    static uint32_t ready_time_ms    = 0;
+    static uint32_t last_activity_ms = 0;
+
+    if (!connected_entered) {
+        connected_entered = true;
+        ready_sent        = false;
+        ready_time_ms     = 0;
+        last_activity_ms  = millis();
+    }
 
     sendConnectedReadyOnce(ready_sent, ready_time_ms, last_activity_ms);
 
@@ -159,7 +168,9 @@ void runConnectedMode(SystemState& state) {
     if (!GUI_SERIAL.available()) {
         if ((millis() - last_activity_ms) > CONNECTED_TIMEOUT_MS) {
             LOG_INFO("CONNECTED timeout -> INIT");
-            state = STATE_INIT;
+            connected_entered = false;
+            state             = STATE_INIT;
+            return;
         }
         return;
     }
@@ -354,7 +365,8 @@ void runConnectedMode(SystemState& state) {
             GUI_SERIAL.println("{\"run\":\"ACK\"}");
 
             LOG_INFO("Deploy mode started from GUI");
-            state = STATE_INIT;
+            connected_entered = false;
+            state             = STATE_INIT;
             break;
         }
 
