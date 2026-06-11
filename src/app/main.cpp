@@ -104,6 +104,19 @@ static bool i2c_ok       = false;
 bool rtc_available       = false;
 String string_widget     = "------------------------------------------------------------";
 
+static void logResetCause() {
+    uint8_t rcause = PM->RCAUSE.reg;
+
+    LOG_INFO("Reset cause RCAUSE=0x%02X", rcause);
+
+    if (rcause & PM_RCAUSE_POR) LOG_WARN("Reset cause: Power-On Reset");
+    if (rcause & PM_RCAUSE_BOD12) LOG_WARN("Reset cause: Brown-Out 1.2V");
+    if (rcause & PM_RCAUSE_BOD33) LOG_WARN("Reset cause: Brown-Out 3.3V");
+    if (rcause & PM_RCAUSE_EXT) LOG_WARN("Reset cause: External Reset");
+    if (rcause & PM_RCAUSE_WDT) LOG_WARN("Reset cause: Watchdog Reset");
+    if (rcause & PM_RCAUSE_SYST) LOG_WARN("Reset cause: System Reset Request");
+}
+
 void logWidgetTwice() {
     LOG_INFO(string_widget.c_str());
     LOG_INFO(string_widget.c_str());
@@ -125,27 +138,12 @@ rfid_driver_t g_rfid_driver;
  **/
 static SystemState runBootSequence() {
 
-    logWidgetTwice();
-
-    static bool ir_enabled = true;
-    delay(2000);  // Allow time for peripherals to stabilize (e.g., SD card)
-
-    LOG_INFO("Boot sequence started");
-    String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
-    LOG_INFO(buildDateTime.c_str());
-#ifdef __PIO_BOARD_NAME__
-    String board = "Board: " + String(__PIO_BOARD_NAME__);
-#else
-    String board = "Board: unknown";
-#endif
-    LOG_INFO(board.c_str());
-    log_flush();
+    static bool ir_enabled = true;  // TODO replace with sd configuration readout
 
     /*
     Initialize the built-in LED for visual feedback during boot.
     */
     signal_engine_init(PIN_BUZZER_LED, PIN_BUZZER_LED);
-    // led_start_blink_isr(3, blink_mode::fast);
 
     /*
     Initialize SD card
@@ -160,23 +158,26 @@ static SystemState runBootSequence() {
     if (!assembly_load(hw_assembly)) {
         return STATE_ENDOFLIFE;
     }
-    // initialize RTC for logging file creation and timestamping
 
     /*
     RTC initialization and sanity check
      */
     LOG_INFO(string_widget.c_str());
     if (hw_assembly.rtc_type == "ds3231" and i2c_ok == true) {
+
         LOG_INFO("RTC used\tDS3231");
+
         if (!rtc_initialization(RTC_INTERRUPT_PIN)) {
             LOG_ERROR("RTC initialization failed");
             return STATE_ENDOFLIFE;
         }
-        // Boot-time sanity check
+
         rtc_boot_recover();
+
         // Do not force DateTime(__DATE__, __TIME__) here, otherwise the RTC would be reset
         // to the firmware compilation time at each boot/recovery path.
         //rtc_apply_external_time(DateTime(__DATE__, __TIME__));
+
         rtc_available = true;
     } else {
         LOG_WARN("RTC type not recognized or not specified. RTC features will be unavailable.");
@@ -187,9 +188,23 @@ static SystemState runBootSequence() {
     */
     DateTime now = device_now();
     if (!check_and_create_new_daily_file(now, rtc_available)) {
-        LOG_ERROR("Failed to create daily log file at boot");
+        LOG_ERROR("Failed to create boot log/data files");
         return STATE_ENDOFLIFE;
     }
+
+    /*
+    * Only logs after this point are susceptible to be written to SD,
+    * the file does not exist before.
+    * Logs before this point are only output to the serial console if connected.
+    */
+
+    logWidgetTwice();
+
+    LOG_INFO("Boot sequence started");
+
+    log_build_information();
+
+    logResetCause();
 
     /*
     Load hardware assembly information (UIDs, etc.) and sync with SD card.
@@ -230,16 +245,11 @@ static SystemState runBootSequence() {
 
     // --- Load factory identity from flash ---
     device_id_init();
-    const auto& idFlash = device_id_get();
-    LOG_INFO("Factory identity loaded from flash");
-    LOG_INFO("\tManufacturer: %s", idFlash.manufacturer);
-    LOG_INFO("\tdevice type: %s", idFlash.device_type);
-    LOG_INFO("\tDate of fabrication: %s", idFlash.date_fab);
-    LOG_INFO("\tSerial number: %s", idFlash.serial_number);
+    device_id_print(device_id_get());
 
     /*
- * Battery initialization
- */
+    * Battery initialization
+    */
     LOG_INFO(string_widget.c_str());
 
     battery_service_config_t batt_serv_cfg{};
@@ -319,6 +329,7 @@ static SystemState runBootSequence() {
 void setup() {
     // Initialize logging system first to capture all subsequent logs
     logInit();
+
     delay(1000);
 
     // Initialize I²C for RTC and sensors

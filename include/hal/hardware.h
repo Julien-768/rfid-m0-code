@@ -71,6 +71,8 @@
 #define PWR_5V_ACTIVE_HIGH false
 #define PWR_EN_ACTIVE_HIGH true
 
+#define RTC_INTERRUPT_WIRED false  // The RTC interrupt pin is not wired on the RFID_DOOR hardware
+
 #else
 #error "Unsupported hardware configuration. Define RFID_DOOR or FEATHER_M0_ADALOGGER."
 #endif
