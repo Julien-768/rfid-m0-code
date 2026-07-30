@@ -9,7 +9,7 @@
  * - a magic value (to detect presence),
  * - a version (to allow future format evolution),
  * - a CRC16-CCITT checksum (to validate integrity),
- * - a `deviceIdentityFlash` payload (strings such as manufacturer, type, serial...).
+ * - a `device_identity_t` payload (strings such as manufacturer, type, serial...).
  *
  * On initialization, the module tries to load and validate the record from flash.
  * If missing/invalid, it writes a default identity.
@@ -47,10 +47,10 @@ static constexpr uint16_t ID_VERSION = 0x0001;
  * The CRC is computed only over the `id` payload (not including header fields).
  */
 struct IdentityRecord {
-    uint32_t magic;         /**< Magic marker (must be ID_MAGIC). */
-    uint16_t version;       /**< Record version (must be ID_VERSION). */
-    uint16_t crc16;         /**< CRC16-CCITT computed over @ref id payload. */
-    deviceIdentityFlash id; /**< Factory identity payload. */
+    uint32_t magic;       /**< Magic marker (must be ID_MAGIC). */
+    uint16_t version;     /**< Record version (must be ID_VERSION). */
+    uint16_t crc16;       /**< CRC16-CCITT computed over @ref id payload. */
+    device_identity_t id; /**< Factory identity payload. */
 };
 
 /**
@@ -74,7 +74,7 @@ FlashStorage(device_id_store, IdentityRecord);
  *
  * This cache is loaded from flash at init or filled with defaults if flash is invalid.
  */
-static deviceIdentityFlash g_identity{};
+static device_identity_t g_identity{};
 
 /**
  * @brief Indicates whether @ref g_identity is valid.
@@ -116,13 +116,13 @@ static void safeCopy(char* dst, size_t dstSize, const char* src) {
 }
 
 /**
- * @brief Fill a @ref deviceIdentityFlash structure with default values.
+ * @brief Fill a @ref device_identity_t structure with default values.
  *
  * The defaults are meant to be a safe baseline if flash does not contain a valid record.
  *
  * @param id Identity payload to fill.
  */
-static void fillDefaults(deviceIdentityFlash& id) {
+static void fillDefaults(device_identity_t& id) {
     memset(&id, 0, sizeof(id));
     safeCopy(id.manufacturer, sizeof(id.manufacturer), "CNRS");
     safeCopy(id.device_type, sizeof(id.device_type), "RFID-M0");
@@ -136,7 +136,7 @@ static void fillDefaults(deviceIdentityFlash& id) {
  * @param id Identity payload to embed.
  * @return Fully formed record including magic, version and CRC.
  */
-static IdentityRecord makeRecord(const deviceIdentityFlash& id) {
+static IdentityRecord makeRecord(const device_identity_t& id) {
     IdentityRecord r{};
     r.magic   = ID_MAGIC;
     r.version = ID_VERSION;
@@ -166,7 +166,7 @@ static bool recordValid(const IdentityRecord& r) {
  *
  * @param id Identity payload to sanitize (in-place).
  */
-static void sanitize(deviceIdentityFlash& id) {
+static void sanitize(device_identity_t& id) {
     id.manufacturer[sizeof(id.manufacturer) - 1]   = '\0';
     id.device_type[sizeof(id.device_type) - 1]     = '\0';
     id.date_fab[sizeof(id.date_fab) - 1]           = '\0';
@@ -217,6 +217,19 @@ bool device_id_init() {
 }
 
 /**
+ * @brief Print the factory identity to the log.
+ *
+ * @param id Identity payload to print.
+ */
+void device_id_print(const device_identity_t& id) {
+    LOG_INFO("Factory identity loaded from flash");
+    LOG_INFO("\tManufacturer: %s", id.manufacturer);
+    LOG_INFO("\tDevice type: %s", id.device_type);
+    LOG_INFO("\tDate of fabrication: %s", id.date_fab);
+    LOG_INFO("\tSerial number: %s", id.serial_number);
+}
+
+/**
  * @brief Get the current factory identity.
  *
  * @return Reference to the cached identity payload.
@@ -224,7 +237,7 @@ bool device_id_init() {
  * @warning If called before a successful @ref device_id_init, this function
  *          will populate RAM defaults and mark the cache valid (without writing flash).
  */
-const deviceIdentityFlash& device_id_get() {
+const device_identity_t& device_id_get() {
     if (!g_identity_valid) {
         LOG_WARN("device_id_get() called before successful init — using RAM defaults");
         fillDefaults(g_identity);
@@ -244,8 +257,8 @@ const deviceIdentityFlash& device_id_get() {
  *
  * @warning Flash has limited endurance; avoid frequent calls.
  */
-bool device_id_program(const deviceIdentityFlash& id) {
-    deviceIdentityFlash tmp = id;
+bool device_id_program(const device_identity_t& id) {
+    device_identity_t tmp = id;
     sanitize(tmp);
 
     const IdentityRecord wr = makeRecord(tmp);
@@ -271,7 +284,7 @@ bool device_id_program(const deviceIdentityFlash& id) {
  * @return true if defaults were programmed successfully, false otherwise.
  */
 bool device_id_resetDefaults() {
-    deviceIdentityFlash def{};
+    device_identity_t def{};
     fillDefaults(def);
     return device_id_program(def);
 }
@@ -288,7 +301,7 @@ void device_id_applyFromFields(const char* manufacturer,
                                const char* date_fab,
                                const char* serial_number) {
     // Start from existing identity, then override fields
-    deviceIdentityFlash id = device_id_get();  // copy
+    device_identity_t id = device_id_get();  // copy
 
     copyField_(id.manufacturer, sizeof(id.manufacturer), manufacturer);
     copyField_(id.device_type, sizeof(id.device_type), device_type);

@@ -295,3 +295,24 @@ DateTime device_now() {
 uint16_t device_ms() {
     return millis() % 1000UL;
 }
+
+/**
+ * @brief Log build information including date/time and board name.
+ *
+ * This function gathers build metadata and logs it using the logging system.
+ */
+void log_build_information() {
+
+    String buildDateTime = "Build: " + String(F(__DATE__)) + " " + String(F(__TIME__));
+    LOG_INFO(buildDateTime.c_str());
+
+#ifdef __PIO_BOARD_NAME__
+    String board = "Board: " + String(__PIO_BOARD_NAME__);
+#else
+    String board = "Board: unknown";
+#endif
+
+    LOG_INFO(board.c_str());
+
+    log_flush();
+}

@@ -42,8 +42,13 @@
 // Optional power control hooks.
 // Replace with your actual module names if needed.
 #include "pwr_manager.h"
+#include "hardware.h"
 #include "signal.h"
 #include "irq_helper.h"
+
+#ifndef RTC_INTERRUPT_WIRED
+#error "RTC_INTERRUPT_WIRED must be defined in hardware.h"
+#endif
 
 extern Uart SerialAlt;
 
@@ -69,6 +74,8 @@ enum rfid_runtime_mode : uint8_t {
 
 static uint32_t g_rfid_led_last_ms    = 0;
 constexpr uint32_t RFID_LED_PERIOD_MS = 3000;
+
+static bool rtc_wakeup_available = false;
 
 static bool ir_enabled = true;
 
@@ -130,6 +137,21 @@ static uint32_t date_key(const DateTime& dt) {
     return ((uint32_t)dt.year() * 10000UL) + ((uint32_t)dt.month() * 100UL) + (uint32_t)dt.day();
 }
 
+static inline void deploy_debug_log_power_context(const char* label) {
+
+    LOG_INFO(
+        "%s PW_EN=%d PW_SW=%d ir_on=%d rfid_on=%d "
+        "active=%d events=0x%02X",
+        label,
+        digitalRead(PIN_PW_EN),
+        digitalRead(PIN_PW_SW),
+        pwr_manager::ir_is_on(),
+        pwr_manager::rfid_is_on(),
+        in_awake_window,
+        g_deploy_events);
+    log_flush();
+}
+
 static bool ensure_daily_file_once_per_day(const DateTime& now) {
     const uint32_t today = date_key(now);
 
@@ -188,6 +210,8 @@ static void deploy_handle_power_button(SystemState& state) {
             LOG_ERROR("Shutdown logging failed");
         }
         log_flush();
+        LOG_INFO("DEPLOY_REQUEST_STATE_ENDOFLIFE reason=LONG_POWER_BUTTON");
+        deploy_debug_log_power_context("END_OF_LIFE_REQUEST_CONTEXT");
         state = STATE_ENDOFLIFE;
         pwr_manager::reset_power_button_tracking();
         return;
@@ -387,6 +411,8 @@ static void apply_awake_window(ir_pwm& ir_driver,
  * @brief Initialize DEPLOY mode runtime and callbacks.
  */
 void deploy_enter(ir_pwm& ir_driver) {
+    LOG_INFO("DEPLOY_ENTER");
+    deploy_debug_log_power_context("DEPLOY_ENTER_CONTEXT");
     LOG_DEBUG("Initializing DEPLOY mode: setting up callbacks and initial state");
 
     configure_active_window_from_config();
@@ -448,6 +474,8 @@ void deploy_enter(ir_pwm& ir_driver) {
  * @brief Cleanup DEPLOY mode runtime and callbacks.
  */
 void deploy_exit(ir_pwm& ir_driver) {
+    LOG_INFO("DEPLOY_EXIT");
+    deploy_debug_log_power_context("DEPLOY_EXIT_CONTEXT");
     LOG_DEBUG("Exiting DEPLOY mode: clearing callbacks and state");
     log_flush();
     noInterrupts();
@@ -518,10 +546,9 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     // Sleep policy:
     // - Outside active window: RTC must be the only wake source.
     // - Inside active window: keep current behavior.
-    if (!rtc_available) {
+    if (!rtc_available || !RTC_INTERRUPT_WIRED) {
         LowPower.idle();
     } else if (!in_awake_window) {
-        LOG_DEBUG("Entering low-power mode. In active window: NO");
         LowPower.sleep();
     } else {
         LowPower.idle();
@@ -558,6 +585,7 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
         if (!(events & DEPLOY_EVT_RTC_WAKE)) {
             LOG_DEBUG("Woke up outside active window, events=0x%02X. Ignoring non-RTC events.",
                       events);
+            deploy_debug_log_power_context("IGNORED_WAKE_OUTSIDE_WINDOW");
             return;
         }
     }
@@ -625,6 +653,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
     // ===== Common post-wake handling =====
     if (events != DEPLOY_EVT_NONE) {
         if (!ensure_daily_file_once_per_day(now)) {
+            LOG_ERROR("DEPLOY_REQUEST_STATE_ENDOFLIFE reason=DAILY_FILE_FAILED");
+            deploy_debug_log_power_context("END_OF_LIFE_REQUEST_CONTEXT");
             state = STATE_ENDOFLIFE;
             return;
         }
@@ -652,6 +682,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                 if (!battery_service_read_vbat_filtered_mv(vbat_mv, changed)) {
                     LOG_ERROR("Failed to read filtered VBAT value");
                     // handle shutdown in STATE_ENDOFLIFE
+                    LOG_ERROR("DEPLOY_REQUEST_STATE_ENDOFLIFE reason=VBAT_READ_FAILED");
+                    deploy_debug_log_power_context("END_OF_LIFE_REQUEST_CONTEXT");
                     state = STATE_ENDOFLIFE;
                     return;
                 } else if (changed) {
@@ -665,6 +697,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                     error_signal(ERR_BATTERY_CRITICAL);
                     log_flush();
                     // handle shutdown in STATE_ENDOFLIFE
+                    LOG_ERROR("DEPLOY_REQUEST_STATE_ENDOFLIFE reason=BATTERY_CRITICAL");
+                    deploy_debug_log_power_context("END_OF_LIFE_REQUEST_CONTEXT");
                     state = STATE_ENDOFLIFE;
                     return;
                 }
@@ -772,6 +806,8 @@ void run_deploy_state(SystemState& state, rfid_driver_t& rfid_drv, ir_pwm& ir_dr
                 DateTime tag_now = device_now();
 
                 if (!ensure_daily_file_once_per_day(tag_now)) {
+                    LOG_ERROR("DEPLOY_REQUEST_STATE_ENDOFLIFE reason=RFID_DAILY_FILE_FAILED");
+                    deploy_debug_log_power_context("END_OF_LIFE_REQUEST_CONTEXT");
                     state = STATE_ENDOFLIFE;
                     return;
                 }

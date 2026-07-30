@@ -301,7 +301,7 @@ bool assembly_save(const Assembly& hw_assembly) {
  * @see assembly_save()
  */
 bool assembly_sync_sn(Assembly& hw_assembly) {
-    const deviceIdentityFlash& id_flash = device_id_get();
+    const device_identity_t& id_flash = device_id_get();
     // bool modified                       = false;
 
     // --- Serial number sync ---

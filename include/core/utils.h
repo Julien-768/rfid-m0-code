@@ -95,3 +95,10 @@ DateTime device_now();
  * @return Milliseconds in the range [0, 999].
  */
 uint16_t device_ms();
+
+/**
+ * @brief Log build information including date/time and board name.
+ *
+ * This function gathers build metadata and logs it using the logging system.
+ */
+void log_build_information();
