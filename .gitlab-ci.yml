@@ -1,5 +1,10 @@
 sync_to_github:
-  image: alpine/git
+  image: bitnami/git:2
+
   script:
-    - git remote add github https://github.com/Julien-768/rfid-m0-code
-    - git push --mirror https://${GITHUB_TOKEN}@github.com/Julien-768/rfid-m0-code
+    - git remote add github "https://${GITHUB_TOKEN}@github.com/ton-utilisateur/ton-depot.git"
+    - git push github "${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}"
+
+  # only:
+  #   - main
+  #   - develop
