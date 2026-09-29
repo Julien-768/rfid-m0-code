@@ -1,10 +1,9 @@
 sync_to_github:
-  image: bitnami/git:2
+  image: bitnami/git:latest
 
   script:
-    - git remote add github "https://${GITHUB_TOKEN}@github.com/ton-utilisateur/ton-depot.git"
-    - git push github "${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}"
-
+  - git remote add github "https://${GITHUB_TOKEN}@github.com/ton-utilisateur/ton-depot.git"
+  - git push github "${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}"
   # only:
   #   - main
   #   - develop
