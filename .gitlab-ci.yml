@@ -1,5 +1,5 @@
 sync_to_github:
   image: alpine/git
   script:
-    - git remote add github https://github.com/ton-utilisateur/ton-depot.git
-    - git push --mirror https://${GITHUB_TOKEN}@github.com/ton-utilisateur/ton-depot.git
+    - git remote add github https://github.com/Julien-768/rfid-m0-code
+    - git push --mirror https://${GITHUB_TOKEN}@github.com/Julien-768/rfid-m0-code
