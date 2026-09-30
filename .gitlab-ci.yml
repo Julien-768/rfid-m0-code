@@ -1,4 +1,5 @@
 variables:
+  GIT_DEPTH: 0
   GITHUB_REPOSITORY: "Julien-768/rfid-m0-code"
 
 sync_to_github:
