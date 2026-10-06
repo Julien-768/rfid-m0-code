@@ -71,6 +71,7 @@ stages:
 - format
 - build
 - pages
+- sync
 - release
 
 generate_fw_version:
@@ -115,6 +116,7 @@ pio-build:
   - when: never
 
 sync_to_github:
+  stage: sync
   image: alpine:latest
 
   script:
