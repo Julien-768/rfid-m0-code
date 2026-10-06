@@ -2,6 +2,14 @@ default_language_version:
   python: python3.13
 
 repos:
+# Git
+- repo: https://github.com/commitizen-tools/commitizen
+  rev: v3.13.0
+  hooks:
+  - id: commitizen
+    stages: [ commit-msg ]
+
+# Hooks généraux
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v6.0.0
   hooks:
@@ -16,18 +24,67 @@ repos:
   - id: check-yaml
     args: [ "--unsafe" ]
   - id: requirements-txt-fixer
+  - id: mixed-line-ending
+    args: [ --fix=lf ]
+    files: \.(sh|bash|zsh)$
 
+# Python
+- repo: https://github.com/psf/black
+  rev: 23.12.1
+  hooks:
+  - id: black
+    language_version: python3.13
+
+- repo: https://github.com/PyCQA/isort
+  rev: 5.13.2
+  hooks:
+  - id: isort
+    args: [ --profile=black, --line-length=120 ]
+
+# - repo: https://github.com/PyCQA/flake8
+#   rev: 6.1.0
+#   hooks:
+#   - id: flake8
+#     args: [ --max-line-length=120, --ignore=E203, --ignore=W503 ]
+
+# C/C++
 - repo: https://github.com/pocc/pre-commit-hooks
   rev: v1.3.5
   hooks:
   - id: clang-format
-    args: [ "--style=file", "-i" ]
+    args: [ "--style=file", "-i" ] # Utilise .clang-format à la racine
     files: "(src|include|lib|test)/.*\\.(c|cpp|h|hpp)$"
+  # - id: clang-tidy
+  #   args: [ "-p=build", "--config-file=.clang-tidy" ] # Explicite pour .clang-tidy
+  #   files: "(src|include|lib|test)/.*\\.(c|cpp|h|hpp)$"
 
-# - repo: https://github.com/pocc/pre-commit-hooks
-#   rev: v1.3.5
-#   hooks:
-#   - id: clang-tidy
-#     files: "(src|include|lib|test)/.*\\.(c|cpp|h|hpp)$"
-#     args:
-#     - "-p=build"
+  # PlatformIO
+- repo: local
+  hooks:
+  - id: platformio-lint
+    name: PlatformIO Lint
+    entry: pio check
+    language: system
+    types: [ c++, c ]
+    pass_filenames: false
+
+# Sécurité
+- repo: https://github.com/gitleaks/gitleaks
+  rev: v8.18.0
+  hooks:
+  - id: gitleaks
+
+# Documentation
+- repo: https://github.com/igorshubovych/markdownlint-cli
+  rev: v0.38.0
+  hooks:
+  - id: markdownlint
+  # Shell
+
+- repo: https://github.com/shellcheck-py/shellcheck-py
+  rev: v0.10.0.1 # Vérifie la dernière version sur GitHub
+  hooks:
+  - id: shellcheck
+    # Optionnel : Personnalise les arguments
+    args: [ "--severity=error", "--exclude=SC1090,SC2154" ] # Exemple : ignore certains codes d'erreur
+    files: \.(sh|bash|zsh)$ # Fichiers ciblés
