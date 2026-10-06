@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 88
+per-file-ignores =
+    scripts/gen_compdb.py:F821
+    scripts/convert_to_uf2.py:F821, E203
