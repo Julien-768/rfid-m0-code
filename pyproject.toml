@@ -1,0 +1,35 @@
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+per-file-ignores = { "scripts/gen_compdb.py" = [
+    "F821",
+], "scripts/convert_to_uf2.py" = [
+    "F821, E203",
+] }
+
+
+[tool.pylint.main]
+# SCons est injecté dynamiquement par PlatformIO
+disable = [
+    "E0401", # import-error: SCons fourni par PlatformIO
+    "E0601", # used-before-assignment: env injecté par SCons
+]
+
+[tool.pylint.format]
+max-line-length = 88
+
+
+[tool.flake8]
+max-line-length = 88
+
+[tool.flake8.per-file-ignores]
+"scripts/gen_compdb.py" = "F821"
+"scripts/convert_to_uf2.py" = "F821, E203"
+
+
+[tool.mypy]
+# SCons est fourni par l'environnement Python de PlatformIO
+[[tool.mypy.overrides]]
+module = "SCons.*"
+ignore_missing_imports = true

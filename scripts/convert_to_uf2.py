@@ -8,6 +8,8 @@ directory at the project root.
 
 from pathlib import Path
 
+from SCons.Script import Import
+
 Import("env")
 
 # Application start address after the UF2 bootloader on SAMD21.
@@ -22,7 +24,7 @@ BLOCK_SIZE = 512
 
 
 def write_u32_le(block, offset, value):
-    block[offset:offset + 4] = value.to_bytes(4, "little")
+    block[offset : offset + 4] = value.to_bytes(4, "little")
 
 
 def convert_bin_to_uf2(bin_path, uf2_path):
@@ -53,8 +55,8 @@ def convert_bin_to_uf2(bin_path, uf2_path):
         write_u32_le(block, 24, num_blocks)
         write_u32_le(block, 28, 0)
 
-        payload = data[pos:pos + PAYLOAD_SIZE]
-        block[32:32 + len(payload)] = payload
+        payload = data[pos : pos + PAYLOAD_SIZE]
+        block[32 : 32 + len(payload)] = payload
 
         write_u32_le(block, BLOCK_SIZE - 4, UF2_MAGIC_END)
         blocks.append(block)
