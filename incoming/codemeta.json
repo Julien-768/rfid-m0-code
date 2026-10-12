@@ -1,0 +1,255 @@
+{
+    "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+    "@type": "SoftwareSourceCode",
+    "name": "RFID-M0",
+    "description": {
+        "fr": "Micrologiciel embarqué du projet open source rfid.m0, conçu pour suivre les déplacements de petites espèces animales à proximité de leurs terriers et nichoirs. Le logiciel intègre l’identification individuelle par RFID, la détection des passages par barrières infrarouges, l’horodatage par horloge temps réel (RTC) et l’enregistrement des données sur carte SD, avec une gestion basse consommation adaptée aux déploiements autonomes sur le terrain.",
+        "en": "RFID-M0 is designed for autonomous field monitoring in ecological research, including long-term studies of individually identified birds such as the Great Tit (*Parus major*) in urban, peri-urban and forest environments..Embedded firmware for the rfid.m0 open-source project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock timestamping, and SD-card data logging, with support for low-power operation in autonomous field deployments."
+    },
+    "version": "0.0.x",
+    "dateCreated": "2025-06-26",
+    "datePublished": "2026-02-13",
+    "dateModified": "2026-02-13",
+    "programmingLanguage": [
+        {
+            "@type": "ComputerLanguage",
+            "name": "C",
+            "url": "https://en.wikipedia.org/wiki/C_(programming_language)"
+        },
+        {
+            "@type": "ComputerLanguage",
+            "name": "C++",
+            "url": "https://en.wikipedia.org/wiki/C%2B%2B"
+        }
+    ],
+    "codeRepository": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
+    "codeRepository": "https://github.com/Julien-768/rfid-m0-code",
+    "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
+    "developmentStatus": "https://www.repostatus.org/#active",
+    "runtimePlatform": [
+        {
+            "Hardware: RFID-M0",
+        }
+    ],
+    "operatingSystem": [
+        {
+            "@type": "SoftwareApplication",
+            "name": "PlatformIO Core",
+            "version": "6.1.19",
+            "url": "https://platformio.org/"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "PlatformIO Home",
+            "version": "3.4.4",
+            "url": "https://platformio.org/platformio-home"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "Arduino Framework (via PlatformIO)",
+            "version": "3.1.0",
+            "url": "https://www.arduino.cc/"
+        }
+    ],
+    "applicationCategory": [
+        "Embedded Systems",
+        "Animal Tracking",
+        "Biodiversity Monitoring",
+        "Scientific Research"
+    ],
+    "keywords": [
+        {
+            "fr": [
+                "RFID-M0",
+                "RFID",
+                "suivi de la faune",
+                "suivi à long terme",
+                "suivi des oiseaux",
+                "Mésange charbonnière",
+                "Parus major",
+                "identification individuelle",
+                "détection des passages",
+                "barrières infrarouges",
+                "systèmes embarqués",
+                "micrologiciel embarqué",
+                "acquisition de données",
+                "enregistrement sur carte SD",
+                "gestion basse consommation",
+                "écologie et évolution",
+                "suivi de la biodiversité",
+                "recherche scientifique"
+            ],
+            "en": [
+                "RFID-M0",
+                "RFID",
+                "wildlife tracking",
+                "long-term monitoring",
+                "bird monitoring",
+                "Great Tit",
+                "Parus major",
+                "individual identification",
+                "passage detection",
+                "infrared barriers",
+                "embedded systems",
+                "embedded firmware",
+                "data acquisition",
+                "SD card logging",
+                "low-power management",
+                "ecology and evolution",
+                "biodiversity monitoring",
+                "scientific research"
+            ]
+        }
+    ],
+    "author": [
+        {
+            "@type": "Person",
+            "givenName": "Julien",
+            "familyName": "Courtecuisse",
+            "affiliation": {
+                "@type": "Organization",
+                "name": "IPHC-DEPE ; UMR 7178 ; Université de Strasbourg-CNRS ; F-67000 Strasbourg, France"
+            },
+            "contributorType": [
+                "Developer",
+                "Maintainer"
+            ],
+            "contribution": {
+                "fr": "Création et conception globale du projet ; définition des spécifications fonctionnelles et techniques ; conception matérielle et logicielle ; choix de l'architecture et des composants électroniques ; sélection et intégration des capteurs ; développement, refonte et validation du firmware ; essais et vérification du système ; rédaction de la documentation technique et utilisateur ; gestion du dépôt et maintenance du projet.",
+                "en": "Overall project conception and design; definition of functional and technical specifications; hardware and software design; selection of the architecture and electronic components; sensor selection and integration; firmware development, refactoring and validation; system testing and verification; preparation of technical and user documentation; repository management and project maintenance.",
+            },
+            "orcid": "0000-0002-0179-379X"
+        }
+    ],
+    "contributor": [
+        {
+            "@type": "Person",
+            "givenName": "Robin",
+            "familyName": "Laesser",
+            "affiliation": {
+                "@type": "Organization",
+                "name": "IPHC-DEPE ; UMR 7178 ; Université de Strasbourg-CNRS ; F-67000 Strasbourg, France"
+            },
+            "contributorType": [
+                "Developer"
+            ],
+            "contribution": {
+                "fr": "Contribution au développement et à la maintenance du firmware, notamment à la gestion du lecteur RFID, à l'identification des dispositifs, à la télémétrie de batterie et à la chaîne de compilation.",
+                "en": "Contribution to firmware development and maintenance, particularly RFID reader management, device identification, battery telemetry and the build pipeline."
+            },
+            "orcid": "0009-0009-4242-8949",
+        }
+    ],
+    "funder": [
+        {
+            "@type": "Organization",
+            "name": "CNRS",
+            "url": "https://www.cnrs.fr/"
+        }
+    ],
+    "referencePublication": [],
+    "relatedLink": [],
+    "softwareRequirements": [
+        {
+            "@type": "SoftwareApplication",
+            "name": "PlatformIO",
+            "url": "https://platformio.org/"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "Arduino Framework",
+            "url": "https://www.arduino.cc/"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "SAMD21 turbo PWM",
+            "version": "^0.8.5",
+            "url": "https://registry.platformio.org/libraries/ocrdu/SAMD21%20turbo%20PWM"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "RTClib",
+            "version": "^2.1.4",
+            "url": "https://github.com/adafruit/RTClib"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "Arduino Low Power",
+            "version": "^1.2.2",
+            "url": "https://github.com/arduino-libraries/ArduinoLowPower"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "ArduinoJson",
+            "version": "^6.21.5",
+            "url": "https://github.com/bblanchon/ArduinoJson"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "Adafruit MAX31865 library",
+            "version": "^1.3.0",
+            "url": "https://github.com/adafruit/Adafruit_MAX31865"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "pt100rtd library",
+            "version": "^0.1",
+            "url": "https://github.com/drhaney/pt100rtd"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "SD",
+            "version": "^1.3.0",
+            "url": "https://github.com/arduino-libraries/SD"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "FlashStorage",
+            "version": "^1.0.0",
+            "url": "https://github.com/cmaglie/FlashStorage"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "Adafruit SleepyDog Library",
+            "version": "^1.8.4",
+            "url": "https://github.com/adafruit/Adafruit_SleepyDog"
+        }
+    ],
+    "softwareHelp": [
+        {
+            "@type": "CreativeWork",
+            "name": {
+                "fr": "Manuel d'utilisation de RFID-M0",
+                "en": "RFID-M0 User Manual"
+            },
+            "url": "https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki/latest/",
+            "sameAs": "https://github.com/Julien-768/rfid-m0-wiki",
+            "sameAs": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.wiki",
+            "author": [
+                {
+                    "@type": "Person",
+                    "givenName": "Julien",
+                    "familyName": "Courtecuisse"
+                }
+            ]
+        }
+    ],
+    "identifier": {
+        "@type": "PropertyValue",
+        "propertyID": "IDDN",
+        "value": "https://doi.org/10.5281/zenodo.XXXXXXX"
+    },
+    "citation": "Courtecuisse J., Laesser R. (2026). RFID-M0 (v0.0.X). CNRS. https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
+    "isPartOf": {
+        "@type": "Organization",
+        "name": "MIBE Platform",
+        "url": "https://mibe.iphc.cnrs.fr",
+        "description": "Engineering services platform for bio-logging and ecological instrumentation"
+    },
+    "sdPublisher": {
+        "@type": "Organization",
+        "name": "CNRS",
+        "url": "https://www.cnrs.fr/",
+        "ror": "https://ror.org/01g3mb532"
+    }
+}
