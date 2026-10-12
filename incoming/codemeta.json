@@ -3,13 +3,13 @@
     "@type": "SoftwareSourceCode",
     "name": "RFID-M0",
     "description": {
-        "fr": "Micrologiciel embarqué du projet open source rfid.m0, conçu pour suivre les déplacements de petites espèces animales à proximité de leurs terriers et nichoirs. Le logiciel intègre l’identification individuelle par RFID, la détection des passages par barrières infrarouges, l’horodatage par horloge temps réel (RTC) et l’enregistrement des données sur carte SD, avec une gestion basse consommation adaptée aux déploiements autonomes sur le terrain.",
-        "en": "RFID-M0 is designed for autonomous field monitoring in ecological research, including long-term studies of individually identified birds such as the Great Tit (*Parus major*) in urban, peri-urban and forest environments..Embedded firmware for the rfid.m0 open-source project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock timestamping, and SD-card data logging, with support for low-power operation in autonomous field deployments."
+        "fr": "Micrologiciel embarqué du projet open source RFID-M0, conçu pour suivre les déplacements de petites espèces animales à proximité de leurs terriers et nichoirs. Le logiciel intègre l’identification individuelle par RFID, la détection des passages par barrières infrarouges, l’horodatage par horloge temps réel (RTC) et l’enregistrement des données sur carte SD, avec une gestion basse consommation adaptée aux déploiements autonomes sur le terrain.",
+        "en": "Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It is intended for ecological research, including long-term studies of individually identified birds such as the Great Tit (Parus major) in urban, peri-urban, and forest environments."
     },
-    "version": "0.0.x",
-    "dateCreated": "2025-06-26",
-    "datePublished": "2026-02-13",
-    "dateModified": "2026-02-13",
+    "version": "0.0.TO BE DEFINED",
+    "dateCreated": "2022-08-17T09:18:30+02:00",
+    "datePublished": "TO BE DEFINED",
+    "dateModified": "TO BE DEFINED",
     "programmingLanguage": [
         {
             "@type": "ComputerLanguage",
@@ -23,33 +23,40 @@
         }
     ],
     "codeRepository": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
-    "codeRepository": "https://github.com/Julien-768/rfid-m0-code",
+    "relatedLink": [
+        {
+            "@type": "CreativeWork",
+            "name": "GitHub mirror of the RFID-M0 firmware repository",
+            "url": "https://github.com/Julien-768/rfid-m0-code"
+        },
+        {
+            "@type": "CreativeWork",
+            "name": "RFID-M0 User Manual",
+            "url": "https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki/latest/"
+        },
+        {
+            "@type": "CreativeWork",
+            "name": "RFID-M0 documentation source repository",
+            "url": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.wiki"
+        },
+        {
+            "@type": "CreativeWork",
+            "name": "GitHub mirror of the RFID-M0 documentation",
+            "url": "https://github.com/Julien-768/rfid-m0-wiki"
+        },
+        {
+            "@type": "CreativeWork",
+            "name": "SEE-Life long-term Great Tit monitoring project",
+            "url": "https://cat.indores.fr/geonetwork/SEE-Life/fre/catalog.search#/metadata/92f2aff5-bdd3-4d7f-ba8e-5c7eee5b17c4"
+        }
+    ],
     "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
     "developmentStatus": "https://www.repostatus.org/#active",
     "runtimePlatform": [
-        {
-            "Hardware: RFID-M0",
-        }
-    ],
-    "operatingSystem": [
-        {
-            "@type": "SoftwareApplication",
-            "name": "PlatformIO Core",
-            "version": "6.1.19",
-            "url": "https://platformio.org/"
-        },
-        {
-            "@type": "SoftwareApplication",
-            "name": "PlatformIO Home",
-            "version": "3.4.4",
-            "url": "https://platformio.org/platformio-home"
-        },
-        {
-            "@type": "SoftwareApplication",
-            "name": "Arduino Framework (via PlatformIO)",
-            "version": "3.1.0",
-            "url": "https://www.arduino.cc/"
-        }
+        "Adafruit Feather M0",
+        "ATSAMD21G18 microcontroller",
+        "ARM Cortex-M0+ at 48 MHz",
+        "Arduino SAMD framework"
     ],
     "applicationCategory": [
         "Embedded Systems",
@@ -104,6 +111,7 @@
     "author": [
         {
             "@type": "Person",
+            "@id": "https://orcid.org/0000-0002-0179-379X",
             "givenName": "Julien",
             "familyName": "Courtecuisse",
             "affiliation": {
@@ -116,14 +124,14 @@
             ],
             "contribution": {
                 "fr": "Création et conception globale du projet ; définition des spécifications fonctionnelles et techniques ; conception matérielle et logicielle ; choix de l'architecture et des composants électroniques ; sélection et intégration des capteurs ; développement, refonte et validation du firmware ; essais et vérification du système ; rédaction de la documentation technique et utilisateur ; gestion du dépôt et maintenance du projet.",
-                "en": "Overall project conception and design; definition of functional and technical specifications; hardware and software design; selection of the architecture and electronic components; sensor selection and integration; firmware development, refactoring and validation; system testing and verification; preparation of technical and user documentation; repository management and project maintenance.",
-            },
-            "orcid": "0000-0002-0179-379X"
+                "en": "Overall project conception and design; definition of functional and technical specifications; hardware and software design; selection of the architecture and electronic components; sensor selection and integration; firmware development, refactoring and validation; system testing and verification; preparation of technical and user documentation; repository management and project maintenance."
+            }
         }
     ],
     "contributor": [
         {
             "@type": "Person",
+            "@id": "https://orcid.org/0009-0009-4242-8949",
             "givenName": "Robin",
             "familyName": "Laesser",
             "affiliation": {
@@ -136,28 +144,19 @@
             "contribution": {
                 "fr": "Contribution au développement et à la maintenance du firmware, notamment à la gestion du lecteur RFID, à l'identification des dispositifs, à la télémétrie de batterie et à la chaîne de compilation.",
                 "en": "Contribution to firmware development and maintenance, particularly RFID reader management, device identification, battery telemetry and the build pipeline."
-            },
-            "orcid": "0009-0009-4242-8949",
+            }
         }
     ],
-    "funder": [
-        {
-            "@type": "Organization",
-            "name": "CNRS",
-            "url": "https://www.cnrs.fr/"
-        }
-    ],
-    "referencePublication": [],
-    "relatedLink": [],
     "softwareRequirements": [
         {
             "@type": "SoftwareApplication",
-            "name": "PlatformIO",
+            "name": "PlatformIO Core",
+            "version": "6.1.19",
             "url": "https://platformio.org/"
         },
         {
             "@type": "SoftwareApplication",
-            "name": "Arduino Framework",
+            "name": "Arduino Framework for SAMD",
             "url": "https://www.arduino.cc/"
         },
         {
@@ -223,23 +222,17 @@
                 "en": "RFID-M0 User Manual"
             },
             "url": "https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki/latest/",
-            "sameAs": "https://github.com/Julien-768/rfid-m0-wiki",
-            "sameAs": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.wiki",
             "author": [
                 {
                     "@type": "Person",
+                    "@id": "https://orcid.org/0000-0002-0179-379X",
                     "givenName": "Julien",
                     "familyName": "Courtecuisse"
                 }
             ]
         }
     ],
-    "identifier": {
-        "@type": "PropertyValue",
-        "propertyID": "IDDN",
-        "value": "https://doi.org/10.5281/zenodo.XXXXXXX"
-    },
-    "citation": "Courtecuisse J., Laesser R. (2026). RFID-M0 (v0.0.X). CNRS. https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
+    "citation": "Courtecuisse J., Laesser R. (2026). RFID-M0. CNRS. https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
     "isPartOf": {
         "@type": "Organization",
         "name": "MIBE Platform",
@@ -250,6 +243,43 @@
         "@type": "Organization",
         "name": "CNRS",
         "url": "https://www.cnrs.fr/",
-        "ror": "https://ror.org/01g3mb532"
+        "identifier": "https://ror.org/01g3mb532"
     }
+     "funder": [
+        {
+            "@type": "Organization",
+            "name": "MIBE Platform (CNRS)",
+            "funderType": "Academic",
+            "purpose": [
+                "Project launch",
+                "Development of initial prototypes",
+                "Ongoing development funding"
+            ],
+            "url": "https://www.cnrs.fr/",
+            "@id": "https://ror.org/018mejw21" // ROR du CNRS
+        },
+        {
+            "@type": "Organization",
+            "name": "Interreg",
+            "funderType": "Government",
+            "purpose": [
+                "Adaptation of the project for the European Hamster (Cricetus cricetus)",
+                "Scaling up for this species"
+            ],
+            "url": "https://www.interreg.eu/",
+            "@id": "https://ror.org/04q3x4y58" // ROR d'Interreg (à vérifier)
+        },
+        {
+            "@type": "Organization",
+            "name": "SEE-LIFE",
+            "funderType": "Government",
+            "purpose": [
+                "Adaptation of the project for tits (Paridae family)",
+                "Scaling up for this species"
+            ],
+            "url": "https://see-life.eu/" // À remplacer par l'URL officielle
+        }
+    ]
+    "referencePublication": [TO BE DEFINED
+    ],
 }
