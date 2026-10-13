@@ -3,8 +3,8 @@
     "@type": "SoftwareSourceCode",
     "name": "RFID-M0",
     "description": {
-        "fr": "Micrologiciel embarqué du projet open source RFID-M0, conçu pour suivre les déplacements de petites espèces animales à proximité de leurs terriers et nichoirs. Le logiciel intègre l’identification individuelle par RFID, la détection des passages par barrières infrarouges, l’horodatage par horloge temps réel (RTC) et l’enregistrement des données sur carte SD, avec une gestion basse consommation adaptée aux déploiements autonomes sur le terrain.",
-        "en": "Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It is intended for ecological research, including long-term studies of individually identified birds such as the Great Tit (Parus major) in urban, peri-urban, and forest environments."
+        "fr": "Micrologiciel embarqué du projet open source RFID-M0, conçu pour suivre les déplacements de petites espèces animales à proximité de leurs terriers et nichoirs. Le logiciel intègre l’identification individuelle par RFID, la détection des passages par barrières infrarouges, l’horodatage par horloge temps réel (RTC) et l’enregistrement des données sur carte SD, avec une gestion basse consommation adaptée aux déploiements autonomes sur le terrain. Le projet a également contribué à l’expérimentation de nouveaux outils de suivi de la faune, notamment dans le cadre des recherches sur le Hamster commun (Cricetus cricetus) menées dans le projet transfrontalier CRICETUS.",
+        "en": "Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It is intended for ecological research, including long-term studies of individually identified birds such as the Great Tit (Parus major) in urban, peri-urban, and forest environments. The project also contributed to the experimentation of new wildlife monitoring tools, particularly in the context of research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project."
     },
     "version": "0.0.TO BE DEFINED",
     "dateCreated": "2022-08-17T09:18:30+02:00",
@@ -48,6 +48,18 @@
             "@type": "CreativeWork",
             "name": "SEE-Life long-term Great Tit monitoring project",
             "url": "https://cat.indores.fr/geonetwork/SEE-Life/fre/catalog.search#/metadata/92f2aff5-bdd3-4d7f-ba8e-5c7eee5b17c4"
+        },
+        {
+            "@type": "CreativeWork",
+            "name": {
+                "fr": "CRICETUS — Projet transfrontalier de protection du Hamster commun",
+                "en": "CRICETUS — Cross-border European hamster conservation project"
+            },
+            "url": "https://www.alsace.eu/aides-et-services/environnement/proteger-hamster-commun/",
+            "description": {
+                "fr": "Projet transfrontalier mené de 2021 à 2023, comprenant des recherches sur de nouveaux outils de suivi du Hamster commun.",
+                "en": "Cross-border project conducted from 2021 to 2023, including research into new European hamster monitoring tools."
+            }
         }
     ],
     "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
@@ -64,50 +76,58 @@
         "Biodiversity Monitoring",
         "Scientific Research"
     ],
-    "keywords": [
-        {
-            "fr": [
-                "RFID-M0",
-                "RFID",
-                "suivi de la faune",
-                "suivi à long terme",
-                "suivi des oiseaux",
-                "Mésange charbonnière",
-                "Parus major",
-                "identification individuelle",
-                "détection des passages",
-                "barrières infrarouges",
-                "systèmes embarqués",
-                "micrologiciel embarqué",
-                "acquisition de données",
-                "enregistrement sur carte SD",
-                "gestion basse consommation",
-                "écologie et évolution",
-                "suivi de la biodiversité",
-                "recherche scientifique"
-            ],
-            "en": [
-                "RFID-M0",
-                "RFID",
-                "wildlife tracking",
-                "long-term monitoring",
-                "bird monitoring",
-                "Great Tit",
-                "Parus major",
-                "individual identification",
-                "passage detection",
-                "infrared barriers",
-                "embedded systems",
-                "embedded firmware",
-                "data acquisition",
-                "SD card logging",
-                "low-power management",
-                "ecology and evolution",
-                "biodiversity monitoring",
-                "scientific research"
-            ]
-        }
-    ],
+    "keywords": {
+        "fr": [
+            "RFID-M0",
+            "RFID",
+            "suivi de la faune",
+            "suivi à long terme",
+            "suivi des oiseaux",
+            "Mésange charbonnière",
+            "Parus major",
+            "Hamster commun",
+            "Cricetus cricetus",
+            "CRICETUS",
+            "identification individuelle",
+            "détection des passages",
+            "barrières infrarouges",
+            "systèmes embarqués",
+            "micrologiciel embarqué",
+            "acquisition de données",
+            "enregistrement sur carte SD",
+            "gestion basse consommation",
+            "outils de suivi",
+            "suivi expérimental",
+            "écologie et évolution",
+            "suivi de la biodiversité",
+            "recherche scientifique"
+        ],
+        "en": [
+            "RFID-M0",
+            "RFID",
+            "wildlife tracking",
+            "long-term monitoring",
+            "bird monitoring",
+            "Great Tit",
+            "Parus major",
+            "European hamster",
+            "Cricetus cricetus",
+            "CRICETUS",
+            "individual identification",
+            "passage detection",
+            "infrared barriers",
+            "embedded systems",
+            "embedded firmware",
+            "data acquisition",
+            "SD card logging",
+            "low-power management",
+            "wildlife monitoring tools",
+            "experimental monitoring",
+            "ecology and evolution",
+            "biodiversity monitoring",
+            "scientific research"
+        ]
+    },
     "author": [
         {
             "@type": "Person",
@@ -243,9 +263,9 @@
         "@type": "Organization",
         "name": "CNRS",
         "url": "https://www.cnrs.fr/",
-        "identifier": "https://ror.org/01g3mb532"
-    }
-     "funder": [
+        "identifier": "https://ror.org/02feahw73"
+    },
+    "funder": [
         {
             "@type": "Organization",
             "name": "MIBE Platform (CNRS)",
@@ -255,31 +275,30 @@
                 "Development of initial prototypes",
                 "Ongoing development funding"
             ],
-            "url": "https://www.cnrs.fr/",
-            "@id": "https://ror.org/018mejw21" // ROR du CNRS
+            "url": "https://mibe.iphc.cnrs.fr",
+            "identifier": "https://ror.org/01g3mb532"
         },
         {
             "@type": "Organization",
-            "name": "Interreg",
+            "name": "Interreg V Rhin Supérieur / Upper Rhine",
             "funderType": "Government",
             "purpose": [
-                "Adaptation of the project for the European Hamster (Cricetus cricetus)",
+                "Adaptation of the project for the European hamster (Cricetus cricetus)",
+                "Experimentation of new wildlife monitoring tools",
                 "Scaling up for this species"
             ],
-            "url": "https://www.interreg.eu/",
-            "@id": "https://ror.org/04q3x4y58" // ROR d'Interreg (à vérifier)
+            "url": "https://www.interreg.eu/"
         },
         {
             "@type": "Organization",
-            "name": "SEE-LIFE",
+            "name": "SEE-Life",
             "funderType": "Government",
             "purpose": [
                 "Adaptation of the project for tits (Paridae family)",
                 "Scaling up for this species"
             ],
-            "url": "https://see-life.eu/" // À remplacer par l'URL officielle
+            "url": "https://www.inee.cnrs.fr/fr/see-life-suivis-long-terme-en-ecologie-et-evolution"
         }
-    ]
-    "referencePublication": [TO BE DEFINED
     ],
+    "referencePublication": []
 }
