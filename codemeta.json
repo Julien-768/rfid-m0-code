@@ -59,7 +59,6 @@
         }
     ],
     "dateCreated": "2022-08-17",
-    "datePublished": "9999-01-01",
     "description": "Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.",
     "identifier": "RFID-M0",
     "isPartOf": "https://mibe.iphc.cnrs.fr",
