@@ -1,7 +1,12 @@
 {
     "@context": "https://w3id.org/codemeta/3.0",
     "type": "SoftwareSourceCode",
-    "applicationCategory": "Embedded Systems,Animal Tracking,Biodiversity Monitoring,Scientific Research",
+    "applicationCategory": [
+        "Embedded Systems",
+        "Animal Tracking",
+        "Biodiversity Monitoring",
+        "Scientific Research"
+    ],
     "author": [
         {
             "id": "https://orcid.org/0000-0002-0179-379X",
@@ -17,25 +22,21 @@
         {
             "type": "Role",
             "schema:author": "https://orcid.org/0000-0002-0179-379X",
-            "endDate": "2026-10-14",
-            "roleName": "Author",
-            "startDate": "2026-10-13"
-        },
-        {
-            "type": "Role",
-            "schema:author": "https://orcid.org/0000-0002-0179-379X",
-            "endDate": "2026-10-14",
-            "roleName": "Maintenair",
-            "startDate": "2026-10-13"
-        },
-        {
-            "type": "Role",
-            "schema:author": "https://orcid.org/0000-0002-0179-379X",
-            "endDate": "2026-10-14",
-            "roleName": "Developper",
-            "startDate": "2026-10-13"
+            "roleName": "Developer",
+            "schema:startDate": "2022-08-17"
         }
     ],
+    "maintainer": {
+        "id": "https://orcid.org/0000-0002-0179-379X",
+        "type": "Person",
+        "affiliation": {
+            "type": "Organization",
+            "name": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France"
+        },
+        "email": "julien.courtecuisse@iphc.cnrs.fr",
+        "familyName": "Courtecuisse",
+        "givenName": "Julien"
+    },
     "codeRepository": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
     "contributor": [
         {
@@ -52,10 +53,8 @@
         {
             "type": "Role",
             "contributor": "https://orcid.org/0009-0009-4242-8949",
-            "roleName": "Developper",
-            "schema:endDate": "2026-10-14",
-            "schema:roleName": "Developper",
-            "schema:startDate": "2026-10-13"
+            "roleName": "Developer",
+            "schema:endDate": "2026-10-14"
         }
     ],
     "dateCreated": "2022-08-17",
@@ -104,14 +103,12 @@
     ],
     "license": "https://spdx.org/licenses/GPL-3.0-or-later",
     "name": "RFID-M0",
-    "operatingSystem": "Operating system",
     "programmingLanguage": [
         "C",
         "C++"
     ],
     "relatedLink": [
         "https://github.com/Julien-768/rfid-m0-code",
-        "https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki/latest/",
         "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.wiki",
         "https://github.com/Julien-768/rfid-m0-wiki",
         "https://cat.indores.fr/geonetwork/SEE-Life/fre/catalog.search#/metadata/92f2aff5-bdd3-4d7f-ba8e-5c7eee5b17c4",
@@ -124,22 +121,78 @@
         "Arduino SAMD framework"
     ],
     "softwareRequirements": [
-        "https://platformio.org/",
-        "https://www.arduino.cc/",
-        "https://registry.platformio.org/libraries/ocrdu/SAMD21%20turbo%20PWM",
-        "https://github.com/adafruit/RTClib",
-        "https://github.com/arduino-libraries/ArduinoLowPower",
-        "https://github.com/bblanchon/ArduinoJson",
-        "https://github.com/adafruit/Adafruit_MAX31865",
-        "https://github.com/drhaney/pt100rtd",
-        "https://github.com/arduino-libraries/SD",
-        "https://github.com/cmaglie/FlashStorage",
-        "https://github.com/adafruit/Adafruit_SleepyDog"
+        {
+            "type": "SoftwareApplication",
+            "name": "PlatformIO",
+            "url": "https://platformio.org/"
+        },
+        {
+            "type": "SoftwareApplication",
+            "name": "Arduino",
+            "url": "https://www.arduino.cc/"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "SAMD21 turbo PWM",
+            "url": "https://registry.platformio.org/libraries/ocrdu/SAMD21%20turbo%20PWM",
+            "version": "^0.8.5"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "RTClib",
+            "url": "https://github.com/adafruit/RTClib",
+            "version": "^2.1.4"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "ArduinoLowPower",
+            "url": "https://github.com/arduino-libraries/ArduinoLowPower",
+            "version": "^1.2.2"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "ArduinoJson",
+            "url": "https://github.com/bblanchon/ArduinoJson",
+            "version": "^6.21.5"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "Adafruit MAX31865",
+            "url": "https://github.com/adafruit/Adafruit_MAX31865",
+            "version": "^1.3.0"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "pt100rtd",
+            "url": "https://github.com/drhaney/pt100rtd",
+            "version": "^0.1"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "SD",
+            "url": "https://github.com/arduino-libraries/SD",
+            "version": "^1.3.0"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "FlashStorage",
+            "url": "https://github.com/cmaglie/FlashStorage",
+            "version": "^1.0.0"
+        },
+        {
+            "type": "SoftwareSourceCode",
+            "name": "Adafruit SleepyDog",
+            "url": "https://github.com/adafruit/Adafruit_SleepyDog",
+            "version": "^1.8.4"
+        }
     ],
     "version": "3.0.0",
-    "downloadUrl": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/release",
+    "downloadUrl": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/releases",
     "continuousIntegration": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/pipelines",
-    "developmentStatus": "active",
+    "developmentStatus": "https://www.repostatus.org/#active",
+    "readme": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/blob/develop/README.md",
+    "softwareHelp": "https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki/latest/",
+    "buildInstructions": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code#build",
     "funder": [
         {
             "type": "Organization",

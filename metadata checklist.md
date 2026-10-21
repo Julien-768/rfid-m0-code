@@ -8,7 +8,7 @@ The authoritative software metadata are maintained in `codemeta.json`.
 
 - [ ] `datePublished`: set the actual publication date once the release is published.
 - [X] `downloadUrl`: verify that the URL points to an actual downloadable release artifact.
-- [ ] `softwareRequirements`: verify dependency names, versions, and repository URLs.
+- [X] `softwareRequirements`: verify dependency names, versions, and repository URLs.
 - [ ] `maintainer`: explicitly identify the current software maintainer.
 - [ ] `funder`: verify which organizations actually funded the software.
 - [ ] `isPartOf`: confirm the intended relationship with the MIBE platform.
@@ -28,7 +28,12 @@ The authoritative software metadata are maintained in `codemeta.json`.
 - [ ] Verify that all URLs are valid and accessible.
 - [ ] Confirm that the metadata match the released version.
 - [ ] Update `datePublished` only when the release has actually been published.
+- [X] Le lien pointe buildInstructions vers une page plus précise si elle existe.
 
 ## Maintenance
 
 Update this checklist whenever metadata requirements change. Remove completed items or retain them as a release history when appropriate.
+
+##
+
+"datePublished": "YYYY-MM-DD"
