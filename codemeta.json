@@ -1,0 +1,163 @@
+{
+    "@context": "https://w3id.org/codemeta/3.0",
+    "type": "SoftwareSourceCode",
+    "applicationCategory": "Embedded Systems,Animal Tracking,Biodiversity Monitoring,Scientific Research",
+    "author": [
+        {
+            "id": "https://orcid.org/0000-0002-0179-379X",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France"
+            },
+            "email": "julien.courtecuisse@iphc.cnrs.fr",
+            "familyName": "Courtecuisse",
+            "givenName": "Julien"
+        },
+        {
+            "type": "Role",
+            "schema:author": "https://orcid.org/0000-0002-0179-379X",
+            "endDate": "2026-10-14",
+            "roleName": "Author",
+            "startDate": "2026-10-13"
+        },
+        {
+            "type": "Role",
+            "schema:author": "https://orcid.org/0000-0002-0179-379X",
+            "endDate": "2026-10-14",
+            "roleName": "Maintenair",
+            "startDate": "2026-10-13"
+        },
+        {
+            "type": "Role",
+            "schema:author": "https://orcid.org/0000-0002-0179-379X",
+            "endDate": "2026-10-14",
+            "roleName": "Developper",
+            "startDate": "2026-10-13"
+        }
+    ],
+    "codeRepository": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code",
+    "contributor": [
+        {
+            "id": "https://orcid.org/0009-0009-4242-8949",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France"
+            },
+            "email": "robin.laesser@iphc.cnrs.fr",
+            "familyName": "Laesser",
+            "givenName": "Robin"
+        },
+        {
+            "type": "Role",
+            "contributor": "https://orcid.org/0009-0009-4242-8949",
+            "roleName": "Developper",
+            "schema:endDate": "2026-10-14",
+            "schema:roleName": "Developper",
+            "schema:startDate": "2026-10-13"
+        }
+    ],
+    "dateCreated": "2022-08-17",
+    "datePublished": "9999-01-01",
+    "description": "Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.",
+    "identifier": "RFID-M0",
+    "isPartOf": "https://mibe.iphc.cnrs.fr",
+    "keywords": [
+        "RFID-M0",
+        "RFID",
+        "suivi de la faune",
+        "suivi à long terme",
+        "suivi des oiseaux",
+        "Mésange charbonnière",
+        "Great Tit",
+        "Parus major",
+        "Hamster commun",
+        "European hamster",
+        "Cricetus cricetus",
+        "CRICETUS",
+        "identification individuelle",
+        "individual identification",
+        "détection des passages",
+        "passage detection",
+        "barrières infrarouges",
+        "infrared barriers",
+        "systèmes embarqués",
+        "embedded systems",
+        "micrologiciel embarqué",
+        "embedded firmware",
+        "acquisition de données",
+        "data acquisition",
+        "enregistrement sur carte SD",
+        "SD card logging",
+        "gestion basse consommation",
+        "low-power management",
+        "outils de suivi",
+        "wildlife monitoring tools",
+        "suivi expérimental",
+        "experimental monitoring",
+        "écologie et évolution",
+        "ecology and evolution",
+        "suivi de la biodiversité",
+        "biodiversity monitoring",
+        "recherche scientifique",
+        "scientific research"
+    ],
+    "license": "https://spdx.org/licenses/GPL-3.0-or-later",
+    "name": "RFID-M0",
+    "operatingSystem": "Operating system",
+    "programmingLanguage": [
+        "C",
+        "C++"
+    ],
+    "relatedLink": [
+        "https://github.com/Julien-768/rfid-m0-code",
+        "https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki/latest/",
+        "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.wiki",
+        "https://github.com/Julien-768/rfid-m0-wiki",
+        "https://cat.indores.fr/geonetwork/SEE-Life/fre/catalog.search#/metadata/92f2aff5-bdd3-4d7f-ba8e-5c7eee5b17c4",
+        "https://www.alsace.eu/aides-et-services/environnement/proteger-hamster-commun/"
+    ],
+    "runtimePlatform": [
+        "Adafruit Feather M0",
+        "ATSAMD21G18 microcontroller",
+        "ARM Cortex-M0+ at 48 MHz",
+        "Arduino SAMD framework"
+    ],
+    "softwareRequirements": [
+        "https://platformio.org/",
+        "https://www.arduino.cc/",
+        "https://registry.platformio.org/libraries/ocrdu/SAMD21%20turbo%20PWM",
+        "https://github.com/adafruit/RTClib",
+        "https://github.com/arduino-libraries/ArduinoLowPower",
+        "https://github.com/bblanchon/ArduinoJson",
+        "https://github.com/adafruit/Adafruit_MAX31865",
+        "https://github.com/drhaney/pt100rtd",
+        "https://github.com/arduino-libraries/SD",
+        "https://github.com/cmaglie/FlashStorage",
+        "https://github.com/adafruit/Adafruit_SleepyDog"
+    ],
+    "version": "3.0.0",
+    "downloadUrl": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/release",
+    "continuousIntegration": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/pipelines",
+    "developmentStatus": "active",
+    "funder": [
+        {
+            "type": "Organization",
+            "name": "MIBE Platform (CNRS)",
+            "url": "https://mibe.iphc.cnrs.fr",
+            "identifier": "https://ror.org/01g3mb532"
+        },
+        {
+            "type": "Organization",
+            "name": "Interreg V Rhin Supérieur / Upper Rhine",
+            "url": "https://www.interreg.eu/"
+        },
+        {
+            "type": "Organization",
+            "name": "SEE-Life",
+            "url": "https://www.inee.cnrs.fr/fr/see-life-suivis-long-terme-en-ecologie-et-evolution"
+        }
+    ],
+    "issueTracker": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/issues"
+}
