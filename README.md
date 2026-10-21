@@ -42,7 +42,7 @@ rfid.m0.code/
 ├── sd/               # SD-card related files
 ├── platformio.ini    # PlatformIO configuration
 ├── Doxyfile          # Doxygen configuration
-└── LICENSE.txt       # License
+└── LICENSE       # License
 ```
 
 ## Requirements
@@ -125,7 +125,7 @@ When a firmware change modifies documented behaviour, the corresponding document
 
 This project is distributed under the **GNU General Public License v3.0**.
 
-See [`LICENSE.txt`](LICENSE.txt) for the complete license text.
+See [`LICENSE`](LICENSE) for the complete license text.
 
 ## Project
 
