@@ -37,6 +37,7 @@ include:
 # --- Deploy stage ---
 - project: 'iphc/ci-templates'
   file: "templates/github-sync/template.yml"
+  ref: 'develop'
   inputs:
     branches: "develop|main|metadata"
     github_repo: "Julien-768/rfid-m0-code"
