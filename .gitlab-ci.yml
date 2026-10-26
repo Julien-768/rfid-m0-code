@@ -12,23 +12,37 @@
 # Include reusable CI templates from IPHC
 # --------------------------------------------------
 include:
+
+# --- Clang-format code style check stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/clang/template.yml'
   ref: 'develop'
 
+# --- PlatformIO build stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/platformio/template.yml'
   ref: 'develop'
-
   inputs:
     environments: "clangtidy"
     project_dir: "."
     project_conf: "platformio.ini"
 
+# --- Doxygen documentation generation stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/doxygen/template.yml'
   ref: 'develop'
+  inputs:
+    doxyfile_path: "."
 
+# --- Deploy stage ---
+- project: 'iphc/ci-templates'
+  file: "templates/github-sync/template.yml"
+  inputs:
+    branches: "develop|main|metadata"
+    github_repo: "Julien-768/rfid-m0-code"
+    stage: deploy
+
+# --- Release stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/release/template.yml'
   ref: 'develop'
@@ -42,36 +56,21 @@ variables:
   CLANG_PATH: "src"
   # PlatformIO configuration:
   PIO_ENV: "clangtidy"
-
-  # Doxygen configuration:
-  # The project provides a doxygen/Doxyfile at repository root,
-  # which includes the shared Doxyfile.base fetched by the CI template.
-  DOXYFILE_PATH: "."
-
-  # List of files and directories packaged in the release archive
-  FILES_TO_PACKAGE: "src include lib platformio.ini README.md CHANGELOG.md"
   # --------------------------------------------------
-  # Project-specific variables used by the sync_to_github
+  # Pipeline stages
+  #
+  # Order reflects a standard validation flow:
+  #  - format: code style checks
+  #  - build: firmware compilation
+  #  - pages: documentation generation
+  #  - release: versioning and publication
   # --------------------------------------------------
-
-  GIT_DEPTH: 0
-  GITHUB_REPOSITORY: "Julien-768/rfid-m0-code"
-
-# --------------------------------------------------
-# Pipeline stages
-#
-# Order reflects a standard validation flow:
-#  - format: code style checks
-#  - build: firmware compilation
-#  - pages: documentation generation
-#  - release: versioning and publication
-# --------------------------------------------------
 stages:
 - prepare
 - format
 - build
 - pages
-- sync
+- deploy
 - release
 
 generate_fw_version:
@@ -115,16 +114,52 @@ pio-build:
     - platformio.ini
   - when: never
 
-sync_to_github:
-  stage: sync
-  image: alpine:latest
+# ---------------------------------------------------------------------------
+# Prerequisite: GITLAB_API_TOKEN
+#
+# Create a project access token:
+#   1. Open Settings > Access Tokens.
+#   2. Create a token named "sync-gitlab-description".
+#      Description: Allows GitLab CI/CD to synchronize the project description from codemeta.json via the GitLab API.
+#   3. Set the role to Maintainer and the scope to api.
+#   4. Set an expiration date and create the token.
+#   5. Copy the token immediately; it cannot be viewed again later.
+#
+# Store the token as a CI/CD variable:
+#   1. Open Settings > CI/CD > Variables.
+#   2. Add a variable with the following settings:
+#        Description:       Project access token used by the CI/CD pipeline to synchronize the GitLab project description from codemeta.json via the GitLab API
+#        Key:               GITLAB_API_TOKEN
+#        Value:             <the generated access token>
+#        Type:              Variable
+#        Visibility:        Masked (or Masked and hidden, if available)
+#        Environment scope: *
+#        Protected:         Enable only if the default branch is protected.
+#   3. Save the variable.
+#
+# Security:
+#   - Never commit the token to the repository.
+#   - Never print the token in CI job logs.
+#   - Renew the token and update this CI/CD variable before it expires.
+#
+# Documentation:
+#   https://docs.gitlab.com/user/project/settings/project_access_tokens/
+#   https://docs.gitlab.com/ci/variables/
+# ---------------------------------------------------------------------------
+
+sync_gitlab_description:
+  stage: .post
+  image: python:3.12-slim
+
+  rules:
+
+  # Allow a manual test by setting FORCE_SYNC=true.
+  - if: '$FORCE_SYNC == "true"'
+
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    changes:
+    - codemeta.json
+    - .gitlab/scripts/sync_gitlab_description.py
 
   script:
-  - apk add --no-cache git
-  - git remote add github "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-  - git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
-
-  only:
-  - main
-  - develop
-  - test_github_sync
+  - python .gitlab/scripts/sync_gitlab_description.py

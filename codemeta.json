@@ -54,7 +54,26 @@
             "type": "Role",
             "contributor": "https://orcid.org/0009-0009-4242-8949",
             "roleName": "Developer",
-            "schema:endDate": "2026-10-14"
+            "schema:startDate": "2026-05-13",
+            "schema:endDate": "2026-07-29"
+        },
+        {
+            "id": "benjamin.tenaud@iphc.cnrs.fr",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France"
+            },
+            "email": "benjamin.tenaud@iphc.cnrs.fr",
+            "familyName": "Tenaud",
+            "givenName": "Benjamin"
+        },
+        {
+            "type": "Role",
+            "contributor": "benjamin.tenaud@iphc.cnrs.fr",
+            "roleName": "Developer",
+            "schema:startDate": "2023-02-15",
+            "schema:endDate": "2023-09-29"
         }
     ],
     "dateCreated": "2022-08-17",
