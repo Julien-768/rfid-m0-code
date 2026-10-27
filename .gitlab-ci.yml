@@ -164,3 +164,4 @@ sync_gitlab_description:
 
   script:
   - python .gitlab/scripts/sync_gitlab_description.py
+  - python .gitlab/scripts/sync_gitlab_topics.py
