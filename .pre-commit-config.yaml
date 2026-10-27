@@ -58,17 +58,8 @@ repos:
   #   args: [ "-p=build", "--config-file=.clang-tidy" ] # Explicite pour .clang-tidy
   #   files: "(src|include|lib|test)/.*\\.(c|cpp|h|hpp)$"
 
-  # PlatformIO
-- repo: local
-  hooks:
-  - id: platformio-lint
-    name: PlatformIO Lint
-    entry: pio check
-    language: system
-    types: [ c++, c ]
-    pass_filenames: false
 
-# Sécurité
+  # Sécurité
 - repo: https://github.com/gitleaks/gitleaks
   rev: v8.18.0
   hooks:
@@ -88,3 +79,43 @@ repos:
     # Optionnel : Personnalise les arguments
     args: [ "--severity=error", "--exclude=SC1090,SC2154" ] # Exemple : ignore certains codes d'erreur
     files: \.(sh|bash|zsh)$ # Fichiers ciblés
+  # URL checker
+- repo: https://github.com/lycheeverse/lychee
+  rev: lychee-v0.24.2
+  hooks:
+  - id: lychee
+    args:
+    - --no-progress
+    - --exclude-path
+    - node_modules
+    - --exclude-path
+    - dist
+    - --exclude-path
+    - build
+    - .
+    pass_filenames: false
+    always_run: true
+
+# PlatformIO
+- repo: local
+  hooks:
+  - id: platformio-lint
+    name: PlatformIO Lint
+    entry: pio check
+    language: system
+    types: [ c++, c ]
+    pass_filenames: false
+
+- repo: local
+  hooks:
+  - id: lychee-local
+    name: Lychee - Check codemeta.json broken links
+    entry: lychee
+    args:
+    - --no-progress
+    - --config
+    - .lychee.toml
+    - codemeta.json
+    language: system
+    pass_filenames: false
+    always_run: true

@@ -99,7 +99,7 @@ The complete RFID-M0 documentation is maintained in a separate repository.
 
 - **GitLab:** <https://gitlab.in2p3.fr/rfid-m0/rfid.m0.wiki>
 - **GitHub:** <https://github.com/Julien-768/rfid-m0-wiki>
-- **Online documentation:** <https://julien-768.github.io/rfid-m0-wiki/>
+- **Online documentation:** <https://rfid-m0.pages.in2p3.fr/rfid.m0.wiki>
 
 The documentation covers:
 

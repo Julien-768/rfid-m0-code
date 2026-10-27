@@ -26,6 +26,11 @@
             "schema:startDate": "2022-08-17"
         }
     ],
+    "copyrightHolder": {
+        "@type": "Person",
+        "givenName": "Julien",
+        "familyName": "Courtecuisse"
+    },
     "maintainer": {
         "id": "https://orcid.org/0000-0002-0179-379X",
         "type": "Person",
@@ -79,7 +84,6 @@
     "dateCreated": "2022-08-17",
     "description": "Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.",
     "identifier": "RFID-M0",
-    "isPartOf": "https://mibe.iphc.cnrs.fr",
     "keywords": [
         "RFID-M0",
         "RFID",
@@ -230,5 +234,5 @@
             "url": "https://www.inee.cnrs.fr/fr/see-life-suivis-long-terme-en-ecologie-et-evolution"
         }
     ],
-    "issueTracker": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/issues"
+    "issueTracker": "https://gitlab.in2p3.fr/rfid-m0/rfid.m0.code/-/work_items"
 }
