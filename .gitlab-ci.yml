@@ -6,12 +6,12 @@ spec:
   inputs:
     # PlatformIO
     environments:
-      description: "PlatformIO environments to build"
+      description: "PlatformIO environment to build"
       default: "clangtidy"
       type: string
 
     project_dir:
-      description: "Directory containing the PlatformIO project"
+      description: "PlatformIO directory containing the project"
       default: "."
       type: string
 
@@ -22,13 +22,13 @@ spec:
 
     # Doxygen
     doxyfile_path:
-      description: "Directory containing the Doxyfile"
+      description: "Doxygen directory containing the Doxyfile"
       default: "."
       type: string
 
     # GitHub synchronization
     branches:
-      description: "Branches to synchronize with GitHub, separated by |"
+      description: "Github synchronisation, branches to synchronize separated by |"
       default: "develop|main|metadata"
       type: string
 
