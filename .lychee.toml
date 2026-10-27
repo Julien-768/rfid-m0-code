@@ -1,0 +1,17 @@
+
+# Lychee link checker configuration
+
+no_progress = true
+
+# Network reliability
+max_retries = 3
+timeout = 30
+max_redirects = 10
+
+# Avoid overloading servers
+max_concurrency = 16
+host_concurrency = 2
+host_request_interval = "1s"
+
+# Treat rate limiting as inconclusive, not as a broken link
+accept = ["200..=299", "429"]

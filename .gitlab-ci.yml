@@ -1,78 +1,132 @@
 # .gitlab-ci.yml
 #
 # GitLab CI configuration for the "rfid.code" project.
-#
-# Covered steps:
-#  - Code formatting checks (clang-format)
-#  - Firmware build using PlatformIO
-#  - Documentation generation (Doxygen)
-#  - Versioning and release (tag + archive + GitLab release)
+
+spec:
+  inputs:
+    # PlatformIO
+    environments:
+      description: "PlatformIO environment to build"
+      default: "clangtidy"
+      type: string
+
+    project_dir:
+      description: "PlatformIO directory containing the project"
+      default: "."
+      type: string
+
+    project_conf:
+      description: "PlatformIO configuration file"
+      default: "platformio.ini"
+      type: string
+
+    # Doxygen
+    doxyfile_path:
+      description: "Doxygen directory containing the Doxyfile"
+      default: "."
+      type: string
+
+    # GitHub synchronization
+    branches:
+      description: "Github synchronisation, branches to synchronize separated by |"
+      default: "develop|main|metadata"
+      type: string
+
+    github_repo:
+      description: "GitHub repository (owner/repository)"
+      default: "Julien-768/rfid-m0-code"
+      type: string
+
+    sync_stage:
+      description: "Pipeline stage for GitHub synchronization"
+      default: "deploy"
+      options:
+      - deploy
+      type: string
+---
 
 # --------------------------------------------------
 # Include reusable CI templates from IPHC
 # --------------------------------------------------
+
 include:
+
+# --- Clang-format code style check stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/clang/template.yml'
   ref: 'develop'
 
+# --- PlatformIO build stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/platformio/template.yml'
   ref: 'develop'
-
   inputs:
-    environments: "clangtidy"
-    project_dir: "."
-    project_conf: "platformio.ini"
+    environments: "$[[ inputs.environments ]]"
+    project_dir: "$[[ inputs.project_dir ]]"
+    project_conf: "$[[ inputs.project_conf ]]"
 
+# --- Doxygen documentation generation stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/doxygen/template.yml'
   ref: 'develop'
+  inputs:
+    doxyfile_path: "$[[ inputs.doxyfile_path ]]"
 
+# --- Deploy stage ---
+- project: 'iphc/ci-templates'
+  file: '/templates/github-sync/template.yml'
+  ref: 'gitlab-MR-template'
+  inputs:
+    branches: "$[[ inputs.branches ]]"
+    github_repo: "$[[ inputs.github_repo ]]"
+    stage: "$[[ inputs.sync_stage ]]"
+
+# --- Release stage ---
 - project: 'iphc/ci-templates'
   file: '/templates/release/template.yml'
   ref: 'develop'
 
+# --------------------------------------------------
+# CI/CD variables
+# --------------------------------------------------
+
 variables:
-  # --------------------------------------------------
-  # Project-specific variables used by the CI templates
-  # --------------------------------------------------
+  FORCE_SYNC:
+    value: "false"
+    description: "Force synchronization of GitLab project description and topics"
+    options:
+    - "false"
+    - "true"
+
   # Clang-format configuration
-  CLANG_FORMAT_FILE: .clang-format
-  CLANG_PATH: "src"
-  # PlatformIO configuration:
-  PIO_ENV: "clangtidy"
+  CLANG_FORMAT_FILE:
+    value: ".clang-format"
+    description: "Path to the clang-format configuration file"
 
-  # Doxygen configuration:
-  # The project provides a doxygen/Doxyfile at repository root,
-  # which includes the shared Doxyfile.base fetched by the CI template.
-  DOXYFILE_PATH: "."
+  CLANG_PATH:
+    value: "src"
+    description: "Directory or directories scanned by clang-format"
 
-  # List of files and directories packaged in the release archive
-  FILES_TO_PACKAGE: "src include lib platformio.ini README.md CHANGELOG.md"
-  # --------------------------------------------------
-  # Project-specific variables used by the sync_to_github
-  # --------------------------------------------------
-
-  GIT_DEPTH: 0
-  GITHUB_REPOSITORY: "Julien-768/rfid-m0-code"
+  # PlatformIO configuration
+  PIO_ENV:
+    value: "clangtidy"
+    description: "PlatformIO environment used by the clang-tidy job"
 
 # --------------------------------------------------
 # Pipeline stages
-#
-# Order reflects a standard validation flow:
-#  - format: code style checks
-#  - build: firmware compilation
-#  - pages: documentation generation
-#  - release: versioning and publication
 # --------------------------------------------------
+
 stages:
 - prepare
 - format
 - build
 - pages
-- sync
+- deploy
 - release
+
+# --------------------------------------------------
+# Firmware version generation
+# --------------------------------------------------
 
 generate_fw_version:
   stage: prepare
@@ -99,10 +153,18 @@ generate_fw_version:
     paths:
     - include/app/fw_version.h
 
+# --------------------------------------------------
+# Code quality
+# --------------------------------------------------
+
 clang-tidy:
   extends: .clang-tidy-template
   stage: format
   allow_failure: true
+
+# --------------------------------------------------
+# Firmware build
+# --------------------------------------------------
 
 pio-build:
   extends: .platformio-build-template
@@ -115,16 +177,26 @@ pio-build:
     - platformio.ini
   - when: never
 
-sync_to_github:
-  stage: sync
-  image: alpine:latest
+# --------------------------------------------------
+# GitLab project metadata synchronization
+#
+# Required CI/CD variable:
+#   GITLAB_API_TOKEN
+# --------------------------------------------------
+
+gitlab_project_metadata:
+  stage: .post
+  image: python:3.12-slim
+
+  rules:
+  # Allow a manual test by setting FORCE_SYNC=true.
+  - if: '$FORCE_SYNC == "true"'
+
+  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    changes:
+    - codemeta.json
+    - .gitlab/scripts/sync_gitlab_description.py
 
   script:
-  - apk add --no-cache git
-  - git remote add github "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-  - git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
-
-  only:
-  - main
-  - develop
-  - test_github_sync
+  - python .gitlab/scripts/sync_gitlab_description.py
+  - python .gitlab/scripts/sync_gitlab_topics.py
