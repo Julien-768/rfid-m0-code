@@ -2,40 +2,38 @@
  * @file sd_manager.h
  * @brief SD card logging manager for the low-power data device.
  *
- * This module provides SD card management utilities for:
- * - SD initialization
- * - Daily file creation when RTC is available
- * - Fallback file creation when RTC is unavailable
- * - Direct and buffered measurement logging
- * - Circular-buffer based SD write batching
- * - System log event writing
+ * @version 3.0.0
+ * @date 2022-08-17
  *
- * ## Filename policy
+ * @section authors Authors
+ * - Julien Courtecuisse
+ *   Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
+ *   Email: julien.courtecuisse@iphc.cnrs.fr
  *
- * The Adadevice M0 uses FAT-compatible filenames. This module therefore keeps
- * filenames compatible with the 8.3 format.
+ * @section project Project
+ * Name: RFID-M0
+ * Description: Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.
  *
- * With RTC available:
- * - Measurements: YYYYMMDD.CSV
- * - System logs:  YYYYMMDD.LOG
+ * @section contributors Contributors
+ * - Robin Laesser
+ *   Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
+ *   Email: robin.laesser@iphc.cnrs.fr
  *
- * Without RTC:
- * - Measurements: NORTCnn.CSV
- * - System logs:  NORTCnn.LOG
+ * @section license License
+ * Copyright (C) 2022 Julien Courtecuisse
  *
- * where `nn` is the first available index from 00 to 99.
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, either version 3
+ * of the License, or (at your option) any later version.
  *
- * ## Write modes
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
- * Direct mode:
- * - Each measurement is written immediately to the SD card.
- *
- * Buffered mode:
- * - Measurements are first stored in RAM.
- * - Data is flushed to the SD card when enough bytes are available.
- *
- * @note Buffered mode reduces SD write frequency and improves power efficiency
- *       during long deployments.
+ * License: GPL-3.0-or-later
+ * https://www.gnu.org/licenses/gpl-3.0.html
  */
 
 #pragma once

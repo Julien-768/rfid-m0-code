@@ -3,8 +3,14 @@
   "generatedBy": "generate_contributions.py",
   "contributors": [
     {
-      "name": "Benjamin TENAUD",
+      "name": "Benjamin Tenaud",
       "email": "benjamin.tenaud@iphc.cnrs.fr",
+      "givenName": "Benjamin",
+      "familyName": "Tenaud",
+      "affiliation": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France",
+      "gitNames": [
+        "Benjamin TENAUD"
+      ],
       "commits": [
         {
           "hash": "988ded3ef36d70b5067f18410e83eadf3ac522d4",
@@ -223,8 +229,14 @@
       ]
     },
     {
-      "name": "Julien",
+      "name": "Julien Courtecuisse",
       "email": "julien.courtecuisse@iphc.cnrs.fr",
+      "givenName": "Julien",
+      "familyName": "Courtecuisse",
+      "affiliation": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France",
+      "gitNames": [
+        "Julien"
+      ],
       "commits": [
         {
           "hash": "30eeabfab64c67edfcb48c0c7661bbb425e3a859",
@@ -1433,30 +1445,13 @@
         {
           "hash": "a159fac9389bd789820b1fbf1e8ff2286b1b809f",
           "date": "2026-11-02T14:04:17+01:00"
+        },
+        {
+          "hash": "58e15c80e2219f9cb99d098991e091978d82b6dc",
+          "date": "2026-11-02T14:39:08+01:00"
         }
       ],
       "files": [
-        "\"Docs/sch\\303\\251ma 20211212/Feather_M0.pptx\"",
-        "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_main_v2.fzz\"",
-        "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_main_v2_circuit imprim\\303\\251.png\"",
-        "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_main_v2_sch\\303\\251ma.png\"",
-        "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_power.fzz\"",
-        "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_power_bb.png\"",
-        "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_power_circuit imprim\\303\\251.png\"",
-        "\"Docs/sch\\303\\251ma 20211212/Nomenclature.xlsx\"",
-        "\"Docs/sch\\303\\251ma 20211212/Pr\\303\\251sentation_nichoir_m\\303\\251sanges_Juin_2021.pptx\"",
-        "\"Docs/sch\\303\\251ma 202206/20220509_Pr\\303\\251sentation_Antenne_terrier.pptx\"",
-        "\"Docs/sch\\303\\251ma 202206/Antenne Terrier Notes Techniques.docx\"",
-        "\"Docs/sch\\303\\251ma 202206/Feather_M0.pptx\"",
-        "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_AntenneIR.fzz\"",
-        "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_AntenneIR_sch\\303\\251ma.PNG\"",
-        "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_main.fzz\"",
-        "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_main_sch\\303\\251ma.png\"",
-        "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_power.fzz\"",
-        "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_power_sch\\303\\251ma.png\"",
-        "\"Docs/sch\\303\\251ma 202206/Nomenclature.xlsx\"",
-        "\"Docs/sch\\303\\251ma 202206/Pinout_Feather_M0.png\"",
-        "\"Docs/sch\\303\\251ma 202206/Pinout_Feather_M0.pptx\"",
         ".clang-format",
         ".clang-tidy",
         ".flake8",
@@ -1481,6 +1476,27 @@
         "CITATION.cff",
         "CONTRIBUTING.md",
         "CONTRIBUTORS.md",
+        "Docs/schéma 20211212/Feather_M0.pptx",
+        "Docs/schéma 20211212/Fritzing Files/Nichoir_main_v2.fzz",
+        "Docs/schéma 20211212/Fritzing Files/Nichoir_main_v2_circuit imprimé.png",
+        "Docs/schéma 20211212/Fritzing Files/Nichoir_main_v2_schéma.png",
+        "Docs/schéma 20211212/Fritzing Files/Nichoir_power.fzz",
+        "Docs/schéma 20211212/Fritzing Files/Nichoir_power_bb.png",
+        "Docs/schéma 20211212/Fritzing Files/Nichoir_power_circuit imprimé.png",
+        "Docs/schéma 20211212/Nomenclature.xlsx",
+        "Docs/schéma 20211212/Présentation_nichoir_mésanges_Juin_2021.pptx",
+        "Docs/schéma 202206/20220509_Présentation_Antenne_terrier.pptx",
+        "Docs/schéma 202206/Antenne Terrier Notes Techniques.docx",
+        "Docs/schéma 202206/Feather_M0.pptx",
+        "Docs/schéma 202206/Fritzing Files/Nichoir_AntenneIR.fzz",
+        "Docs/schéma 202206/Fritzing Files/Nichoir_AntenneIR_schéma.PNG",
+        "Docs/schéma 202206/Fritzing Files/Nichoir_main.fzz",
+        "Docs/schéma 202206/Fritzing Files/Nichoir_main_schéma.png",
+        "Docs/schéma 202206/Fritzing Files/Nichoir_power.fzz",
+        "Docs/schéma 202206/Fritzing Files/Nichoir_power_schéma.png",
+        "Docs/schéma 202206/Nomenclature.xlsx",
+        "Docs/schéma 202206/Pinout_Feather_M0.png",
+        "Docs/schéma 202206/Pinout_Feather_M0.pptx",
         "Doxyfile",
         "LICENSE",
         "README.md",
@@ -1532,8 +1548,13 @@
         "scripts/convert_to_uf2.py",
         "scripts/gen_compdb.py",
         "scripts/generate_fw_version.sh",
+        "scripts/metadata/README.md",
         "scripts/metadata/codemeta_people.py",
+        "scripts/metadata/codemeta_roles.py",
+        "scripts/metadata/generate_contributions.py",
         "scripts/metadata/generate_files.py",
+        "scripts/metadata/generate_headers.py",
+        "scripts/metadata/patch_generate_files.py",
         "sd/config.cfg",
         "sd/hw_assem.cfg",
         "src/CppProperties.json",
@@ -1575,8 +1596,14 @@
       ]
     },
     {
-      "name": "laesser",
+      "name": "Robin Laesser",
       "email": "robin.laesser@iphc.cnrs.fr",
+      "givenName": "Robin",
+      "familyName": "Laesser",
+      "affiliation": "IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France",
+      "gitNames": [
+        "laesser"
+      ],
       "commits": [
         {
           "hash": "3f8fd52adf434bd4f0d6a62b4687455d40c416b7",
@@ -1873,1185 +1900,1215 @@
     }
   ],
   "files": {
-    "\"Docs/sch\\303\\251ma 20211212/Feather_M0.pptx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_main_v2.fzz\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_main_v2_circuit imprim\\303\\251.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_main_v2_sch\\303\\251ma.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_power.fzz\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_power_bb.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Fritzing Files/Nichoir_power_circuit imprim\\303\\251.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Nomenclature.xlsx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 20211212/Pr\\303\\251sentation_nichoir_m\\303\\251sanges_Juin_2021.pptx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/20220509_Pr\\303\\251sentation_Antenne_terrier.pptx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Antenne Terrier Notes Techniques.docx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Feather_M0.pptx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_AntenneIR.fzz\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_AntenneIR_sch\\303\\251ma.PNG\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_main.fzz\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_main_sch\\303\\251ma.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_power.fzz\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Fritzing Files/Nichoir_power_sch\\303\\251ma.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Nomenclature.xlsx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Pinout_Feather_M0.png\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
-    "\"Docs/sch\\303\\251ma 202206/Pinout_Feather_M0.pptx\"": [
-      {
-        "name": "Julien",
-        "email": "julien.courtecuisse@iphc.cnrs.fr"
-      }
-    ],
     ".clang-format": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".clang-tidy": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".flake8": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitignore": [
       {
-        "name": "Benjamin TENAUD",
+        "name": "Benjamin Tenaud",
         "email": "benjamin.tenaud@iphc.cnrs.fr"
       },
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab-ci.yml": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     ".gitlab/ci/.gitlab-ci.yml": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/issue_templates/Bug.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/issue_templates/Default.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/issue_templates/Feature.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/issue_templates/Task.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/merge_request_templates/Default.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/merge_request_templates/MR_Template.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/scripts/sync_gitlab_description.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".gitlab/scripts/sync_gitlab_topics.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".lychee.toml": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".markdownlint.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".pre-commit-config.yaml": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     ".vscode/c_cpp_properties.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".vscode/extensions.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     ".vscode/launch.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "AUTHORS.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "CITATION.cff": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "CONTRIBUTING.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "CONTRIBUTORS.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Feather_M0.pptx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Fritzing Files/Nichoir_main_v2.fzz": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Fritzing Files/Nichoir_main_v2_circuit imprimé.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Fritzing Files/Nichoir_main_v2_schéma.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Fritzing Files/Nichoir_power.fzz": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Fritzing Files/Nichoir_power_bb.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Fritzing Files/Nichoir_power_circuit imprimé.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Nomenclature.xlsx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 20211212/Présentation_nichoir_mésanges_Juin_2021.pptx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/20220509_Présentation_Antenne_terrier.pptx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Antenne Terrier Notes Techniques.docx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Feather_M0.pptx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Fritzing Files/Nichoir_AntenneIR.fzz": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Fritzing Files/Nichoir_AntenneIR_schéma.PNG": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Fritzing Files/Nichoir_main.fzz": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Fritzing Files/Nichoir_main_schéma.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Fritzing Files/Nichoir_power.fzz": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Fritzing Files/Nichoir_power_schéma.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Nomenclature.xlsx": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Pinout_Feather_M0.png": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "Docs/schéma 202206/Pinout_Feather_M0.pptx": [
+      {
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "Doxyfile": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "LICENSE": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "LICENSE.txt": [
       {
-        "name": "Benjamin TENAUD",
+        "name": "Benjamin Tenaud",
         "email": "benjamin.tenaud@iphc.cnrs.fr"
       }
     ],
     "README.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "boards/nucleo_c031c6.json": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "boards/nucleo_u083rc.json": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "codemeta.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "compile_commands.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "convert_to_uf2.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "docs/assets/logo/rfid-m0-logo.png": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "doxygen/Doxyfile": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "firmware/rfid_door.uf2": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "firmware/rfid_m0_code.uf2": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "generate_files.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "include/README": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "include/app/JsonProtocol.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/SerialJsonFramer.h": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/config.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/connected_mode.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/deferred_log.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "include/app/deploy_mode.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/device_identity.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/gui_serial.h": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/app/logger_identity.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "include/app/sensors.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/assembly.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/battery_service.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/error_handler.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/fw_version.h": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/irq_helper.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/log.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/mcu_uid.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/system_state.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/core/utils.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/SoftTx.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/TSL2591_sensor.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/battery.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/ir_pwm.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/pwr_manager.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/rfid_driver.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/rtc.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/schedule_manager.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/sd_manager.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/sensors_internal.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/signal.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/drivers/utils_rfid.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/hal/det_ext.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/hal/hardware.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/hal/hardware_serial_control.h": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/hal/sensors_hal.h": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "include/rtc_ds3234.h": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "incoming/codemeta.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "lib/README": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "metadata checklist.md": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "package.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "platformio.ini": [
       {
-        "name": "Benjamin TENAUD",
+        "name": "Benjamin Tenaud",
         "email": "benjamin.tenaud@iphc.cnrs.fr"
       },
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "pyproject.toml": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "scripts/convert_to_uf2.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "scripts/gen_compdb.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "scripts/generate_fw_version.sh": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
+      }
+    ],
+    "scripts/metadata/README.md": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "scripts/metadata/codemeta_people.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "scripts/metadata/codemeta_roles.py": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "scripts/metadata/generate_contributions.py": [
+      {
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "scripts/metadata/generate_files.py": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "scripts/metadata/generate_headers.py": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
+    "scripts/metadata/patch_generate_files.py": [
+      {
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "sd/config.cfg": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "sd/hw_assem.cfg": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/CppProperties.json": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "src/app/Config.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/JsonProtocol.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/SerialJsonFramer.cpp": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/connected_mode.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/deferred_log.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "src/app/deploy_mode.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/gui_serial.cpp": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/logger_identity.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/main.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/app/sensors.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/assembly.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/battery_service.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/error_handler.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/globals.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "src/core/irq_helper.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/log.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/mcu_uid.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/core/utils.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/battery.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/ir_pwm.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/pwr_manager.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/rfid_driver.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/rfid_example.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/rtc.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/schedule_manager.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/sd_manager.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/signal.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/drivers/utils_rfid.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/feather_m0.ino": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "src/feather_m0.ino.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "src/hal/hardware_serial_control.cpp": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/hal/sensors_hal.cpp": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/main.cpp": [
       {
-        "name": "Benjamin TENAUD",
+        "name": "Benjamin Tenaud",
         "email": "benjamin.tenaud@iphc.cnrs.fr"
       },
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/main.cppold": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "src/main.zip": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
     "src/rtc_ds3234.cpp": [
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "test/README": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "test/test_utils_rfid.c": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ],
     "tools/bin2uf2.js": [
       {
-        "name": "Julien",
+        "name": "Julien Courtecuisse",
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       },
       {
-        "name": "laesser",
+        "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
     ]

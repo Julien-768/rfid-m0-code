@@ -1,35 +1,39 @@
 /**
  * @file battery_service.h
- * @defgroup BatteryService Battery Service
- * @ingroup SystemModules
  * @brief Battery orchestration layer (tick/logs/actions).
  *
- * This module sits above the reusable battery driver (`drivers/battery.*`) and
- * is responsible for:
- * - call cadence (periodic checks)
- * - logging and telemetry
- * - triggering system actions on critical battery state (error handler)
+ * @version 3.0.0
+ * @date 2022-08-17
  *
- * The underlying driver remains **policy-free** and **reusable**:
- * - battery technology model (type + thresholds)
- * - ADC -> mV conversion
- * - classification (NORMAL/WARNING/CRITICAL/INVALID)
- * - no logs, no shutdown, no error handler calls
+ * @section authors Authors
+ * - Julien Courtecuisse
+ *   Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
+ *   Email: julien.courtecuisse@iphc.cnrs.fr
  *
- * ## Unit convention
- * All voltages handled by this module are expressed in **millivolts (mV)**:
- * - readings returned by @ref battery_service_read_vbat_filtered_mv()
- *   and @ref battery_service_read_vbat_telemetry_mv()
- * - thresholds exposed by @ref battery_thresholds_t
+ * @section project Project
+ * Name: RFID-M0
+ * Description: Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.
  *
- * @note The service stores a board-level measurement configuration and converts it
- *       to the driver configuration types when calling the driver.
+ * @section contributors Contributors
+ * - Robin Laesser
+ *   Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
+ *   Email: robin.laesser@iphc.cnrs.fr
  *
- * @see drivers/battery.h
- * @see core/battery_service.cpp
- * @see core/error_handler.h
- * @see core/log.h
- * @{
+ * @section license License
+ * Copyright (C) 2022 Julien Courtecuisse
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * License: GPL-3.0-or-later
+ * https://www.gnu.org/licenses/gpl-3.0.html
  */
 
 #pragma once
