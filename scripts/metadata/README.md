@@ -16,8 +16,11 @@ project-root/
 └── scripts/
     └── metadata/
         ├── README.md
+        ├── codemeta_identity.py
+        ├── codemeta_people.py
         ├── codemeta_roles.py
         ├── generate_contributions.py
+        ├── generate_files.py
         ├── generate_headers.py
         └── patch_generate_files.py
 ```
@@ -31,6 +34,18 @@ Provides utilities to extract dated `Role` information from CodeMeta metadata.
 It associates role periods (`startDate`, `endDate`) with declared people,
 using the identity resolution utilities from `codemeta_people.py`.
 
+### `codemeta_identity.py`
+
+Resolves Git identities to the people declared in `codemeta.json`.
+
+The **e-mail address** is the matching key between a Git author and a
+CodeMeta person (`author`, `contributor` or `maintainer`). The names written
+in generated files are the `givenName` and `familyName` of CodeMeta, exactly
+as spelled there, never the Git author name (which may be a nickname, an
+alias or an abbreviation).
+
+It also returns the full name of the `copyrightHolder`.
+
 ### `generate_contributions.py`
 
 Analyses Git history and generates:
@@ -38,19 +53,47 @@ Analyses Git history and generates:
 - `CONTRIBUTIONS.md`: human-readable contribution information.
 - `contributions.json`: structured file-level contributor information.
 
+Contributors are matched to `codemeta.json` by e-mail address. The CodeMeta
+name and affiliation replace the Git name; the Git names seen for that
+e-mail address are kept as aliases (`gitNames` in the JSON, "Git author
+names" in the Markdown). A Git e-mail address that matches nobody in CodeMeta
+keeps its Git name and a warning is printed on stderr.
+
 The generated JSON is used by the header generator.
+
+The script reads the whole Git history (`git log --all`). In a shallow clone
+the contributions are incomplete: fetch the full history first.
 
 ### `generate_headers.py`
 
-Generates Doxygen headers for C and header files (`.c` and `.h`).
+Generates Doxygen headers for:
+
+- C and C++ files (`.c`, `.h`, `.cpp`, `.hpp`, `.cc`): a `/** ... */`
+  comment at the top of the file.
+- Python files (`.py`): a Doxygen module docstring, placed after the
+  shebang and the encoding line.
 
 The generated headers include:
 
+- `@file` and the existing description (see below).
 - Software version and metadata date.
 - Global authors from `codemeta.json`.
 - Project name and description.
 - File-specific contributors from `contributions.json`.
 - Copyright and license information.
+
+Authors and contributors use the same layout: first name and last name from
+CodeMeta, then the affiliation and the e-mail address.
+
+```text
+@section authors Authors
+- Julien Courtecuisse
+  Affiliation: IPHC-DEPE; UMR 7178; ...
+  Email: julien.courtecuisse@iphc.cnrs.fr
+```
+
+The `@section license` line cites the `copyrightHolder` of CodeMeta in full
+(`givenName familyName`, or `name` for an organisation).
 
 Global authors are kept separate from file-level contributors.
 
@@ -175,9 +218,12 @@ contains a commit authored by that person that modified the file.
 
 The current implementation has some limitations:
 
-- Git author names and email addresses may vary between commits.
+- Git author names and email addresses may vary between commits. Names are
+  taken from CodeMeta, so a person who commits with an e-mail address that is
+  not declared in `codemeta.json` appears under the Git name.
 - Different email addresses belonging to the same person are not
-  automatically merged.
+  automatically merged: declare each address in CodeMeta or use a Git
+  `.mailmap`.
 - File renames may require additional handling.
 - Git history may not contain all contributions, especially when files
   were imported from another repository.
@@ -204,7 +250,19 @@ Global authors are not duplicated in the file-level contributor section.
 The generated header also includes the project version, date, description,
 copyright and SPDX license identifier.
 
-The existing `@brief` description is preserved when updating a file.
+The existing description is preserved when updating a file: `@brief`, the
+detailed text and tags such as `@note`, `@warning`, `@ingroup` or `@code`
+blocks are kept. Hand-written `@author`, `@version` and `@date` lines are
+replaced by the generated ones.
+
+Existing top-of-file comments are handled as follows:
+
+- A `/** ... */` comment containing `@file` is the header and is rewritten.
+- A `/* name.ext */` comment that only repeats the file name is removed.
+- A `/* name.ext - description */` comment becomes the `@brief`.
+- Any other comment is left untouched, below the new header.
+- In Python, the module docstring (or a leading `#` comment block followed by
+  a blank line) becomes the `@brief` and the details.
 
 ## 8. Recommended workflow
 
@@ -225,7 +283,7 @@ python scripts/metadata/patch_generate_files.py
 
 git status
 git diff -- CONTRIBUTIONS.md contributions.json
-git diff -- '*.c' '*.h'
+git diff -- '*.c' '*.h' '*.cpp' '*.py'
 ```
 
 To check whether headers are up to date:
