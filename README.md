@@ -123,7 +123,7 @@ When a firmware change modifies documented behaviour, the corresponding document
 
 ## License
 
-This project is distributed under the **GNU General Public License v3.0**.
+This project is distributed under the **GNU General Public License v3.0 or later**.
 
 See [`LICENSE`](LICENSE) for the complete license text.
 
