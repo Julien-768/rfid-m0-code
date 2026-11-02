@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 
 import codemeta_people as cp
 from codemeta_people import CodeMetaError, load_people, md_escape, md_link, sort_people
+from codemeta_roles import load_role_periods, periods_for
 
 
 def find_root(start: Path) -> Path:
@@ -135,7 +136,18 @@ def identifier_links(person: cp.Person, orcid_label: str) -> list:
     return links
 
 
-def build_authors_markdown(people: cp.People) -> str:
+def _role_period_text(person: cp.Person, role_periods: dict) -> str:
+    """Render roles with their CodeMeta periods, when available."""
+    periods = periods_for(person, role_periods or {})
+    if periods:
+        return ", ".join(
+            f"{md_escape(period.name)} ({md_escape(period.label)})"
+            for period in periods
+        )
+    return ", ".join(md_escape(role) for role in person.roles)
+
+
+def build_authors_markdown(people: cp.People, role_periods: dict | None = None) -> str:
     """Render AUTHORS.md: the principal authors, in declaration order."""
     lines = [GENERATED_NOTICE, "", "# Authors", ""]
 
@@ -150,8 +162,8 @@ def build_authors_markdown(people: cp.People) -> str:
         lines.append(heading)
         for affiliation in person.affiliations:
             lines.append(f"  - Affiliation: {md_escape(affiliation)}")
-        if person.roles:
-            roles = ", ".join(md_escape(role) for role in person.roles)
+        roles = _role_period_text(person, role_periods or {})
+        if roles:
             lines.append(f"  - Role: {roles}")
         lines.append("")
 
@@ -164,7 +176,7 @@ def build_authors_markdown(people: cp.People) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build_contributors_markdown(people: cp.People) -> str:
+def build_contributors_markdown(people: cp.People, role_periods: dict | None = None) -> str:
     """Render CONTRIBUTORS.md: contributors who are not authors, sorted by name."""
     lines = [GENERATED_NOTICE, "", "# Contributors", ""]
 
@@ -176,14 +188,14 @@ def build_contributors_markdown(people: cp.People) -> str:
         "People who contributed to this software and are not listed as principal "
         "authors in [AUTHORS.md](AUTHORS.md).",
         "",
-        "| Contributor | Identifier | Affiliation | Role |",
+        "| Contributor | Identifier | Affiliation | Role / period |",
         "|---|---|---|---|",
     ]
     for person in sort_people(people.contributors):
         name = md_escape(person.name) if person.name else NAME_NOT_PROVIDED
         identifiers = "<br>".join(identifier_links(person, "ORCID: {id}")) or MISSING
         affiliations = "<br>".join(md_escape(a) for a in person.affiliations)
-        roles = ", ".join(md_escape(role) for role in person.roles)
+        roles = _role_period_text(person, role_periods or {})
         lines.append(
             f"| {name} | {identifiers} | {affiliations or MISSING} | "
             f"{roles or MISSING} |"
@@ -305,13 +317,15 @@ def write_text(path: Path, content: str) -> None:
 def generate_authors_file(metadata, output_file=AUTHORS_FILE, people=None):
     """Generate AUTHORS.md from CodeMeta ``author``."""
     people = people or load_people(metadata)
-    write_text(output_file, build_authors_markdown(people))
+    role_periods, _ = load_role_periods(metadata, people)
+    write_text(output_file, build_authors_markdown(people, role_periods))
 
 
 def generate_contributors_file(metadata, output_file=CONTRIBUTORS_FILE, people=None):
     """Generate CONTRIBUTORS.md from CodeMeta ``contributor``."""
     people = people or load_people(metadata)
-    write_text(output_file, build_contributors_markdown(people))
+    role_periods, _ = load_role_periods(metadata, people)
+    write_text(output_file, build_contributors_markdown(people, role_periods))
 
 
 def generate_citation_file(metadata, output_file=CITATION_FILE, people=None):
@@ -332,15 +346,18 @@ def generate_all(
     """
     metadata = load_metadata(codemeta_file)
     people = load_people(metadata)
+    role_periods, role_issues = load_role_periods(metadata, people)
 
     # Build everything first so that a failure never leaves a half-updated set.
     outputs = (
-        (authors_file, build_authors_markdown(people)),
-        (contributors_file, build_contributors_markdown(people)),
+        (authors_file, build_authors_markdown(people, role_periods)),
+        (contributors_file, build_contributors_markdown(people, role_periods)),
         (citation_file, build_citation_text(metadata, people)),
     )
 
     for issue in people.issues:
+        print(f"WARNING: {issue}", file=sys.stderr)
+    for issue in role_issues:
         print(f"WARNING: {issue}", file=sys.stderr)
     for path, content in outputs:
         write_text(path, content)

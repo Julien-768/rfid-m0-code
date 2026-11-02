@@ -4,6 +4,6 @@
 
 - **Julien Courtecuisse** ([ORCID](https://orcid.org/0000-0002-0179-379X))
   - Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
-  - Role: Developer
+  - Role: Developer (Since 2022-08-17)
 
 Other contributors are listed in [CONTRIBUTORS.md](CONTRIBUTORS.md).

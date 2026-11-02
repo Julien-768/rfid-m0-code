@@ -4,7 +4,7 @@
 
 People who contributed to this software and are not listed as principal authors in [AUTHORS.md](AUTHORS.md).
 
-| Contributor     | Identifier                                                          | Affiliation                                                                    | Role      |
-| --------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------- |
-| Robin Laesser   | [ORCID: 0009-0009-4242-8949](https://orcid.org/0009-0009-4242-8949) | IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France | Developer |
-| Benjamin Tenaud | <benjamin.tenaud@iphc.cnrs.fr>                                        | IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France | Developer |
+| Contributor | Identifier | Affiliation | Role / period |
+|---|---|---|---|
+| Robin Laesser | [ORCID: 0009-0009-4242-8949](https://orcid.org/0009-0009-4242-8949) | IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France | Developer (2026-05-13 – 2026-07-29) |
+| Benjamin Tenaud | benjamin.tenaud@iphc.cnrs.fr | IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France | Developer (2023-02-15 – 2023-09-29) |
