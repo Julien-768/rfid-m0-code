@@ -15,7 +15,7 @@ OUTPUT_DIRECTORY       = docs
 INPUT                  = src \
                          include \
 
-FILE_PATTERNS          = *.cpp *.h *.md
+FILE_PATTERNS          = *.cpp *.h *.py *.md
 
 RECURSIVE              = YES
 
