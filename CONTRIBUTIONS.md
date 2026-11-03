@@ -19,8 +19,8 @@ address; Git author names are only listed as aliases.
 - Email: `julien.courtecuisse@iphc.cnrs.fr`
 - Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
 - Git author names: `Julien`
-- Commits: 303
-- Files touched: 141
+- Commits: 306
+- Files touched: 149
 
 ### Robin Laesser
 
@@ -96,19 +96,19 @@ who modified it according to the available Git history.
 - `generate_files.py`: Julien Courtecuisse
 - `include/README`: Julien Courtecuisse
 - `include/app/JsonProtocol.h`: Julien Courtecuisse, Robin Laesser
-- `include/app/SerialJsonFramer.h`: Robin Laesser
+- `include/app/SerialJsonFramer.h`: Julien Courtecuisse, Robin Laesser
 - `include/app/config.h`: Julien Courtecuisse, Robin Laesser
 - `include/app/connected_mode.h`: Julien Courtecuisse, Robin Laesser
 - `include/app/deferred_log.h`: Julien Courtecuisse
 - `include/app/deploy_mode.h`: Julien Courtecuisse, Robin Laesser
 - `include/app/device_identity.h`: Julien Courtecuisse, Robin Laesser
-- `include/app/gui_serial.h`: Robin Laesser
+- `include/app/gui_serial.h`: Julien Courtecuisse, Robin Laesser
 - `include/app/logger_identity.h`: Julien Courtecuisse
 - `include/app/sensors.h`: Julien Courtecuisse, Robin Laesser
 - `include/core/assembly.h`: Julien Courtecuisse, Robin Laesser
 - `include/core/battery_service.h`: Julien Courtecuisse, Robin Laesser
 - `include/core/error_handler.h`: Julien Courtecuisse, Robin Laesser
-- `include/core/fw_version.h`: Robin Laesser
+- `include/core/fw_version.h`: Julien Courtecuisse, Robin Laesser
 - `include/core/irq_helper.h`: Julien Courtecuisse, Robin Laesser
 - `include/core/log.h`: Julien Courtecuisse, Robin Laesser
 - `include/core/mcu_uid.h`: Julien Courtecuisse, Robin Laesser
@@ -128,7 +128,7 @@ who modified it according to the available Git history.
 - `include/drivers/utils_rfid.h`: Julien Courtecuisse, Robin Laesser
 - `include/hal/det_ext.h`: Julien Courtecuisse, Robin Laesser
 - `include/hal/hardware.h`: Julien Courtecuisse, Robin Laesser
-- `include/hal/hardware_serial_control.h`: Robin Laesser
+- `include/hal/hardware_serial_control.h`: Julien Courtecuisse, Robin Laesser
 - `include/hal/sensors_hal.h`: Julien Courtecuisse, Robin Laesser
 - `include/rtc_ds3234.h`: Robin Laesser
 - `incoming/codemeta.json`: Julien Courtecuisse
@@ -141,6 +141,7 @@ who modified it according to the available Git history.
 - `scripts/gen_compdb.py`: Julien Courtecuisse, Robin Laesser
 - `scripts/generate_fw_version.sh`: Julien Courtecuisse, Robin Laesser
 - `scripts/metadata/README.md`: Julien Courtecuisse
+- `scripts/metadata/codemeta_identity.py`: Julien Courtecuisse
 - `scripts/metadata/codemeta_people.py`: Julien Courtecuisse
 - `scripts/metadata/codemeta_roles.py`: Julien Courtecuisse
 - `scripts/metadata/generate_contributions.py`: Julien Courtecuisse
@@ -152,11 +153,11 @@ who modified it according to the available Git history.
 - `src/CppProperties.json`: Julien Courtecuisse
 - `src/app/Config.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/app/JsonProtocol.cpp`: Julien Courtecuisse, Robin Laesser
-- `src/app/SerialJsonFramer.cpp`: Robin Laesser
+- `src/app/SerialJsonFramer.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/app/connected_mode.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/app/deferred_log.cpp`: Julien Courtecuisse
 - `src/app/deploy_mode.cpp`: Julien Courtecuisse, Robin Laesser
-- `src/app/gui_serial.cpp`: Robin Laesser
+- `src/app/gui_serial.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/app/logger_identity.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/app/main.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/app/sensors.cpp`: Julien Courtecuisse, Robin Laesser
@@ -180,7 +181,7 @@ who modified it according to the available Git history.
 - `src/drivers/utils_rfid.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/feather_m0.ino`: Julien Courtecuisse
 - `src/feather_m0.ino.cpp`: Julien Courtecuisse
-- `src/hal/hardware_serial_control.cpp`: Robin Laesser
+- `src/hal/hardware_serial_control.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/hal/sensors_hal.cpp`: Julien Courtecuisse, Robin Laesser
 - `src/main.cpp`: Benjamin Tenaud, Julien Courtecuisse, Robin Laesser
 - `src/main.cppold`: Julien Courtecuisse, Robin Laesser

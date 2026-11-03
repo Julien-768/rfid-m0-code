@@ -1449,6 +1449,18 @@
         {
           "hash": "58e15c80e2219f9cb99d098991e091978d82b6dc",
           "date": "2026-11-02T14:39:08+01:00"
+        },
+        {
+          "hash": "9b8f8e4453f8f3c10e0e7e5f5a924a729b9c359f",
+          "date": "2026-11-02T16:13:19+01:00"
+        },
+        {
+          "hash": "4000cc593ba8b90224e8a9921a9d4ce447ea75e9",
+          "date": "2026-11-02T16:16:30+01:00"
+        },
+        {
+          "hash": "32aa39532ce42a0c69c4182552eadbc91e657c94",
+          "date": "2026-11-02T16:23:01+01:00"
         }
       ],
       "files": [
@@ -1509,16 +1521,19 @@
         "generate_files.py",
         "include/README",
         "include/app/JsonProtocol.h",
+        "include/app/SerialJsonFramer.h",
         "include/app/config.h",
         "include/app/connected_mode.h",
         "include/app/deferred_log.h",
         "include/app/deploy_mode.h",
         "include/app/device_identity.h",
+        "include/app/gui_serial.h",
         "include/app/logger_identity.h",
         "include/app/sensors.h",
         "include/core/assembly.h",
         "include/core/battery_service.h",
         "include/core/error_handler.h",
+        "include/core/fw_version.h",
         "include/core/irq_helper.h",
         "include/core/log.h",
         "include/core/mcu_uid.h",
@@ -1538,6 +1553,7 @@
         "include/drivers/utils_rfid.h",
         "include/hal/det_ext.h",
         "include/hal/hardware.h",
+        "include/hal/hardware_serial_control.h",
         "include/hal/sensors_hal.h",
         "incoming/codemeta.json",
         "lib/README",
@@ -1549,6 +1565,7 @@
         "scripts/gen_compdb.py",
         "scripts/generate_fw_version.sh",
         "scripts/metadata/README.md",
+        "scripts/metadata/codemeta_identity.py",
         "scripts/metadata/codemeta_people.py",
         "scripts/metadata/codemeta_roles.py",
         "scripts/metadata/generate_contributions.py",
@@ -1560,9 +1577,11 @@
         "src/CppProperties.json",
         "src/app/Config.cpp",
         "src/app/JsonProtocol.cpp",
+        "src/app/SerialJsonFramer.cpp",
         "src/app/connected_mode.cpp",
         "src/app/deferred_log.cpp",
         "src/app/deploy_mode.cpp",
+        "src/app/gui_serial.cpp",
         "src/app/logger_identity.cpp",
         "src/app/main.cpp",
         "src/app/sensors.cpp",
@@ -1586,6 +1605,7 @@
         "src/drivers/utils_rfid.cpp",
         "src/feather_m0.ino",
         "src/feather_m0.ino.cpp",
+        "src/hal/hardware_serial_control.cpp",
         "src/hal/sensors_hal.cpp",
         "src/main.cpp",
         "src/main.cppold",
@@ -2288,6 +2308,10 @@
     ],
     "include/app/SerialJsonFramer.h": [
       {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
+      {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
@@ -2340,6 +2364,10 @@
     ],
     "include/app/gui_serial.h": [
       {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
+      {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
@@ -2391,6 +2419,10 @@
       }
     ],
     "include/core/fw_version.h": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
       {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
@@ -2588,6 +2620,10 @@
     ],
     "include/hal/hardware_serial_control.h": [
       {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
+      {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
@@ -2692,6 +2728,12 @@
         "email": "julien.courtecuisse@iphc.cnrs.fr"
       }
     ],
+    "scripts/metadata/codemeta_identity.py": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      }
+    ],
     "scripts/metadata/codemeta_people.py": [
       {
         "name": "Julien Courtecuisse",
@@ -2776,6 +2818,10 @@
     ],
     "src/app/SerialJsonFramer.cpp": [
       {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
+      {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
       }
@@ -2807,6 +2853,10 @@
       }
     ],
     "src/app/gui_serial.cpp": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
       {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
@@ -3031,6 +3081,10 @@
       }
     ],
     "src/hal/hardware_serial_control.cpp": [
+      {
+        "name": "Julien Courtecuisse",
+        "email": "julien.courtecuisse@iphc.cnrs.fr"
+      },
       {
         "name": "Robin Laesser",
         "email": "robin.laesser@iphc.cnrs.fr"
