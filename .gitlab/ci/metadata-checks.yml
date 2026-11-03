@@ -32,15 +32,25 @@ cff-validate:
 # ============================================================
 # CODEMETA — Validation JSON et expansion JSON-LD
 # ============================================================
+
+# ============================================================
+# CODEMETA — Validation JSON et expansion JSON-LD
+# ============================================================
 codemeta-validate:
   stage: metadata-check
   image: $PYTHON_IMAGE
   script:
-  # Install JSON-LD processor
   - pip install --no-cache-dir pyld
-
-  # Check JSON syntax
   - python -m json.tool codemeta.json > /dev/null
+  - |
+    python - <<'PY'
+    import json
+    from pyld import jsonld
 
-  # Check JSON-LD expansion
-  - python -c "import json; from pyld import jsonld; doc=json.load(open('codemeta.json', encoding='utf-8')); jsonld.expand(doc); print('CodeMeta JSON-LD: OK')"
+    with open("codemeta.json", encoding="utf-8") as f:
+        document = json.load(f)
+
+    jsonld.expand(document)
+
+    print("CodeMeta JSON-LD: OK")
+    PY
