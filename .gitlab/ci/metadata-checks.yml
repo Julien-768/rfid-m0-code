@@ -11,8 +11,9 @@ variables:
 reuse-lint:
   stage: metadata-check
   image: fsfe/reuse:latest
+  entrypoint: [ "" ]
   script:
-  - lint
+  - reuse lint
   # rules:
   # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -21,8 +22,9 @@ reuse-lint:
 cff-validate:
   stage: metadata-check
   image: citationcff/cffconvert:latest
+  entrypoint: [ "" ]
   script:
-  - --validate -i CITATION.cff
+  - cffconvert --validate -i CITATION.cff
   # rules:
   # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -32,7 +34,9 @@ codemeta-validate:
   stage: metadata-check
   image: $PYTHON_IMAGE
   script:
-  - pip install --quiet check-jsonschema && curl -fsSL -o /tmp/codemeta.jsonld https://raw.githubusercontent.com/codemeta/codemeta/main/codemeta.jsonld && check-jsonschema --schemafile /tmp/codemeta.jsonld codemeta.json
+  - pip install --quiet check-jsonschema
+  - python -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/codemeta/codemeta/main/codemeta.jsonld', '/tmp/codemeta.jsonld')"
+  - check-jsonschema --schemafile /tmp/codemeta.jsonld codemeta.json
   # rules:
   # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
