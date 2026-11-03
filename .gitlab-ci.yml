@@ -89,6 +89,8 @@ include:
   file: '/templates/release/template.yml'
   ref: 'develop'
 
+- local: '.gitlab/ci/metadata-checks.yml'
+
 # --------------------------------------------------
 # CI/CD variables
 # --------------------------------------------------
@@ -123,6 +125,7 @@ stages:
 - prepare
 - format
 - build
+- metadata-check
 - pages
 - deploy
 - release
