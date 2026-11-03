@@ -1,5 +1,8 @@
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 default_language_version:
-  python: python3.13
+  node: 22.11.0 # any stable LTS version
 
 repos:
 # Git
@@ -47,6 +50,13 @@ repos:
   - id: flake8
     args: [ --max-line-length=120, --ignore=E203, --ignore=W503 ]
 
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.18
+  hooks:
+  - id: ruff # Lints Python files
+    args: [ "--fix" ]
+  - id: ruff-format # Formats Python files
+
 # C/C++
 - repo: https://github.com/pocc/pre-commit-hooks
   rev: v1.3.5
@@ -79,33 +89,23 @@ repos:
     # Optionnel : Personnalise les arguments
     args: [ "--severity=error", "--exclude=SC1090,SC2154" ] # Exemple : ignore certains codes d'erreur
     files: \.(sh|bash|zsh)$ # Fichiers ciblés
-  # URL checker
-- repo: https://github.com/lycheeverse/lychee
-  rev: lychee-v0.24.2
+
+# URL checker
+- repo: local
   hooks:
   - id: lychee
+    name: Lychee - Check broken links
+    entry: lychee
     args:
     - --no-progress
-    - --exclude-path
-    - node_modules
-    - --exclude-path
-    - dist
-    - --exclude-path
-    - build
+    - --config
+    - .lychee.toml
     - .
+    language: system
     pass_filenames: false
     always_run: true
 
-# PlatformIO
-- repo: local
-  hooks:
-  - id: platformio-lint
-    name: PlatformIO Lint
-    entry: pio check
-    language: system
-    types: [ c++, c ]
-    pass_filenames: false
-
+# URL checker for codemeta.json
 - repo: local
   hooks:
   - id: lychee-local
@@ -119,3 +119,26 @@ repos:
     language: system
     pass_filenames: false
     always_run: true
+
+# PlatformIO
+- repo: local
+  hooks:
+  - id: platformio-lint
+    name: PlatformIO Lint
+    entry: pio check
+    language: system
+    types: [ c++, c ]
+    pass_filenames: false
+
+# Metadata
+# validating your CITATION.cff
+- repo: https://github.com/citation-file-format/cffconvert
+  rev: 054bda51dbe278b3e86f27c890e3f3ac877d616c
+  hooks:
+  - id: validate-cff
+
+# SPDX license - REUSE 3.x
+- repo: https://codeberg.org/fsfe/reuse-tool
+  rev: v6.3.0
+  hooks:
+  - id: reuse

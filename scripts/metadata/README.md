@@ -1,3 +1,4 @@
+
 # Metadata scripts
 
 This directory contains the Python utilities used to generate and maintain
@@ -70,8 +71,8 @@ Generates Doxygen headers for:
 
 - C and C++ files (`.c`, `.h`, `.cpp`, `.hpp`, `.cc`): a `/** ... */`
   comment at the top of the file.
-- Python files (`.py`): a Doxygen module docstring, placed after the
-  shebang and the encoding line.
+- Python files (`.py`): SPDX comment lines after the shebang and encoding
+  declaration, followed by a Doxygen module docstring.
 
 The generated headers include:
 
@@ -80,7 +81,7 @@ The generated headers include:
 - Global authors from `codemeta.json`.
 - Project name and description.
 - File-specific contributors from `contributions.json`.
-- Copyright and license information.
+- Copyright and license information, including SPDX identifiers.
 
 Authors and contributors use the same layout: first name and last name from
 CodeMeta, then the affiliation and the e-mail address.
@@ -119,7 +120,9 @@ Runs the metadata generation workflow in the correct order:
 The scripts use only the Python standard library, except for the
 `codemeta_roles.py` dependency on `codemeta_people.py`.
 
-No additional Python packages are required.
+No additional Python packages are required for the metadata scripts.
+
+The REUSE command-line tool is required for license compliance checks.
 
 ## 4. Usage
 
@@ -237,18 +240,19 @@ generated attribution in published source files.
 
 The generated headers distinguish between:
 
-**Global authors**
+### Global authors
 
 People declared in the `author` property of `codemeta.json`.
 
-**File-level contributors**
+### File-level contributors
 
 People identified in the Git history for the specific file.
 
 Global authors are not duplicated in the file-level contributor section.
 
 The generated header also includes the project version, date, description,
-copyright and SPDX license identifier.
+copyright and SPDX license identifier. The SPDX fields are generated from
+CodeMeta, not from Git contribution history.
 
 The existing description is preserved when updating a file: `@brief`, the
 detailed text and tags such as `@note`, `@warning`, `@ingroup` or `@code`
@@ -264,7 +268,97 @@ Existing top-of-file comments are handled as follows:
 - In Python, the module docstring (or a leading `#` comment block followed by
   a blank line) becomes the `@brief` and the details.
 
-## 8. Recommended workflow
+## 8. SPDX identifiers and REUSE compatibility
+
+Every generated source file must carry machine-readable SPDX metadata:
+
+- `SPDX-FileCopyrightText` identifies the copyright holder(s) declared in
+  `codemeta.json`, together with the applicable copyright year.
+- `SPDX-License-Identifier` contains the SPDX license expression declared
+  by CodeMeta (for this project: `GPL-3.0-or-later`).
+
+The SPDX copyright holder is taken from CodeMeta's `copyrightHolder`
+property. It must not be inferred from `author`, `contributor`,
+`contributions.json` or Git commit authorship.
+
+File-level Git contributors are not automatically copyright holders.
+
+### C and C++ files
+
+Place the SPDX fields inside the generated Doxygen block comment, for example:
+
+```cpp
+/**
+ * @file example.cpp
+ * @brief Example source file.
+ *
+ * SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * See the LICENSE file for the complete license text.
+ */
+```
+
+### Python files
+
+Keep the shebang and encoding declaration at the beginning of the file.
+
+Place SPDX metadata as Python comments immediately after that prologue and
+before the Doxygen module docstring:
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
+@file example.py
+@brief Example Python module.
+...
+"""
+```
+
+The SPDX lines must remain comments outside the module docstring. This lets
+REUSE detect the file-level licensing information while preserving the
+module docstring as the first Python statement.
+
+The Python header parser and renderer must preserve these SPDX comments on
+every generation pass. They must not absorb them into the Doxygen description
+or move them into the docstring.
+
+The full license text may remain in the Doxygen header for human readers.
+The SPDX identifier is the authoritative machine-readable license
+declaration and must match the repository's `LICENSE` file and CodeMeta.
+
+### Validation
+
+After generating headers, run REUSE's linter from the repository root:
+
+```bash
+reuse lint
+```
+
+Resolve all missing or inconsistent copyright and license information
+reported by the linter.
+
+Also check that the header generator is idempotent:
+
+```bash
+python scripts/metadata/patch_generate_files.py
+python scripts/metadata/patch_generate_files.py --check
+reuse lint
+git diff --check
+git diff
+```
+
+The second generation in check mode should report that all headers are up to
+date.
+
+Review the diff before committing. Do not add `SPDX-FileContributor`
+automatically from Git history.
+
+## 9. Recommended workflow
 
 After modifying source files:
 
@@ -273,13 +367,16 @@ After modifying source files:
 3. Review `CONTRIBUTIONS.md`.
 4. Check the generated `contributions.json`.
 5. Generate Doxygen headers.
-6. Review the changes with Git.
-7. Commit the generated metadata and source headers.
+6. Run `reuse lint`.
+7. Review the changes with Git.
+8. Commit the generated metadata and source headers.
 
 Example:
 
 ```bash
 python scripts/metadata/patch_generate_files.py
+
+reuse lint
 
 git status
 git diff -- CONTRIBUTIONS.md contributions.json
@@ -292,7 +389,7 @@ To check whether headers are up to date:
 python scripts/metadata/patch_generate_files.py --check
 ```
 
-## 9. Important precautions
+## 10. Important precautions
 
 The scripts modify generated files and source-file headers.
 
@@ -304,9 +401,64 @@ scientific authorship decisions or formal contributor recognition.
 The metadata scripts do not modify `codemeta.json` or push changes
 to the remote repository.
 
-## 10. License
+## 11. License
 
-These scripts are part of project TO COMPLETE.
+These scripts are part of the RFID-M0 project.
 
 Their licensing follows the license declared in the project's
 `codemeta.json` and the repository's license file.
+
+
+## Section à incorporer  pas encore automatisé pour reuse.toml et generate_reuse_headers.py
+
+Metadata and licensing
+
+The metadata scripts rely on the project's metadata files, particularly codemeta.json, to maintain consistent author, copyright and licensing information.
+
+The project uses the REUSE Specification to document copyright and licensing information.
+
+REUSE integration is not yet fully automated.
+
+In particular:
+
+generate_reuse_headers.py does not currently generate or update REUSE.toml.
+
+The consistency between REUSE.toml and the SPDX headers generated by the scripts must therefore be maintained manually.
+
+Files that cannot conveniently contain SPDX headers, such as binary files and JSON files, require appropriate annotations in REUSE.toml.
+
+The REUSE configuration and its annotations must be checked independently using:
+
+reuse lint
+
+Usage
+
+Run the scripts from the repository root unless otherwise specified.
+
+For example:
+
+python scripts/metadata/generate_headers.py
+python scripts/metadata/generate_reuse_headers.py
+
+Check the available command-line options of each script before running it:
+
+python scripts/metadata/generate_headers.py --help
+python scripts/metadata/generate_reuse_headers.py --help
+
+Maintenance
+
+When modifying project metadata or licensing information:
+
+Update the relevant metadata files.
+
+Run the metadata generation scripts.
+
+Review the generated changes.
+
+Check the REUSE annotations and REUSE.toml manually.
+
+Run reuse lint to verify compliance.
+
+## Section TODO, liste des choses à améliorer pour la prochaine version des scripts, à incorporer
+
+Pour les fichiers python, ne pas écrire sur plus de 100 caractères pour ruff / flake8

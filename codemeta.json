@@ -1,8 +1,8 @@
 {
     "@context": "https://w3id.org/codemeta/3.0",
     "type": "SoftwareSourceCode",
-    "license": "https://spdx.org/licenses/GPL-3.0-or-later",
     "name": "RFID-M0",
+    "license": "https://spdx.org/licenses/GPL-3.0-or-later",
     "applicationCategory": [
         "Embedded Systems",
         "Animal Tracking",

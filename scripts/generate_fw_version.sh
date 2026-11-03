@@ -1,4 +1,7 @@
 #!/usr/bin/env sh
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 set -eu
 
 OUT_FILE="include/core/fw_version.h"

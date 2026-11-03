@@ -50,7 +50,7 @@ description = metadata.get("description", "").strip()
 if not description:
     raise SystemExit("ERROR: codemeta.json has no description.")
 
-url = f"{os.environ['CI_API_V4_URL']}" f"/projects/{os.environ['CI_PROJECT_ID']}"
+url = f"{os.environ['CI_API_V4_URL']}/projects/{os.environ['CI_PROJECT_ID']}"
 
 request = Request(
     url,

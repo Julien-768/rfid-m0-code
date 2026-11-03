@@ -100,7 +100,7 @@ for field in TOPIC_FIELDS:
 if not topics:
     raise SystemExit("ERROR: no topics found in codemeta.json.")
 
-api_url = f"{os.environ['CI_API_V4_URL']}" f"/projects/{os.environ['CI_PROJECT_ID']}"
+api_url = f"{os.environ['CI_API_V4_URL']}/projects/{os.environ['CI_PROJECT_ID']}"
 
 payload = json.dumps({"topics": topics}).encode("utf-8")
 

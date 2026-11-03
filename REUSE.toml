@@ -1,0 +1,28 @@
+
+version = 1
+
+# JSON files: SPDX information cannot be added without
+# invalidating their JSON syntax.
+[[annotations]]
+path = [
+    ".markdownlint.json",
+    "codemeta.json",
+    "contributions.json",
+    "incoming/codemeta.json",
+    "package.json",
+    "src/CppProperties.json",
+]
+SPDX-FileCopyrightText = "2022 Julien Courtecuisse"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Binary assets.
+[[annotations]]
+path = ["docs/assets/logo/rfid-m0-logo.png", "firmware/rfid_m0_code.uf2"]
+SPDX-FileCopyrightText = "2022 Julien Courtecuisse"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Plain text files without a suitable comment syntax.
+[[annotations]]
+path = ["lib/README", "test/README"]
+SPDX-FileCopyrightText = "2022 Julien Courtecuisse"
+SPDX-License-Identifier = "GPL-3.0-or-later"

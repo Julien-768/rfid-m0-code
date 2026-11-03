@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # ---------------------------------------------------------------------------
 # Doxyfile for Project Documentation
 # ---------------------------------------------------------------------------
@@ -104,4 +107,3 @@ TAB_SIZE               = 4
 OPTIMIZE_OUTPUT_FOR_C  = NO
 OPTIMIZE_OUTPUT_JAVA   = NO
 OPTIMIZE_FOR_C         = YES
-

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 @file codemeta_roles.py
 @brief Extract dated CodeMeta Role objects without changing codemeta_people.py.
 
 The existing codemeta_people module remains responsible for person identity and
 merging. This module only adds the temporal information carried by Role objects.
-
-@version 3.0.0
-@date 2022-08-17
 
 @section authors Authors
 - Julien Courtecuisse
@@ -17,8 +17,13 @@ merging. This module only adds the temporal information carried by Role objects.
 @section project Project
 Name: RFID-M0
 Description: Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.
+@version 3.0.0
+@date 2022-08-17
 
 @section license License
+SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+SPDX-License-Identifier: GPL-3.0-or-later
+
 Copyright (C) 2022 Julien Courtecuisse
 
 This program is free software: you can redistribute it and/or

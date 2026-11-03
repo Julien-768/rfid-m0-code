@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 @file generate_headers.py
 @brief Generate Doxygen file headers from CodeMeta and Git contributions.
@@ -7,7 +10,8 @@ Supported files:
 
 - C and C++ sources and headers (``.c``, ``.h``, ``.cpp``, ``.hpp``, ``.cc``):
   a ``/** ... */`` comment at the top of the file.
-- Python files (``.py``): a Doxygen module docstring placed after the shebang.
+- Python files (``.py``): a Doxygen module docstring placed after the shebang
+  and SPDX comments.
 
 People are always written as ``givenName familyName`` as declared in
 ``codemeta.json``. File-level contributors from ``contributions.json`` are
@@ -17,9 +21,6 @@ Existing descriptions (``@brief``, details, ``@note``, ``@ingroup``, ...) are
 preserved. Hand-written ``@author``, ``@version`` and ``@date`` lines are
 replaced by the generated ones.
 
-@version 3.0.0
-@date 2022-08-17
-
 @section authors Authors
 - Julien Courtecuisse
   Affiliation: IPHC-DEPE; UMR 7178; Université de Strasbourg-CNRS; F-67000 Strasbourg, France
@@ -28,8 +29,13 @@ replaced by the generated ones.
 @section project Project
 Name: RFID-M0
 Description: Embedded firmware for the open-source RFID-M0 project, designed to monitor small animal species around burrows and nest boxes. The software integrates RFID-based individual identification, infrared passage detection, real-time clock (RTC) timestamping, and SD-card data logging, with low-power management for autonomous field deployments. It supports ecological research, including long-term monitoring of Great Tits (Parus major) and research on the European hamster (Cricetus cricetus) conducted within the cross-border CRICETUS project.
+@version 3.0.0
+@date 2022-08-17
 
 @section license License
+SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+SPDX-License-Identifier: GPL-3.0-or-later
+
 Copyright (C) 2022 Julien Courtecuisse
 
 This program is free software: you can redistribute it and/or
@@ -91,25 +97,36 @@ EXCLUDED_DIRS = {
 
 # Header comment: "/** ... */" (but not "/**/") at the top of a C/C++ file.
 C_COMMENT_RE = re.compile(r"\A\s*/\*\*(?!/)(.*?)\*/", re.DOTALL)
+
 # Plain "/* ... */" comment at the top of a C/C++ file.
-PLAIN_COMMENT_RE = re.compile(r"\A\s*/\*(?![*!])(.*?)\*/[ \t]*(?:\n|\Z)", re.DOTALL)
+PLAIN_COMMENT_RE = re.compile(
+    r"\A\s*/\*(?![*!])(.*?)\*/[ \t]*(?:\n|\Z)",
+    re.DOTALL,
+)
 
 FILE_TAG_RE = re.compile(r"^\s*[@\\]file\b")
 BRIEF_TAG_RE = re.compile(r"^\s*[@\\]brief\b")
+
 # Single lines replaced by generated values.
 DROPPED_TAG_RE = re.compile(r"^\s*[@\\](?:file|authors?|version|date)\b")
+
 # Start of the generated sections: everything from here is regenerated.
 GENERATED_SECTION_RE = re.compile(
     r"^\s*[@\\]section\s+(?:authors|project|contributors|license)\b"
 )
 
 CODING_RE = re.compile(r"^#.*coding[:=]\s*[-\w.]+")
-PRAGMA_COMMENT_RE = re.compile(
-    r"^#\s*(?:type:|noqa|pylint:|fmt:|isort:|pragma|-\*-|!)"
-)
+
+PRAGMA_COMMENT_RE = re.compile(r"^#\s*(?:type:|noqa|pylint:|fmt:|isort:|pragma|-\*-|!)")
+
 DOCSTRING_RE = re.compile(
     r"\A(?P<prefix>[rRuU]?)(?P<quote>\"\"\"|''')(?P<body>.*?)(?P=quote)[ \t]*(?:\n|\Z)",
     re.DOTALL,
+)
+
+# SPDX comments generated at the beginning of Python source files.
+SPDX_COMMENT_RE = re.compile(
+    r"^#\s*SPDX-(?:FileCopyrightText|License-Identifier):\s*.+$"
 )
 
 LICENSE_TEXT = [
@@ -149,6 +166,7 @@ def person_affiliation(person: dict[str, Any]) -> str:
             item = get_value(item, "name", "legalName")
 
         text = clean_text(item)
+
         if text and text not in values:
             values.append(text)
 
@@ -210,6 +228,7 @@ def resolve_file_contributors(
     author_emails = {
         normalize_email(email) for author in authors for email in emails_of(author)
     }
+
     author_names = {person_name(author).casefold() for author in authors}
 
     seen: set[str] = set()
@@ -231,22 +250,29 @@ def resolve_file_contributors(
         if not name:
             continue
 
-        if (email_key and email_key in author_emails) or name.casefold() in author_names:
+        if (
+            email_key and email_key in author_emails
+        ) or name.casefold() in author_names:
             continue
 
         identity_key = email_key or name.casefold()
+
         if identity_key in seen:
             continue
 
         seen.add(identity_key)
         result.append((name, affiliation, email))
 
-    return sorted(result, key=lambda item: (item[0].casefold(), item[2].casefold()))
+    return sorted(
+        result,
+        key=lambda item: (item[0].casefold(), item[2].casefold()),
+    )
 
 
 def get_date(metadata: dict[str, Any]) -> str:
     for key in ("dateModified", "datePublished", "dateCreated"):
         value = metadata.get(key)
+
         if isinstance(value, str) and value.strip():
             return value.strip()
 
@@ -270,6 +296,7 @@ def get_license_id(metadata: dict[str, Any]) -> str:
                 item,
                 re.IGNORECASE,
             )
+
             if match:
                 return match.group(1)
 
@@ -284,6 +311,7 @@ def get_copyright_year(metadata: dict[str, Any]) -> str:
 
     for key in ("dateModified", "datePublished", "dateCreated"):
         value = metadata.get(key)
+
         if isinstance(value, str) and re.match(r"^\d{4}", value):
             return value[:4]
 
@@ -306,7 +334,11 @@ def get_project_description(metadata: dict[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def person_block(name: str, affiliation: str, email: str) -> list[str]:
+def person_block(
+    name: str,
+    affiliation: str,
+    email: str,
+) -> list[str]:
     """Format a person identically for authors and contributors."""
     lines = [f"- {name}"]
 
@@ -325,61 +357,130 @@ def generated_lines(
     contributions: dict[str, Any],
     identities: dict[str, Identity],
 ) -> list[str]:
-    """Return the generated part of a header, from ``@version`` to the license."""
+    """Generate all Doxygen sections from CodeMeta and Git contributions."""
+
+    lines: list[str] = []
+
+    # ------------------------------------------------------------------
+    # Authors
+    # ------------------------------------------------------------------
     authors = get_authors(metadata)
 
-    lines = [
-        f"@version {get_version(metadata)}",
-        f"@date {get_date(metadata)}",
-        "",
-        "@section authors Authors",
-    ]
+    lines.extend(
+        [
+            "@section authors Authors",
+        ]
+    )
 
-    written = 0
     for author in authors:
-        name = person_name(author)
-        if not name:
-            continue
-
         lines.extend(
-            person_block(name, person_affiliation(author), person_email(author))
+            person_block(
+                person_name(author),
+                person_affiliation(author),
+                person_email(author),
+            )
         )
-        written += 1
 
-    if not written:
-        lines.append("No authors specified.")
-
-    lines.extend(["", "@section project Project", f"Name: {get_project_name(metadata)}"])
+    # ------------------------------------------------------------------
+    # Project information
+    # ------------------------------------------------------------------
+    lines.extend(
+        [
+            "",
+            "@section project Project",
+            f"Name: {get_project_name(metadata)}",
+        ]
+    )
 
     description = get_project_description(metadata)
+
     if description:
         lines.append(f"Description: {description}")
 
-    contributors = resolve_file_contributors(filename, authors, contributions, identities)
+    version = get_version(metadata)
+
+    if version != "Not specified":
+        lines.append(f"@version {version}")
+
+    date = get_date(metadata)
+
+    if date != "Not specified":
+        lines.append(f"@date {date}")
+
+    # ------------------------------------------------------------------
+    # File contributors
+    # ------------------------------------------------------------------
+    contributors = resolve_file_contributors(
+        filename,
+        authors,
+        contributions,
+        identities,
+    )
 
     if contributors:
-        lines.extend(["", "@section contributors Contributors"])
+        lines.extend(
+            [
+                "",
+                "@section contributors Contributors",
+            ]
+        )
 
         for name, affiliation, email in contributors:
             lines.extend(person_block(name, affiliation, email))
 
-    holders = copyright_holders(metadata)
+    # ------------------------------------------------------------------
+    # License and SPDX metadata
+    # ------------------------------------------------------------------
     year = get_copyright_year(metadata)
-    copyright_line = f"Copyright (C) {year}"
-    if holders:
-        copyright_line += " " + " - ".join(holders)
+    holders = copyright_holders(metadata)
+    license_id = get_license_id(metadata)
 
-    lines.extend(["", "@section license License", copyright_line, ""])
-    lines.extend(LICENSE_TEXT)
     lines.extend(
         [
             "",
-            f"License: {get_license_id(metadata)}",
-            "https://www.gnu.org/licenses/gpl-3.0.html",
+            "@section license License",
         ]
     )
 
-    return lines
+    # SPDX metadata
+    if year != "Year not specified":
+        for holder in holders:
+            lines.append(f"SPDX-FileCopyrightText: {year} {holder}")
+    # REUSE-IgnoreStart
+    if license_id != "License not specified":
+        lines.append(f"SPDX-License-Identifier: {license_id}")
+    # REUSE-IgnoreEnd
+    # Human-readable copyright notice
+    if holders:
+        copyright_year = year if year != "Year not specified" else ""
+        copyright_names = ", ".join(holders)
+
+        lines.extend(
+            [
+                "",
+                f"Copyright (C) {copyright_year} {copyright_names}".strip(),
+            ]
+        )
+
+    # Full GPL license notice
+    lines.extend(
+        [
+            "",
+            *LICENSE_TEXT,
+        ]
+    )
+    # REUSE-IgnoreStart
+
+    if license_id != "License not specified":
+        lines.extend(
+            [
+                "",
+                f"License: {license_id}",
+                "https://www.gnu.org/licenses/gpl-3.0.html",
+            ]
+        )
+    # REUSE-IgnoreEnd
+    return [line.rstrip() for line in lines]
 
 
 def document_lines(
@@ -391,9 +492,19 @@ def document_lines(
 ) -> list[str]:
     """Return the complete header text: ``@file``, preserved text, generated part."""
     lines = [f"@file {Path(filename).name}"]
+
     lines.extend(preserved)
     lines.append("")
-    lines.extend(generated_lines(filename, metadata, contributions, identities))
+
+    lines.extend(
+        generated_lines(
+            filename,
+            metadata,
+            contributions,
+            identities,
+        )
+    )
+
     return [line.rstrip() for line in lines]
 
 
@@ -433,7 +544,10 @@ def comment_inner_lines(inner: str) -> list[str]:
     return [re.sub(r"^\s*\*? ?", "", raw).rstrip() for raw in inner.split("\n")]
 
 
-def brief_from_plain_comment(inner: str, filename: str) -> str | None:
+def brief_from_plain_comment(
+    inner: str,
+    filename: str,
+) -> str | None:
     """Interpret a plain ``/* ... */`` comment at the top of a C/C++ file.
 
     Returns ``""`` for a comment that only repeats the file name (it is
@@ -441,33 +555,46 @@ def brief_from_plain_comment(inner: str, filename: str) -> str | None:
     ``@brief``), and ``None`` for any other comment (it is left untouched).
     """
     text = " ".join(line for line in comment_inner_lines(inner) if line)
+
     stem = Path(filename).stem
 
     if re.fullmatch(r"[\w.\-]+", text) and Path(text).stem == stem:
         return ""
 
     match = re.fullmatch(r"([\w.\-]+)\s+-\s+(.+)", text)
+
     if match and Path(match.group(1)).stem == stem:
         return match.group(2).strip()
 
     return None
 
 
-def split_c_source(text: str, filename: str) -> tuple[list[str], str]:
+def split_c_source(
+    text: str,
+    filename: str,
+) -> tuple[list[str], str]:
     """Return ``(preserved header lines, rest of the file)`` for C/C++."""
     match = C_COMMENT_RE.match(text)
 
     if match:
         inner = comment_inner_lines(match.group(1))
+
         if any(FILE_TAG_RE.match(line) for line in inner):
             return clean_preserved(inner), text[match.end() :]
 
     plain = PLAIN_COMMENT_RE.match(text)
 
     if plain:
-        brief = brief_from_plain_comment(plain.group(1), filename)
+        brief = brief_from_plain_comment(
+            plain.group(1),
+            filename,
+        )
+
         if brief is not None:
-            return ([f"@brief {brief}"] if brief else []), text[plain.end() :]
+            return (
+                [f"@brief {brief}"] if brief else [],
+                text[plain.end() :],
+            )
 
     return [], text
 
@@ -482,27 +609,64 @@ def brief_and_details(lines: list[str]) -> list[str]:
     if not lines:
         return []
 
-    first_blank = next((i for i, line in enumerate(lines) if not line.strip()), len(lines))
-    result = [f"@brief {lines[0]}", *lines[1:first_blank], *lines[first_blank:]]
+    first_blank = next(
+        (i for i, line in enumerate(lines) if not line.strip()),
+        len(lines),
+    )
+
+    result = [
+        f"@brief {lines[0]}",
+        *lines[1:first_blank],
+        *lines[first_blank:],
+    ]
+
     return clean_preserved(result)
 
 
-def split_python_source(text: str) -> tuple[list[str], list[str], str]:
+def split_python_source(
+    text: str,
+) -> tuple[list[str], list[str], str]:
     """Return ``(prologue, preserved header lines, rest of the file)`` for Python.
 
-    The prologue is the shebang and the encoding line, which must stay first.
+    The prologue is the shebang and encoding declaration, which must stay first.
+
+    Existing SPDX comments immediately following the prologue are discarded:
+    they are regenerated from CodeMeta when the header is rendered.
     """
     lines = text.split("\n")
+
     prologue: list[str] = []
     index = 0
 
+    # Preserve the shebang (must be the first line).
     if lines and lines[0].startswith("#!"):
         prologue.append(lines[0])
         index = 1
 
+    # Preserve the encoding declaration (first or second line).
     if index < len(lines) and CODING_RE.match(lines[index]):
         prologue.append(lines[index])
         index += 1
+
+    # Skip blank lines immediately before an existing SPDX block.
+    spdx_start = index
+
+    while index < len(lines) and not lines[index].strip():
+        index += 1
+
+    # Discard the old SPDX block so it can be regenerated from CodeMeta.
+    block_start = index
+
+    while index < len(lines) and SPDX_COMMENT_RE.match(lines[index]):
+        index += 1
+
+    if index > block_start:
+        # Remove blank lines after the old SPDX block as well.
+        while index < len(lines) and not lines[index].strip():
+            index += 1
+    else:
+        # No SPDX block was found: leave the source untouched.
+        index = spdx_start
 
     rest = "\n".join(lines[index:]).lstrip("\n")
     match = DOCSTRING_RE.match(rest)
@@ -510,16 +674,23 @@ def split_python_source(text: str) -> tuple[list[str], list[str], str]:
     if match:
         doc_lines = [line.rstrip() for line in match.group("body").split("\n")]
 
-        if any(FILE_TAG_RE.match(line) or BRIEF_TAG_RE.match(line) for line in doc_lines):
+        if any(
+            FILE_TAG_RE.match(line) or BRIEF_TAG_RE.match(line) for line in doc_lines
+        ):
             preserved = clean_preserved(doc_lines)
         else:
             preserved = brief_and_details(doc_lines)
 
-        return prologue, preserved, rest[match.end() :]
+        return (
+            prologue,
+            preserved,
+            rest[match.end() :],
+        )
 
-    # No docstring: a leading "#" comment block followed by a blank line is
-    # the description of the script.
+    # No docstring: a leading "#" comment block followed by a blank line
+    # is interpreted as the script description.
     rest_lines = rest.split("\n")
+
     block: list[str] = []
     position = 0
 
@@ -527,14 +698,20 @@ def split_python_source(text: str) -> tuple[list[str], list[str], str]:
         position < len(rest_lines)
         and rest_lines[position].startswith("#")
         and not PRAGMA_COMMENT_RE.match(rest_lines[position])
+        and not SPDX_COMMENT_RE.match(rest_lines[position])
     ):
         block.append(re.sub(r"^#\s?", "", rest_lines[position]).rstrip())
+
         position += 1
 
     followed_by_blank = position >= len(rest_lines) or not rest_lines[position].strip()
 
     if block and followed_by_blank:
-        return prologue, brief_and_details(block), "\n".join(rest_lines[position:])
+        return (
+            prologue,
+            brief_and_details(block),
+            "\n".join(rest_lines[position:]),
+        )
 
     return prologue, [], rest
 
@@ -544,8 +721,12 @@ def split_python_source(text: str) -> tuple[list[str], list[str], str]:
 # --------------------------------------------------------------------------- #
 
 
-def render_c(doc: list[str], body: str) -> str:
+def render_c(
+    doc: list[str],
+    body: str,
+) -> str:
     safe = [line.replace("*/", "* /") for line in doc]
+
     lines = ["/**"]
     lines.extend(f" * {line}" if line else " *" for line in safe)
     lines.append(" */")
@@ -556,11 +737,45 @@ def render_c(doc: list[str], body: str) -> str:
     return text + ("\n" + body if body else "")
 
 
-def render_python(prologue: list[str], doc: list[str], rest: str) -> str:
+def python_spdx_lines(
+    metadata: dict[str, Any],
+) -> list[str]:
+    """Generate Python SPDX comments from CodeMeta metadata."""
+    lines: list[str] = []
+
+    year = get_copyright_year(metadata)
+    holders = copyright_holders(metadata)
+    license_id = get_license_id(metadata)
+
+    if year != "Year not specified":
+        for holder in holders:
+            lines.append(f"# SPDX-FileCopyrightText: {year} {holder}")
+    # REUSE-IgnoreStart
+    if license_id != "License not specified":
+        lines.append(f"# SPDX-License-Identifier: {license_id}")
+    # REUSE-IgnoreEnd
+    return lines
+
+
+def render_python(
+    prologue: list[str],
+    spdx: list[str],
+    doc: list[str],
+    rest: str,
+) -> str:
     safe = [line.replace('"""', "'''") for line in doc]
+
     opening = 'r"""' if any("\\" in line for line in safe) else '"""'
 
-    text = "\n".join([*prologue, opening, *safe, '"""']) + "\n"
+    lines = [*prologue]
+
+    if spdx:
+        lines.extend(spdx)
+        lines.append("")
+
+    lines.extend([opening, *safe, '"""'])
+
+    text = "\n".join(lines) + "\n"
     rest = rest.lstrip("\n")
 
     return text + ("\n" + rest if rest else "")
@@ -582,11 +797,38 @@ def expected_content(
 
     if Path(relative_path).suffix.lower() in PYTHON_EXTENSIONS:
         prologue, preserved, rest = split_python_source(text)
-        doc = document_lines(relative_path, preserved, metadata, contributions, identities)
-        result = render_python(prologue, doc, rest)
+
+        spdx = python_spdx_lines(metadata)
+
+        doc = document_lines(
+            relative_path,
+            preserved,
+            metadata,
+            contributions,
+            identities,
+        )
+
+        result = render_python(
+            prologue,
+            spdx,
+            doc,
+            rest,
+        )
+
     else:
-        preserved, body = split_c_source(text, relative_path)
-        doc = document_lines(relative_path, preserved, metadata, contributions, identities)
+        preserved, body = split_c_source(
+            text,
+            relative_path,
+        )
+
+        doc = document_lines(
+            relative_path,
+            preserved,
+            metadata,
+            contributions,
+            identities,
+        )
+
         result = render_c(doc, body)
 
     if crlf:
@@ -606,12 +848,21 @@ def find_source_files() -> list[Path]:
 
     try:
         output = subprocess.run(
-            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            [
+                "git",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
             cwd=ROOT,
             capture_output=True,
             check=True,
         ).stdout.decode("utf-8", errors="replace")
+
         candidates = [ROOT / name for name in output.split("\0") if name]
+
     except (OSError, subprocess.CalledProcessError):
         candidates = [path for path in ROOT.rglob("*")]
 
@@ -633,25 +884,46 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate Doxygen headers from CodeMeta."
     )
+
     parser.add_argument(
         "--check",
         action="store_true",
         help="Check whether headers need updating without modifying files.",
     )
+
     parser.add_argument(
         "--fix",
         action="store_true",
         help="Generate or update headers (default behaviour).",
     )
-    parser.add_argument("--codemeta", type=Path, default=CODEMETA_FILE)
-    parser.add_argument("--contributions", type=Path, default=CONTRIBUTIONS_FILE)
+
+    parser.add_argument(
+        "--codemeta",
+        type=Path,
+        default=CODEMETA_FILE,
+    )
+
+    parser.add_argument(
+        "--contributions",
+        type=Path,
+        default=CONTRIBUTIONS_FILE,
+    )
+
     args = parser.parse_args()
 
     try:
         metadata = load_codemeta(args.codemeta)
         contributions = load_contributions(args.contributions)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        print(f"Error loading metadata: {exc}", file=sys.stderr)
+
+    except (
+        OSError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as exc:
+        print(
+            f"Error loading metadata: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
     identities = load_identities(metadata)
@@ -663,12 +935,20 @@ def main() -> int:
 
         try:
             original = path.read_bytes().decode("utf-8")
+
         except UnicodeDecodeError:
-            print(f"WARNING: {relative_path} is not valid UTF-8; skipped.", file=sys.stderr)
+            print(
+                f"WARNING: {relative_path} is not valid UTF-8; skipped.",
+                file=sys.stderr,
+            )
             continue
 
         expected = expected_content(
-            relative_path, original, metadata, contributions, identities
+            relative_path,
+            original,
+            metadata,
+            contributions,
+            identities,
         )
 
         if expected == original:
@@ -682,8 +962,10 @@ def main() -> int:
     if args.check:
         if changed:
             print("Headers requiring updates:")
+
             for filename in changed:
                 print(f"  {filename}")
+
             return 1
 
         print(f"All {len(files)} file headers are up to date.")

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # RFID-M0
 
 Firmware for the **RFID-M0** autonomous monitoring device developed by the MIBE technical platform at IPHC.
