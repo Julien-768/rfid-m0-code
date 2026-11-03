@@ -13,26 +13,26 @@ reuse-lint:
   image: fsfe/reuse:latest
   script:
   - lint
-  rules:
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  # rules:
+  # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# ── CFF : image Docker officielle ────────────────────────────────────
+  # ── CFF : image Docker officielle ────────────────────────────────────
 cff-validate:
   stage: metadata-check
   image: citationcff/cffconvert:latest
   script:
   - --validate -i CITATION.cff
-  rules:
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  # rules:
+  # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# ── CodeMeta : install + validation en une seule ligne ───────────────
+  # ── CodeMeta : install + validation en une seule ligne ───────────────
 codemeta-validate:
   stage: metadata-check
   image: $PYTHON_IMAGE
   script:
   - pip install --quiet check-jsonschema && curl -fsSL -o /tmp/codemeta.jsonld https://raw.githubusercontent.com/codemeta/codemeta/main/codemeta.jsonld && check-jsonschema --schemafile /tmp/codemeta.jsonld codemeta.json
-  rules:
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  # rules:
+  # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
