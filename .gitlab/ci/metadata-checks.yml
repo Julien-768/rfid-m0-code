@@ -7,36 +7,40 @@ stages:
 variables:
   PYTHON_IMAGE: "python:3.13-slim"
 
-# ── REUSE : image Docker officielle (rien à installer) ──────────────
+# ============================================================
+# REUSE — Vérification des licences et identifiants SPDX
+# ============================================================
 reuse-lint:
   stage: metadata-check
-  image: fsfe/reuse:latest
-  entrypoint: [ "" ]
+  image:
+    name: fsfe/reuse:latest
+    entrypoint: [ "" ]
   script:
   - reuse lint
-  # rules:
-  # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-  # ── CFF : image Docker officielle ────────────────────────────────────
+# ============================================================
+# CITATION.CFF — Validation des métadonnées de citation
+# ============================================================
 cff-validate:
   stage: metadata-check
-  image: citationcff/cffconvert:latest
-  entrypoint: [ "" ]
+  image:
+    name: citationcff/cffconvert:latest
+    entrypoint: [ "" ]
   script:
   - cffconvert --validate -i CITATION.cff
-  # rules:
-  # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-  # ── CodeMeta : install + validation en une seule ligne ───────────────
+# ============================================================
+# CODEMETA — Validation JSON et expansion JSON-LD
+# ============================================================
 codemeta-validate:
   stage: metadata-check
   image: $PYTHON_IMAGE
   script:
-  - pip install --quiet check-jsonschema
-  - python -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/codemeta/codemeta/main/codemeta.jsonld', '/tmp/codemeta.jsonld')"
-  - check-jsonschema --schemafile /tmp/codemeta.jsonld codemeta.json
-  # rules:
-  # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  # - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  # Install JSON-LD processor
+  - pip install --no-cache-dir pyld
+
+  # Check JSON syntax
+  - python -m json.tool codemeta.json > /dev/null
+
+  # Check JSON-LD expansion
+  - python -c "import json; from pyld import jsonld; doc=json.load(open('codemeta.json', encoding='utf-8')); jsonld.expand(doc); print('CodeMeta JSON-LD: OK')"
