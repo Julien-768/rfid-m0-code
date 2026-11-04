@@ -29,9 +29,6 @@ cff-validate:
   script:
   - cffconvert --validate -i CITATION.cff
 
-# ============================================================
-# CODEMETA — Validation JSON et expansion JSON-LD
-# ============================================================
 
 # ============================================================
 # CODEMETA — Validation JSON et expansion JSON-LD
@@ -40,17 +37,32 @@ codemeta-validate:
   stage: metadata-check
   image: $PYTHON_IMAGE
   script:
-  - pip install --no-cache-dir pyld
-  - python -m json.tool codemeta.json > /dev/null
-  - |
-    python - <<'PY'
-    import json
-    from pyld import jsonld
+    # Install PyLD with HTTP support
+    - pip install --no-cache-dir "PyLD[requests]"
 
-    with open("codemeta.json", encoding="utf-8") as f:
-        document = json.load(f)
+    # Validate JSON syntax
+    - python -m json.tool codemeta.json > /dev/null
 
-    jsonld.expand(document)
+    # Validate JSON-LD expansion
+    - |
+      python - <<'PY'
+      import json
+      from pyld import jsonld
 
-    print("CodeMeta JSON-LD: OK")
-    PY
+      # Configure remote document loader
+      jsonld.set_document_loader(
+          jsonld.requests_document_loader(timeout=15)
+      )
+
+      # Load CodeMeta document
+      with open("codemeta.json", encoding="utf-8") as f:
+          document = json.load(f)
+
+      # Expand JSON-LD
+      expanded = jsonld.expand(document)
+
+      if not expanded:
+          raise ValueError("CodeMeta document produced an empty JSON-LD expansion")
+
+      print("CodeMeta JSON-LD: OK")
+      PY
