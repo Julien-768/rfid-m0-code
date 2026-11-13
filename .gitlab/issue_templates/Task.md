@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 <!-- 📋 Describe the task to be done. -->
 
 ## 🎯 Goal

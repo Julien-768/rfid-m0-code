@@ -1,5 +1,9 @@
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 [flake8]
 max-line-length = 88
 per-file-ignores =
-    scripts/gen_compdb.py:F821
-    scripts/convert_to_uf2.py:F821, E203
+    scripts/gen_compdb.py:F821, E501
+    scripts/convert_to_uf2.py:F821, E203, E501
+    *.py: E501, E203

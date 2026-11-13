@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Metadata checklist — RFID-M0
 
 This file tracks metadata fields that need to be completed or verified before the next release.

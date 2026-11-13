@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+stages:
+- metadata-check
+
+variables:
+  PYTHON_IMAGE: "python:3.13-slim"
+
+# ============================================================
+# REUSE — Vérification des licences et identifiants SPDX
+# ============================================================
+reuse-lint:
+  stage: metadata-check
+  image:
+    name: fsfe/reuse:latest
+    entrypoint: [ "" ]
+  script:
+  - reuse lint
+
+# ============================================================
+# CITATION.CFF — Validation des métadonnées de citation
+# ============================================================
+cff-validate:
+  stage: metadata-check
+  image:
+    name: citationcff/cffconvert:latest
+    entrypoint: [ "" ]
+  script:
+  - cffconvert --validate -i CITATION.cff
+
+
+# ============================================================
+# CODEMETA — Validation JSON et expansion JSON-LD
+# ============================================================
+codemeta-validate:
+  stage: metadata-check
+  image: $PYTHON_IMAGE
+  script:
+    # Install PyLD with HTTP support
+    - pip install --no-cache-dir "PyLD[requests]"
+
+    # Validate JSON syntax
+    - python -m json.tool codemeta.json > /dev/null
+
+    # Validate JSON-LD expansion
+    - |
+      python - <<'PY'
+      import json
+      from pyld import jsonld
+
+      # Configure remote document loader
+      jsonld.set_document_loader(
+          jsonld.requests_document_loader(timeout=15)
+      )
+
+      # Load CodeMeta document
+      with open("codemeta.json", encoding="utf-8") as f:
+          document = json.load(f)
+
+      # Expand JSON-LD
+      expanded = jsonld.expand(document)
+
+      if not expanded:
+          raise ValueError("CodeMeta document produced an empty JSON-LD expansion")
+
+      print("CodeMeta JSON-LD: OK")
+      PY

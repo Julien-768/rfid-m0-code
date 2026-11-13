@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # .gitlab-ci.yml
 #
 # GitLab CI configuration for the "rfid.code" project.
@@ -86,6 +89,8 @@ include:
   file: '/templates/release/template.yml'
   ref: 'develop'
 
+- local: '.gitlab/ci/metadata-checks.yml'
+
 # --------------------------------------------------
 # CI/CD variables
 # --------------------------------------------------
@@ -120,6 +125,7 @@ stages:
 - prepare
 - format
 - build
+- metadata-check
 - pages
 - deploy
 - release

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2022 Julien Courtecuisse
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # Lychee link checker configuration
 
@@ -15,3 +17,5 @@ host_request_interval = "1s"
 
 # Treat rate limiting as inconclusive, not as a broken link
 accept = ["200..=299", "429"]
+
+exclude_path = ["LICENSES"]
